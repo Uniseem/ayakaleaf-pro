@@ -1025,14 +1025,39 @@ module.exports = {
     //
     // Restart webpack after making changes.
     //
-    createFileModes: [],
+    createFileModes: [
+      Path.resolve(
+        __dirname,
+        '../modules/zotero/frontend/js/components/zotero-create-file'
+      ),
+    ],
     devToolbar: [],
     gitBridge: [],
     publishModal: [],
-    tprFileViewInfo: [],
-    tprFileViewRefreshError: [],
-    tprFileViewRefreshButton: [],
-    tprFileViewNotOriginalImporter: [],
+    tprFileViewInfo: [
+      Path.resolve(
+        __dirname,
+        '../modules/zotero/frontend/js/components/tpr-file-view-info'
+      ),
+    ],
+    tprFileViewRefreshError: [
+      Path.resolve(
+        __dirname,
+        '../modules/zotero/frontend/js/components/tpr-file-view-refresh-error'
+      ),
+    ],
+    tprFileViewRefreshButton: [
+      Path.resolve(
+        __dirname,
+        '../modules/zotero/frontend/js/components/tpr-file-view-refresh-button'
+      ),
+    ],
+    tprFileViewNotOriginalImporter: [
+      Path.resolve(
+        __dirname,
+        '../modules/zotero/frontend/js/components/tpr-file-view-not-original-importer'
+      ),
+    ],
     contactUsModal: [],
     sourceEditorExtensions: [],
     sourceEditorVisualExtensions: [],
@@ -1069,7 +1094,12 @@ module.exports = {
         '../modules/github-sync/frontend/js/components/github-sync-widget.tsx'
       ),
     ],
-    referenceLinkingWidgets: [],
+    referenceLinkingWidgets: [
+      Path.resolve(
+        __dirname,
+        '../modules/zotero/frontend/js/components/zotero-widget'
+      ),
+    ],
     importProjectFromGithubModalWrapper: [
       Path.resolve(
         __dirname,
@@ -1156,6 +1186,10 @@ module.exports = {
         __dirname,
         '../modules/github-sync/frontend/js/components/github-integration-card.tsx'
       ),
+      Path.resolve(
+        __dirname,
+        '../modules/zotero/frontend/js/components/zotero-integration-card.tsx'
+      ),
     ],
     referenceSearchSetting: [],
     settingsModalEditorTabSections: [],
@@ -1185,7 +1219,8 @@ module.exports = {
     'login-register',
     'oauth2-server',
     'git-bridge',
-    'github-sync'
+    'github-sync',
+    'zotero'
   ],
   viewIncludes: {},
 
@@ -1247,4 +1282,12 @@ module.exports.githubSync = {
   clientID: process.env.GITHUB_SYNC_CLIENT_ID,
   clientSecret: process.env.GITHUB_SYNC_CLIENT_SECRET,
   callbackURL: process.env.GITHUB_SYNC_CALLBACK_URL,
+}
+
+module.exports.zotero = {
+  enabled: module.exports.enabledLinkedFileTypes.includes('zotero'),
+  clientID: process.env.ZOTERO_CLIENT_ID,
+  clientSecret: process.env.ZOTERO_CLIENT_SECRET,
+  callbackURL:
+    (process.env.OVERLEAF_SITE_URL || '') + '/user/zotero/oauth/callback',
 }
