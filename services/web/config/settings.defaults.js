@@ -1276,18 +1276,3 @@ module.exports.oauthProviders = {
     },
   }),
 }
-
-module.exports.githubSync = {
-  enabled: process.env.GITHUB_SYNC_ENABLED === 'true',
-  clientID: process.env.GITHUB_SYNC_CLIENT_ID,
-  clientSecret: process.env.GITHUB_SYNC_CLIENT_SECRET,
-  callbackURL: process.env.GITHUB_SYNC_CALLBACK_URL,
-}
-
-module.exports.zotero = {
-  enabled: module.exports.enabledLinkedFileTypes.includes('zotero'),
-  clientID: process.env.ZOTERO_CLIENT_ID,
-  clientSecret: process.env.ZOTERO_CLIENT_SECRET,
-  callbackURL:
-    (process.env.OVERLEAF_SITE_URL || '') + '/user/zotero/oauth/callback',
-}
