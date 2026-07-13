@@ -27,6 +27,7 @@ import BibtexEntryModal from './BibtexEntryModal'
 import BibtexImportModal from './BibtexImportModal'
 import {
   Dropdown,
+  DropdownToggle,
   DropdownToggleCustom,
   DropdownMenu,
   DropdownItem,
@@ -307,9 +308,13 @@ export function BibtexEditor({
             />
             {!readOnly && (
               <Dropdown className="bibtex-add-button">
-                <DropdownToggleCustom id="bibtex-add-toggle" variant="secondary">
+                <DropdownToggle
+                  as={DropdownToggleCustom}
+                  id="bibtex-add-toggle"
+                  variant="secondary"
+                >
                   <MaterialIcon type="add" /> Add
-                </DropdownToggleCustom>
+                </DropdownToggle>
                 <DropdownMenu>
                   <li role="none">
                     <DropdownItem
