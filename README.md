@@ -66,6 +66,11 @@ Files under `services/web/locales/` are overleaf official translation files. Ple
 
 Please see the [CONTRIBUTING](CONTRIBUTING.md) file for information on contributing to the development of Overleaf.
 
+## Blog
+We write about Overleaf internals, compilation performance, and self-hosted LaTeX infrastructure. Read more on our blog:
+- [2026.08 Overleaf Server Pro Price and Open-Source Alternative](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-server-pro-price-and-open-source-alternative)
+- [2026.08 Overleaf Benchmark: A Deep Research of Concurrent LaTeX Compilation in Overleaf](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-benchmark)
+
 ## Authors
 
 - [The Overleaf Team](https://www.overleaf.com/about)
