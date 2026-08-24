@@ -1,15 +1,16 @@
 <h1 align="center">
   <br>
-  <a href="https://overleaf-pro.ayaka.space"><img src="doc/logo.png" alt="Ayakaleaf Pro" width="300"></a>
+  <a href="https://ayakaleaf-pro.ayaka.space"><img src="doc/logo.png" alt="Ayakaleaf Pro" width="300"></a>
 </h1>
 
 <h4 align="center">Overleaf Community Edition enhanced with all Pro features <br/>(open source, free to use, self-hostable).</h4>
 
 <p align="center">
-  <a href="https://overleaf-pro.ayaka.space">Documents</a> •
+  <a href="https://ayakaleaf-pro.ayaka.space">Documents</a> •
+  <a href="https://ayakaleaf-pro.ayaka.space/blogs">Blogs</a> •
   <a href="https://github.com/orgs/ayaka-notes/packages/container/package/overleaf-pro">Docker Image</a> •
   <a href="https://github.com/ayaka-notes/texlive-full">TeXLive</a> •
-  <a href="https://overleaf-pro.ayaka.space/dev">Developer</a> •
+  <a href="https://ayakaleaf-pro.ayaka.space/dev">Developer</a> •
   <a href="#authors">Authors</a> •
   <a href="#license">License</a>
 </p>
@@ -20,7 +21,7 @@
 </p>
 
 ## Ayakaleaf Pro Edition
-Ayakaleaf Pro is an enhanced version of Overleaf with almost all features and capabilities. For details, please check [Ayakaleaf Pro](https://overleaf-pro.ayaka.space) page. Features in Ayakaleaf Pro include: 
+Ayakaleaf Pro is an enhanced version of Overleaf with almost all features and capabilities. For details, please check [Ayakaleaf Pro](https://ayakaleaf-pro.ayaka.space) page. Features in Ayakaleaf Pro include: 
 
 - Pandoc Import/Export (Features in SaaS Platform)
 - Python Script Runner (Features in SaaS Platform)
@@ -40,7 +41,7 @@ Ayakaleaf Pro is an enhanced version of Overleaf with almost all features and ca
 - Symbol Palette (Features in Server Pro/SaaS Platform)
 - ARM Support(x86_64/arm64 on Docker)
 
-Last but not least, Ayakaleaf Pro is open-source, free to use and modify. You can self-host it and contribute to the development of Ayakaleaf Pro. For more details, please check [Developer Documentation](https://overleaf-pro.ayaka.space/dev) page.
+Last but not least, Ayakaleaf Pro is open-source, free to use and modify. You can self-host it and contribute to the development of Ayakaleaf Pro. For more details, please check [Developer Documentation](https://ayakaleaf-pro.ayaka.space/dev) page.
 
 > [!NOTE]
 > Note: Ayakaleaf Pro is not affiliated with Overleaf, Inc. or its parent company, Digital Science. It is also *not Server Pro* Edition, which is a commercial product offered by Overleaf, Inc.
@@ -49,7 +50,7 @@ Last but not least, Ayakaleaf Pro is open-source, free to use and modify. You ca
 
 ## Installation
 
-We have detailed installation instructions on the [Documents](https://overleaf-pro.ayaka.space/) page. We highly recommend installing Ayakaleaf Pro using the [ayaka-notes/Toolkit](https://github.com/ayaka-notes/toolkit/).
+We have detailed installation instructions on the [Documents](https://ayakaleaf-pro.ayaka.space/) page. We highly recommend installing Ayakaleaf Pro using the [ayaka-notes/Toolkit](https://github.com/ayaka-notes/toolkit/).
 
 ## Upgrading
 
@@ -68,14 +69,14 @@ Please see the [CONTRIBUTING](CONTRIBUTING.md) file for information on contribut
 ## Authors
 
 - [The Overleaf Team](https://www.overleaf.com/about)
-- [Features and Copyright](https://overleaf-pro.ayaka.space/on-premises/readme/features-and-copyright)
+- [Features and Copyright](https://ayakaleaf-pro.ayaka.space/on-premises/readme/features-and-copyright)
 
 ## License
 
 The code in this repository is released under the GNU AFFERO GENERAL PUBLIC LICENSE, version 3. A copy can be found in the [`LICENSE`](LICENSE) file.
 
 - Copyright (c) Overleaf, 2014-2025.
-- Copyright (c) [Pro Authors](https://overleaf-pro.ayaka.space/on-premises/readme/features-and-copyright), 2026-now.
+- Copyright (c) [Pro Authors](https://ayakaleaf-pro.ayaka.space/on-premises/readme/features-and-copyright), 2026-now.
 
 ## Sponsor
 - [OpenAI Codex OSS](https://openai.com/en/form/codex-for-oss/)
