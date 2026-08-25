@@ -7,6 +7,7 @@
 
 <p align="center">
   <a href="https://ayakaleaf-pro.ayaka.space">Documents</a> •
+  <a href="https://github.com/ayaka-notes/ayakaleaf-pro-playground">Playground</a> •
   <a href="https://ayakaleaf-pro.ayaka.space/blog">Blog</a> •
   <a href="https://github.com/orgs/ayaka-notes/packages/container/package/overleaf-pro">Docker Image</a> •
   <a href="https://github.com/ayaka-notes/texlive-full">TeXLive</a> •
