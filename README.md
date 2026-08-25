@@ -51,7 +51,11 @@ Last but not least, Ayakaleaf Pro is open-source, free to use and modify. You ca
 
 ## Installation
 
-We have detailed installation instructions on the [Documents](https://ayakaleaf-pro.ayaka.space/) page. We highly recommend installing Ayakaleaf Pro using the [ayaka-notes/Toolkit](https://github.com/ayaka-notes/toolkit/).
+If you just want to try Ayakaleaf Pro without setting up a server, you can use our [Ayakaleaf Pro Playground](https://github.com/ayaka-notes/ayakaleaf-pro-playground). It provides a preconfigured GitHub Codespaces environment that lets you launch and explore Ayakaleaf Pro directly in your browser.
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/ayaka-notes/ayakaleaf-pro-playground)
+
+If you want to deploy Ayakaleaf Pro for production use,  we have detailed installation instructions on the [Documents](https://ayakaleaf-pro.ayaka.space/) page. We highly recommend installing Ayakaleaf Pro using the [ayaka-notes/Toolkit](https://github.com/ayaka-notes/toolkit/).
 
 ## Upgrading
 
