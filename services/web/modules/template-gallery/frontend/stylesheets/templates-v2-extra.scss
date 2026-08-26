@@ -56,10 +56,14 @@
       text-decoration: underline;
     }
 
-    .material-symbols {
-      vertical-align: top;
-      font-size: var(--font-size-05);
-    }
+  }
+
+  // Sort arrows: bottom-aligned and nudged down a little to sit on the label.
+  .gallery-header-sort-btn .material-symbols {
+    vertical-align: bottom;
+    position: relative;
+    top: 1px;
+    font-size: var(--font-size-05);
   }
 }
 // Core gives .tagged-header-container a spacing-16 bottom margin, sized for a
