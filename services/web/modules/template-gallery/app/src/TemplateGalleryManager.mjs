@@ -178,9 +178,8 @@ async function getTemplate(key, val) {
 }
 
 const MAX_PAGE_SIZE = 50
-// Must match the collation of the name indexes described in UPGRADE-6.3.md
-// (created by the operator, see the upgrade notes), otherwise mongo falls
-// back to an in-memory sort.
+// Name sorting is case-insensitive. Any index on `name` must be created with
+// this same collation, otherwise mongo cannot use it and sorts in memory.
 const NAME_COLLATION = { locale: 'en', strength: 2 }
 
 async function getCategoryTemplates(reqQuery) {
