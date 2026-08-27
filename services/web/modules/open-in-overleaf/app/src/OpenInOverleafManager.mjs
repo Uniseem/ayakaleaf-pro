@@ -179,29 +179,42 @@ async function fetchUrlToBuffer(rawUrl, maxBytes = settings.maxUploadSize) {
   return await readStreamToBuffer(stream, maxBytes, url)
 }
 
+// createProjectFromZipArchive names the project from the archive's \title
+// (projectName is only a fallback); createProjectFromZipArchiveWithName forces
+// the given name and returns a richer object. Pick per preserveName — set when
+// the caller gave an explicit name — and always return the project.
+async function importZipArchive(ownerId, projectName, zipPath, preserveName) {
+  if (preserveName) {
+    const { project } =
+      await ProjectUploadManager.promises.createProjectFromZipArchiveWithName(
+        ownerId,
+        projectName,
+        zipPath
+      )
+    return project
+  }
+  return await ProjectUploadManager.promises.createProjectFromZipArchive(
+    ownerId,
+    projectName,
+    zipPath
+  )
+}
+
 // Zip a set of in-memory files and import them, keeping their names (so
 // main_document can refer to them).
-async function importFilesAsZip(files, ownerId, projectName) {
+async function importFilesAsZip(files, ownerId, projectName, preserveName) {
   const zipPath = await buildZipFromFiles(files)
   try {
-    return await ProjectUploadManager.promises.createProjectFromZipArchive(
-      ownerId,
-      projectName,
-      zipPath
-    )
+    return await importZipArchive(ownerId, projectName, zipPath, preserveName)
   } finally {
     fs.promises.unlink(zipPath).catch(() => {})
   }
 }
 
-async function importZipBuffer(buffer, ownerId, projectName) {
+async function importZipBuffer(buffer, ownerId, projectName, preserveName) {
   const path = await writeBufferToDump(buffer, '.zip')
   try {
-    return await ProjectUploadManager.promises.createProjectFromZipArchive(
-      ownerId,
-      projectName,
-      path
-    )
+    return await importZipArchive(ownerId, projectName, path, preserveName)
   } finally {
     fs.promises.unlink(path).catch(() => {})
   }
@@ -238,6 +251,9 @@ const OpenInOverleafManager = {
   //   engine?, mainDocument?, projectName?
   // }
   async createProject(params, ownerId) {
+    // An archive's \title wins over the fallback name; only override it when the
+    // caller explicitly supplied a project name.
+    const preserveName = Boolean(params.projectName)
     const projectName = ProjectDetailsHandler.fixProjectName(
       params.projectName || DEFAULT_PROJECT_NAME
     )
@@ -247,13 +263,15 @@ const OpenInOverleafManager = {
       project = await OpenInOverleafManager._createFromZipUrl(
         params.zipUri,
         ownerId,
-        projectName
+        projectName,
+        preserveName
       )
     } else if (params.snipUris && params.snipUris.length) {
       project = await OpenInOverleafManager._createFromUrls(
         params.snipUris,
         ownerId,
-        projectName
+        projectName,
+        preserveName
       )
     } else if (params.snippet != null) {
       project = await ProjectCreationHandler.promises.createProjectFromSnippet(
@@ -269,15 +287,15 @@ const OpenInOverleafManager = {
     return project
   },
 
-  async _createFromZipUrl(zipUri, ownerId, projectName) {
+  async _createFromZipUrl(zipUri, ownerId, projectName, preserveName) {
     const buffer = await fetchUrlToBuffer(zipUri)
     if (!looksLikeZip(buffer)) {
       throw new OpenInOverleafError('zip_uri did not resolve to a zip archive')
     }
-    return await importZipBuffer(buffer, ownerId, projectName)
+    return await importZipBuffer(buffer, ownerId, projectName, preserveName)
   },
 
-  async _createFromUrls(snipUris, ownerId, projectName) {
+  async _createFromUrls(snipUris, ownerId, projectName, preserveName) {
     if (snipUris.length > MAX_SNIP_URIS) {
       throw new OpenInOverleafError(
         `too many snip_uri entries (maximum ${MAX_SNIP_URIS})`
@@ -301,7 +319,7 @@ const OpenInOverleafManager = {
     if (files.length === 1) {
       const [file] = files
       if (file.isZip) {
-        return await importZipBuffer(file.buffer, ownerId, projectName)
+        return await importZipBuffer(file.buffer, ownerId, projectName, preserveName)
       }
       if (!file.explicit) {
         // A single .tex file → straight snippet project as main.tex.
@@ -312,7 +330,7 @@ const OpenInOverleafManager = {
         )
       }
       // snip_name given: import under that name so main_document can select it.
-      return await importFilesAsZip(files, ownerId, projectName)
+      return await importFilesAsZip(files, ownerId, projectName, preserveName)
     }
 
     if (files.some(file => file.isZip)) {
@@ -320,7 +338,7 @@ const OpenInOverleafManager = {
         'a zip archive must be the only snip_uri; use zip_uri for projects'
       )
     }
-    return await importFilesAsZip(files, ownerId, projectName)
+    return await importFilesAsZip(files, ownerId, projectName, preserveName)
   },
 
   async _applyOptions(project, params) {

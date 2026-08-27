@@ -42,11 +42,14 @@ export default {
     )
     webRouter.post(
       '/docs',
+      // Rate-limit first (by user id when logged in, otherwise by IP): a
+      // signed-out submitter must not be able to park unlimited bodies in
+      // redis via stashForLogin, which runs — and redirects — before requireLogin.
+      RateLimiterMiddleware.rateLimit(openInOverleafRateLimiter),
       // Must run before requireLogin: it parks the POST body for signed-out
       // (or cross-site) submitters, which a login redirect would drop.
       OpenInOverleafController.stashForLogin,
       AuthenticationController.requireLogin(),
-      RateLimiterMiddleware.rateLimit(openInOverleafRateLimiter),
       OpenInOverleafController.openInOverleaf
     )
 
