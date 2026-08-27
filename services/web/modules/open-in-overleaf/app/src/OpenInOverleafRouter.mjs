@@ -1,5 +1,7 @@
 import logger from '@overleaf/logger'
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
+import RateLimiterMiddleware from '../../../../app/src/Features/Security/RateLimiterMiddleware.mjs'
+import { RateLimiter } from '../../../../app/src/infrastructure/RateLimiter.mjs'
 import OpenInOverleafController from './OpenInOverleafController.mjs'
 
 // "Open in Overleaf" / Prefilled-Project API (documented at /devs). Reproduces
@@ -14,6 +16,14 @@ import OpenInOverleafController from './OpenInOverleafController.mjs'
 //                  site's origin in Settings.allowedOrigins; same-origin (the
 //                  /devs examples) always works.
 //   GET  /devs   — public "Overleaf API" documentation page.
+
+// Same budget as /project/new and /project/new/upload: every /docs hit is a
+// project creation, usually with a remote download and an archive extraction.
+const openInOverleafRateLimiter = new RateLimiter('open-in-overleaf', {
+  points: 20,
+  duration: 60,
+})
+
 export default {
   apply(webRouter) {
     logger.debug({}, 'Init open-in-overleaf router')
@@ -27,11 +37,16 @@ export default {
     webRouter.get(
       '/docs',
       AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(openInOverleafRateLimiter),
       OpenInOverleafController.openInOverleaf
     )
     webRouter.post(
       '/docs',
+      // Must run before requireLogin: it parks the POST body for signed-out
+      // (or cross-site) submitters, which a login redirect would drop.
+      OpenInOverleafController.stashForLogin,
       AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(openInOverleafRateLimiter),
       OpenInOverleafController.openInOverleaf
     )
 

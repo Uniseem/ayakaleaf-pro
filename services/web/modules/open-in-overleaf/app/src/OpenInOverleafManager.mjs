@@ -31,6 +31,8 @@ const DEFAULT_PROJECT_NAME = 'Open in Overleaf project'
 // Generous: the proxy already applies its own 30s timeout per hop, and a
 // redirect chain plus a slow origin must not be cut off by us first.
 const FETCH_TIMEOUT_MS = 60 * 1000
+// Upper bound on snip_uri[] entries; each is a remote download.
+const MAX_SNIP_URIS = 50
 
 class OpenInOverleafError extends Error {}
 
@@ -64,30 +66,34 @@ function looksLikeZip(buffer) {
   return buffer.subarray(0, 4).equals(ZIP_MAGIC)
 }
 
-function tooLarge(what, maxBytes) {
+function tooLarge(what) {
+  const mb = Math.round(settings.maxUploadSize / 1024 / 1024)
   return new OpenInOverleafError(
-    `${what} is larger than the ${Math.round(maxBytes / 1024 / 1024)} MB limit`
+    `${what} exceeds the ${mb} MB upload limit (all files combined)`
   )
 }
 
-// File name for an uploaded snippet: snip_name[] if given, otherwise the last
-// path segment of the URL, otherwise a numbered default. Directory parts are
-// dropped so a name can never escape the project root inside the zip.
+function cleanFileName(candidate) {
+  if (typeof candidate !== 'string') return undefined
+  // Directory parts are dropped so a name can never escape the project root.
+  const base = Path.posix.basename(candidate.replace(/\\/g, '/')).trim()
+  return base && base !== '.' && base !== '..' ? base : undefined
+}
+
+// File name for an uploaded snippet: snip_name[] if given (explicit), otherwise
+// the last path segment of the URL, otherwise a numbered default.
 function safeFileName(name, url, index) {
-  const candidates = [name]
+  const explicit = cleanFileName(name)
+  if (explicit) return { name: explicit, explicit: true }
   if (/^https?:\/\//i.test(url)) {
     try {
-      candidates.push(decodeURIComponent(new URL(url).pathname))
+      const fromUrl = cleanFileName(decodeURIComponent(new URL(url).pathname))
+      if (fromUrl) return { name: fromUrl, explicit: false }
     } catch (e) {
       // unparsable url, fall through to the default name
     }
   }
-  for (const candidate of candidates) {
-    if (typeof candidate !== 'string') continue
-    const base = Path.posix.basename(candidate.replace(/\\/g, '/')).trim()
-    if (base && base !== '.' && base !== '..') return base
-  }
-  return `snippet-${index + 1}.tex`
+  return { name: `snippet-${index + 1}.tex`, explicit: false }
 }
 
 // Decode a `data:[<mime>][;base64],<payload>` URL into a Buffer.
@@ -117,7 +123,7 @@ function decodeDataUrl(url, maxBytes) {
     buffer = Buffer.from(payload, 'utf8')
   }
   if (buffer.length > maxBytes) {
-    throw tooLarge('data url', maxBytes)
+    throw tooLarge('data url')
   }
   return buffer
 }
@@ -129,7 +135,7 @@ async function readStreamToBuffer(stream, maxBytes, what) {
     size += chunk.length
     if (size > maxBytes) {
       stream.destroy()
-      throw tooLarge(what, maxBytes)
+      throw tooLarge(what)
     }
     chunks.push(chunk)
   }
@@ -138,8 +144,8 @@ async function readStreamToBuffer(stream, maxBytes, what) {
 
 // Fetch a snippet/zip URL into a Buffer. http(s) go through the SSRF proxy;
 // data: URLs are decoded locally.
-async function fetchUrlToBuffer(rawUrl) {
-  const maxBytes = settings.maxUploadSize
+// maxBytes lets callers importing several files share one upload budget.
+async function fetchUrlToBuffer(rawUrl, maxBytes = settings.maxUploadSize) {
   if (/^data:/i.test(rawUrl)) {
     return decodeDataUrl(rawUrl, maxBytes)
   }
@@ -171,6 +177,21 @@ async function fetchUrlToBuffer(rawUrl) {
     throw err
   }
   return await readStreamToBuffer(stream, maxBytes, url)
+}
+
+// Zip a set of in-memory files and import them, keeping their names (so
+// main_document can refer to them).
+async function importFilesAsZip(files, ownerId, projectName) {
+  const zipPath = await buildZipFromFiles(files)
+  try {
+    return await ProjectUploadManager.promises.createProjectFromZipArchive(
+      ownerId,
+      projectName,
+      zipPath
+    )
+  } finally {
+    fs.promises.unlink(zipPath).catch(() => {})
+  }
 }
 
 async function importZipBuffer(buffer, ownerId, projectName) {
@@ -257,12 +278,22 @@ const OpenInOverleafManager = {
   },
 
   async _createFromUrls(snipUris, ownerId, projectName) {
+    if (snipUris.length > MAX_SNIP_URIS) {
+      throw new OpenInOverleafError(
+        `too many snip_uri entries (maximum ${MAX_SNIP_URIS})`
+      )
+    }
+
+    // All files of one submission share the single upload budget, so a request
+    // cannot multiply the limit by listing many URLs.
+    let remaining = settings.maxUploadSize
     const files = []
     for (const [index, { url, name }] of snipUris.entries()) {
-      const buffer = await fetchUrlToBuffer(url)
+      const buffer = await fetchUrlToBuffer(url, remaining)
+      remaining -= buffer.length
       files.push({
         buffer,
-        name: safeFileName(name, url, index),
+        ...safeFileName(name, url, index),
         isZip: looksLikeZip(buffer),
       })
     }
@@ -272,12 +303,16 @@ const OpenInOverleafManager = {
       if (file.isZip) {
         return await importZipBuffer(file.buffer, ownerId, projectName)
       }
-      // A single .tex file → straight snippet project (keeps the nice main.tex).
-      return await ProjectCreationHandler.promises.createProjectFromSnippet(
-        ownerId,
-        projectName,
-        prepareSnippet(file.buffer.toString('utf8')).split('\n')
-      )
+      if (!file.explicit) {
+        // A single .tex file → straight snippet project as main.tex.
+        return await ProjectCreationHandler.promises.createProjectFromSnippet(
+          ownerId,
+          projectName,
+          prepareSnippet(file.buffer.toString('utf8')).split('\n')
+        )
+      }
+      // snip_name given: import under that name so main_document can select it.
+      return await importFilesAsZip(files, ownerId, projectName)
     }
 
     if (files.some(file => file.isZip)) {
@@ -285,18 +320,7 @@ const OpenInOverleafManager = {
         'a zip archive must be the only snip_uri; use zip_uri for projects'
       )
     }
-
-    // Multiple files → zip them up and import as one project.
-    const zipPath = await buildZipFromFiles(files)
-    try {
-      return await ProjectUploadManager.promises.createProjectFromZipArchive(
-        ownerId,
-        projectName,
-        zipPath
-      )
-    } finally {
-      fs.promises.unlink(zipPath).catch(() => {})
-    }
+    return await importFilesAsZip(files, ownerId, projectName)
   },
 
   async _applyOptions(project, params) {

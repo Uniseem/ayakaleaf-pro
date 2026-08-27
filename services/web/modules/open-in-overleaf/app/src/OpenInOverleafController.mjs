@@ -1,15 +1,22 @@
 import Path from 'node:path'
+import crypto from 'node:crypto'
 import archiver from 'archiver'
 import { fileURLToPath } from 'node:url'
 import settings from '@overleaf/settings'
 import logger from '@overleaf/logger'
 import { expressify } from '@overleaf/promise-utils'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
+import RedisWrapper from '../../../../app/src/infrastructure/RedisWrapper.mjs'
 import OpenInOverleafManager, {
   OpenInOverleafError,
 } from './OpenInOverleafManager.mjs'
 
 const __dirname = Path.dirname(fileURLToPath(import.meta.url))
+
+const rclient = RedisWrapper.client('open_in_overleaf')
+const RESUME_TTL_SECONDS = 10 * 60
+const RESUME_TOKEN_REGEX = /^[0-9a-f-]{36}$/
+const resumeKey = token => `open-in-overleaf:resume:${token}`
 
 function toArray(value) {
   if (value == null) return []
@@ -57,11 +64,45 @@ function parseParams(req) {
   }
 }
 
+// POST /docs from a signed-out browser, or a cross-site form whose SameSite=Lax
+// session cookie is not sent: requireLogin would redirect to /login keeping
+// only the path, dropping the body. Park the submission in redis and redirect
+// to a GET carrying the token; the cookie-bearing top-level GET (or the login
+// round trip) then resumes with the full input. Nothing is written to
+// req.session here on purpose: a fresh session cookie in this response would
+// overwrite the browser's existing login.
+async function stashForLogin(req, res, next) {
+  if (SessionManager.isUserLoggedIn(req.session)) return next()
+  const token = crypto.randomUUID()
+  await rclient.setex(
+    resumeKey(token),
+    RESUME_TTL_SECONDS,
+    JSON.stringify(parseParams(req))
+  )
+  res.redirect(`/docs?resume=${token}`)
+}
+
+async function loadResumedParams(token) {
+  const key = resumeKey(token)
+  // single use: read and delete atomically
+  const [json] = await rclient.multi().get(key).del(key).exec()
+  if (!json) {
+    throw new OpenInOverleafError(
+      'This Open in Overleaf link has expired, please submit it again.'
+    )
+  }
+  return JSON.parse(json)
+}
+
 async function openInOverleaf(req, res) {
   const ownerId = SessionManager.getLoggedInUserId(req.session)
-  const params = parseParams(req)
 
   try {
+    const { resume } = req.query
+    const params =
+      typeof resume === 'string' && RESUME_TOKEN_REGEX.test(resume)
+        ? await loadResumedParams(resume)
+        : parseParams(req)
     const project = await OpenInOverleafManager.createProject(params, ownerId)
     return res.redirect(`/project/${project._id}`)
   } catch (err) {
@@ -144,6 +185,7 @@ async function devsPage(req, res) {
 }
 
 export default {
+  stashForLogin: expressify(stashForLogin),
   openInOverleaf: expressify(openInOverleaf),
   devsPage: expressify(devsPage),
 }
