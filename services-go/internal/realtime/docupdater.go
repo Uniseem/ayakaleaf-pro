@@ -136,7 +136,7 @@ func (s *Service) QueueChange(ctx context.Context, projectID, docID string, upda
 		return ErrUpdateTooLarge
 	}
 
-	if err := s.docUpdaterRedis.RPush(ctx, "PendingUpdates:{"+docID+"}", string(encoded)).Err(); err != nil {
+	if err := s.docUpdaterRedis.RPush(ctx, s.keys.PendingUpdates(docID), string(encoded)).Err(); err != nil {
 		return fmt.Errorf("error pushing update into redis: %w", err)
 	}
 	if err := s.docUpdaterRedis.RPush(ctx, s.pendingUpdateListKey(), projectID+":"+docID).Err(); err != nil {

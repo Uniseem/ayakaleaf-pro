@@ -41,33 +41,19 @@ type ConnectedUser struct {
 // collaborators may be connected to different real-time instances.
 type ConnectedUsersManager struct {
 	redis *redis.Client
+	keys  KeySchema
 	log   *slog.Logger
 }
 
 // NewConnectedUsersManager builds a manager over the realtime Redis.
-func NewConnectedUsersManager(client *redis.Client, log *slog.Logger) *ConnectedUsersManager {
-	return &ConnectedUsersManager{redis: client, log: log}
-}
-
-// The key schema from settings.redis.realtime.key_schema. The braces are hash
-// tags: they keep every key for one project on the same Redis Cluster slot, so
-// the multi-key operations below stay valid.
-func clientsInProjectKey(projectID string) string {
-	return "clients_in_project:{" + projectID + "}"
-}
-
-func connectedUserKey(projectID, clientID string) string {
-	return "connected_user:{" + projectID + "}:" + clientID
-}
-
-func projectNotEmptySinceKey(projectID string) string {
-	return "projectNotEmptySince:{" + projectID + "}"
+func NewConnectedUsersManager(client *redis.Client, keys KeySchema, log *slog.Logger) *ConnectedUsersManager {
+	return &ConnectedUsersManager{redis: client, keys: keys, log: log}
 }
 
 // CountConnectedClients reports how many clients the whole cluster has in a
 // project.
 func (m *ConnectedUsersManager) CountConnectedClients(ctx context.Context, projectID string) (int64, error) {
-	return m.redis.SCard(ctx, clientsInProjectKey(projectID)).Result()
+	return m.redis.SCard(ctx, m.keys.ClientsInProject(projectID)).Result()
 }
 
 // UpdateUserPosition marks a user as present, and records their cursor when
@@ -81,7 +67,7 @@ func (m *ConnectedUsersManager) UpdateUserPosition(
 	m.log.Debug("marking user as joined or connected",
 		slog.String("project", projectID), slog.String("client", clientID))
 
-	key := connectedUserKey(projectID, clientID)
+	key := m.keys.ConnectedUser(projectID, clientID)
 	fields := []any{
 		"last_updated_at", strconv.FormatInt(time.Now().UnixMilli(), 10),
 		"user_id", user.ID,
@@ -98,9 +84,9 @@ func (m *ConnectedUsersManager) UpdateUserPosition(
 	}
 
 	pipe := m.redis.TxPipeline()
-	pipe.SAdd(ctx, clientsInProjectKey(projectID), clientID)
-	pipe.SCard(ctx, clientsInProjectKey(projectID))
-	pipe.Expire(ctx, clientsInProjectKey(projectID), fourDays)
+	pipe.SAdd(ctx, m.keys.ClientsInProject(projectID), clientID)
+	pipe.SCard(ctx, m.keys.ClientsInProject(projectID))
+	pipe.Expire(ctx, m.keys.ClientsInProject(projectID), fourDays)
 	pipe.HSet(ctx, key, fields...)
 	pipe.Expire(ctx, key, userTimeout)
 	_, err := pipe.Exec(ctx)
@@ -110,7 +96,7 @@ func (m *ConnectedUsersManager) UpdateUserPosition(
 // RefreshClient extends a client's entry after it answered a refresh
 // broadcast, which is what keeps it in the collaborator list.
 func (m *ConnectedUsersManager) RefreshClient(ctx context.Context, projectID, clientID string) {
-	key := connectedUserKey(projectID, clientID)
+	key := m.keys.ConnectedUser(projectID, clientID)
 	pipe := m.redis.TxPipeline()
 	pipe.HSet(ctx, key, "last_updated_at", strconv.FormatInt(time.Now().UnixMilli(), 10))
 	pipe.Expire(ctx, key, userTimeout)
@@ -126,10 +112,10 @@ func (m *ConnectedUsersManager) MarkUserAsDisconnected(ctx context.Context, proj
 		slog.String("project", projectID), slog.String("client", clientID))
 
 	pipe := m.redis.TxPipeline()
-	pipe.SRem(ctx, clientsInProjectKey(projectID), clientID)
-	remaining := pipe.SCard(ctx, clientsInProjectKey(projectID))
-	pipe.Expire(ctx, clientsInProjectKey(projectID), fourDays)
-	pipe.Del(ctx, connectedUserKey(projectID, clientID))
+	pipe.SRem(ctx, m.keys.ClientsInProject(projectID), clientID)
+	remaining := pipe.SCard(ctx, m.keys.ClientsInProject(projectID))
+	pipe.Expire(ctx, m.keys.ClientsInProject(projectID), fourDays)
+	pipe.Del(ctx, m.keys.ConnectedUser(projectID, clientID))
 	if _, err := pipe.Exec(ctx); err != nil {
 		return err
 	}
@@ -137,7 +123,7 @@ func (m *ConnectedUsersManager) MarkUserAsDisconnected(ctx context.Context, proj
 	if remaining.Val() == 0 {
 		// The project is empty again; the marker is only meaningful while
 		// somebody is in it.
-		if err := m.redis.GetDel(ctx, projectNotEmptySinceKey(projectID)).Err(); err != nil &&
+		if err := m.redis.GetDel(ctx, m.keys.ProjectNotEmptySince(projectID)).Err(); err != nil &&
 			err != redis.Nil {
 			m.log.Warn("could not collect projectNotEmptySince",
 				slog.String("project", projectID), slog.String("err", err.Error()))
@@ -149,8 +135,8 @@ func (m *ConnectedUsersManager) MarkUserAsDisconnected(ctx context.Context, proj
 	// only the first time, which is what the NX does.
 	now := strconv.FormatInt(time.Now().Unix(), 10)
 	pipe = m.redis.TxPipeline()
-	pipe.Get(ctx, projectNotEmptySinceKey(projectID))
-	pipe.SetNX(ctx, projectNotEmptySinceKey(projectID), now, 31*oneDay)
+	pipe.Get(ctx, m.keys.ProjectNotEmptySince(projectID))
+	pipe.SetNX(ctx, m.keys.ProjectNotEmptySince(projectID), now, 31*oneDay)
 	if _, err := pipe.Exec(ctx); err != nil && err != redis.Nil {
 		m.log.Warn("could not get/set projectNotEmptySince",
 			slog.String("project", projectID), slog.String("err", err.Error()))
@@ -160,14 +146,14 @@ func (m *ConnectedUsersManager) MarkUserAsDisconnected(ctx context.Context, proj
 
 // GetConnectedUsers lists the collaborators the editor should show.
 func (m *ConnectedUsersManager) GetConnectedUsers(ctx context.Context, projectID string) ([]ConnectedUser, error) {
-	clientIDs, err := m.redis.SMembers(ctx, clientsInProjectKey(projectID)).Result()
+	clientIDs, err := m.redis.SMembers(ctx, m.keys.ClientsInProject(projectID)).Result()
 	if err != nil {
 		return nil, err
 	}
 
 	users := make([]ConnectedUser, 0, len(clientIDs))
 	for _, clientID := range clientIDs {
-		fields, err := m.redis.HGetAll(ctx, connectedUserKey(projectID, clientID)).Result()
+		fields, err := m.redis.HGetAll(ctx, m.keys.ConnectedUser(projectID, clientID)).Result()
 		if err != nil {
 			return nil, err
 		}

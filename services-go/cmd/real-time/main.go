@@ -53,6 +53,9 @@ func main() {
 			config.EnvInt("GRACEFUL_RECONNECT_TIMEOUT_MS", (45+30)*1000)) * time.Millisecond,
 		BehindProxy:     true,
 		TrustedProxyIPs: config.Env("TRUSTED_PROXY_IPS", "loopback"),
+		// server-ce replaces the Redis key schema wholesale; its runit script
+		// says so with REDIS_KEY_SCHEMA=server-ce.
+		Keys: realtime.NewKeySchema(os.Getenv("REDIS_KEY_SCHEMA")),
 	}
 
 	pubsubRedis := redisClient("PUBSUB")

@@ -385,7 +385,7 @@ func TestJoinProjectAndDoc(t *testing.T) {
 
 	// The user must now appear in the project's connected clients, which is
 	// what the collaborator list is built from.
-	count, err := h.redis.SCard(context.Background(), clientsInProjectKey(testProjectID)).Result()
+	count, err := h.redis.SCard(context.Background(), h.service.keys.ClientsInProject(testProjectID)).Result()
 	if err != nil || count != 1 {
 		t.Errorf("connected clients = %d (%v), want 1", count, err)
 	}
@@ -434,7 +434,7 @@ func TestApplyOtUpdateReachesDocumentUpdater(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	queued, err := h.redis.LRange(ctx, "PendingUpdates:{"+testDocID+"}", 0, -1).Result()
+	queued, err := h.redis.LRange(ctx, h.service.keys.PendingUpdates(testDocID), 0, -1).Result()
 	if err != nil || len(queued) != 1 {
 		t.Fatalf("pending updates = %v (%v), want one", queued, err)
 	}
@@ -500,7 +500,7 @@ func TestReadOnlyUserCannotEdit(t *testing.T) {
 		t.Errorf("error = %q, want %q", failure.Message, "not authorized")
 	}
 
-	queued, _ := h.redis.LRange(context.Background(), "PendingUpdates:{"+testDocID+"}", 0, -1).Result()
+	queued, _ := h.redis.LRange(context.Background(), h.service.keys.PendingUpdates(testDocID), 0, -1).Result()
 	if len(queued) != 0 {
 		t.Errorf("a rejected update reached document-updater: %v", queued)
 	}
@@ -733,7 +733,7 @@ func TestLeaveDocAndDisconnectCleanUp(t *testing.T) {
 	// list of everyone still editing.
 	deadline = time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		n, _ := h.redis.SCard(context.Background(), clientsInProjectKey(testProjectID)).Result()
+		n, _ := h.redis.SCard(context.Background(), h.service.keys.ClientsInProject(testProjectID)).Result()
 		if n == 0 {
 			return
 		}

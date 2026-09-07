@@ -296,17 +296,45 @@ func TestRemoteIP(t *testing.T) {
 	}
 }
 
-// The braces are hash tags: they keep every key of one project on the same
-// Redis Cluster slot, which is what makes the multi-key pipelines valid.
+// Two schemas are in use and they are not interchangeable. Under the upstream
+// one the braces are Redis Cluster hash tags, keeping every key of one project
+// on the same slot; server-ce replaces the schema with an unbraced one, and a
+// service writing the wrong names queues updates where document-updater is not
+// listening.
 func TestKeySchema(t *testing.T) {
-	if got := clientsInProjectKey("p1"); got != "clients_in_project:{p1}" {
-		t.Errorf("clientsInProjectKey = %q", got)
+	upstream := NewKeySchema("")
+	if got := upstream.ClientsInProject("p1"); got != "clients_in_project:{p1}" {
+		t.Errorf("ClientsInProject = %q", got)
 	}
-	if got := connectedUserKey("p1", "P.abc"); got != "connected_user:{p1}:P.abc" {
-		t.Errorf("connectedUserKey = %q", got)
+	if got := upstream.ConnectedUser("p1", "P.abc"); got != "connected_user:{p1}:P.abc" {
+		t.Errorf("ConnectedUser = %q", got)
 	}
-	if got := projectNotEmptySinceKey("p1"); got != "projectNotEmptySince:{p1}" {
-		t.Errorf("projectNotEmptySinceKey = %q", got)
+	if got := upstream.PendingUpdates("d1"); got != "PendingUpdates:{d1}" {
+		t.Errorf("PendingUpdates = %q", got)
+	}
+
+	serverCE := NewKeySchema("server-ce")
+	if got := serverCE.ClientsInProject("p1"); got != "clients_in_project:p1" {
+		t.Errorf("ClientsInProject = %q", got)
+	}
+	if got := serverCE.ConnectedUser("p1", "P.abc"); got != "connected_user:p1:P.abc" {
+		t.Errorf("ConnectedUser = %q", got)
+	}
+	if got := serverCE.PendingUpdates("d1"); got != "PendingUpdates:d1" {
+		t.Errorf("PendingUpdates = %q", got)
+	}
+
+	// server-ce overrides the other three keys and leaves this one alone, so
+	// it keeps its braces under both schemas.
+	for _, keys := range []KeySchema{upstream, serverCE} {
+		if got := keys.ProjectNotEmptySince("p1"); got != "projectNotEmptySince:{p1}" {
+			t.Errorf("ProjectNotEmptySince = %q", got)
+		}
+	}
+
+	// An unrecognised name must not silently pick the wrong schema.
+	if NewKeySchema("nonsense") != upstream {
+		t.Error("an unknown schema name should fall back to the upstream one")
 	}
 }
 

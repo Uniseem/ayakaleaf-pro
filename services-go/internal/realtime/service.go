@@ -33,6 +33,10 @@ type Config struct {
 
 	BehindProxy     bool
 	TrustedProxyIPs string
+
+	// Keys names the Redis keys shared with document-updater. The zero value
+	// is the upstream schema.
+	Keys KeySchema
 }
 
 // clientContext is the per-connection state the Node service keeps on
@@ -133,6 +137,8 @@ type Service struct {
 	drain  *DrainManager
 	addr   *AddressResolver
 
+	keys KeySchema
+
 	editorEvents *ChannelManager
 	appliedOps   *ChannelManager
 
@@ -170,7 +176,8 @@ func New(ctx context.Context, deps Deps) *Service {
 		web:             deps.Web,
 		du:              deps.DocumentUpdater,
 		store:           deps.Sessions,
-		users:           NewConnectedUsersManager(deps.RealtimeRedis, deps.Log),
+		keys:            deps.Config.Keys,
+		users:           NewConnectedUsersManager(deps.RealtimeRedis, deps.Config.Keys, deps.Log),
 		health:          NewHealthCheckManager(deps.Log),
 		addr:            NewAddressResolver(deps.Config.BehindProxy, deps.Config.TrustedProxyIPs),
 		realtimeRedis:   deps.RealtimeRedis,
