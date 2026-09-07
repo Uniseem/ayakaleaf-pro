@@ -3,12 +3,18 @@
 # Overleaf Community Edition (overleaf/overleaf)
 # ---------------------------------------------
 
+# Only ARGs declared before the first FROM are in scope for FROM instructions,
+# so both base images have to be named up here -- putting OVERLEAF_BASE_TAG
+# after the go-builder stage scopes it to that stage and leaves the final FROM
+# with a blank base name.
+ARG GO_BUILDER_TAG=golang:1.26-bookworm
+ARG OVERLEAF_BASE_TAG=sharelatex/sharelatex-base:latest
+
 # Build the Go ports of the small services
 # ----------------------------------------
 # These are drop-in replacements selected at runtime by the *_IMPL environment
 # variables; see services-go/README.md. The Node implementations stay in the
 # image, so the switch is reversible without a rebuild.
-ARG GO_BUILDER_TAG=golang:1.26-bookworm
 FROM $GO_BUILDER_TAG AS go-builder
 WORKDIR /src
 COPY services-go/go.mod services-go/go.sum ./
@@ -20,7 +26,6 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/ ./cmd/...
 
-ARG OVERLEAF_BASE_TAG=sharelatex/sharelatex-base:latest
 FROM $OVERLEAF_BASE_TAG
 
 WORKDIR /overleaf
