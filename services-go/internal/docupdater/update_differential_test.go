@@ -60,14 +60,15 @@ func newWritePathSetup(t *testing.T) *writePathSetup {
 	store := NewRedisStore(client, rediskeys.Upstream, testMaxDocLength, 0, log)
 	persistence := NewPersistenceClient(web.URL, "overleaf", "password")
 	locker := NewLocker(client, rediskeys.Upstream, 0)
-	docs := NewDocumentManager(store, persistence, locker, historyClient, testMaxDocLength, log)
-	bridge := NewRealTimeBridge(client, client, rediskeys.Upstream, false, log)
 	history := NewHistoryQueue(client, rediskeys.Upstream)
+	docs := NewDocumentManager(store, persistence, locker, history, historyClient,
+		testMaxDocLength, log)
+	bridge := NewRealTimeBridge(client, client, rediskeys.Upstream, false, log)
 	updates := NewUpdateManager(store, docs, locker, bridge, history,
 		NewWebClient(web.URL, "overleaf", "password"), testMaxDocLength, log)
 	docs.UseUpdateManager(updates)
 
-	project := NewProjectManager(store, docs, historyClient, log)
+	project := NewProjectManager(store, docs, history, historyClient, log)
 	goServer := httptest.NewServer(
 		NewServer(docs, project, store, historyClient, testMaxDocLength, log).Handler(nil))
 	t.Cleanup(goServer.Close)
@@ -483,9 +484,10 @@ func TestDispatcherConsumesTheQueue(t *testing.T) {
 	store := NewRedisStore(client, rediskeys.Upstream, testMaxDocLength, 0, log)
 	persistence := NewPersistenceClient(web.URL, "overleaf", "password")
 	locker := NewLocker(client, rediskeys.Upstream, 0)
-	docs := NewDocumentManager(store, persistence, locker, historyClient, testMaxDocLength, log)
-	bridge := NewRealTimeBridge(client, client, rediskeys.Upstream, false, log)
 	history := NewHistoryQueue(client, rediskeys.Upstream)
+	docs := NewDocumentManager(store, persistence, locker, history, historyClient,
+		testMaxDocLength, log)
+	bridge := NewRealTimeBridge(client, client, rediskeys.Upstream, false, log)
 	updates := NewUpdateManager(store, docs, locker, bridge, history,
 		NewWebClient(web.URL, "overleaf", "password"), testMaxDocLength, log)
 	docs.UseUpdateManager(updates)
@@ -1210,4 +1212,172 @@ func TestSideBySideChangesAndComments(t *testing.T) {
 		fixed(doc+"/comment/thread-1"), map[string]any{"user_id": "u3"})
 	s.runMarkerCase(t, "delete a comment that is not there", http.MethodDelete,
 		fixed(doc+"/comment/thread-missing"), map[string]any{"user_id": "u3"})
+}
+
+// runProjectCase drives one call against each service from a clean Redis with
+// the document loaded, and compares what each queued for the history.
+//
+// These routes do not change a document, only where it lives and what the
+// history is told about it, so the queue is what there is to compare.
+func (s *writePathSetup) runProjectCase(t *testing.T, name, method, path string, body any) {
+	t.Helper()
+	s.t.Run(name, func(t *testing.T) {
+		ctx := context.Background()
+
+		run := func(base string, load func(*testing.T)) writeOutcome {
+			if err := s.client.FlushDB(ctx).Err(); err != nil {
+				t.Fatalf("flushing redis: %v", err)
+			}
+			s.web.forgetWrites()
+			s.history.forgetCalls()
+			load(t)
+
+			status, answer := s.postJSON(t, base, method, path, body)
+			out := writeOutcome{Body: answer}
+			out.flushState = s.captureFlush(t, status)
+			captured := s.capture(t)
+			out.History = captured.History
+			out.Lines = captured.Lines
+			out.Version = captured.Version
+
+			// The pathname is what a rename changes, and it is not part of the
+			// state the other helpers capture.
+			out.Ranges, _ = s.client.Get(ctx, rediskeys.Upstream.Pathname(testDocID)).Result()
+			return out
+		}
+
+		fromNode := run(s.node, s.loadDocViaNode)
+		fromGo := run(s.goSvc, s.loadDocViaGo)
+
+		if fromNode.Status != fromGo.Status {
+			t.Fatalf("status: node %d, go %d\n  node body: %s\n  go body: %s",
+				fromNode.Status, fromGo.Status, fromNode.Body, fromGo.Body)
+		}
+		if fromNode.Ranges != fromGo.Ranges {
+			t.Errorf("pathname: node %q, go %q", fromNode.Ranges, fromGo.Ranges)
+		}
+		if len(fromNode.History) != len(fromGo.History) {
+			t.Fatalf("history entries\n  node: %v\n  go:   %v",
+				fromNode.History, fromGo.History)
+		}
+		for i := range fromNode.History {
+			a, _ := json.Marshal(fromNode.History[i])
+			b, _ := json.Marshal(fromGo.History[i])
+			// The timestamp is stamped as the entry is made, so it cannot match
+			// between two runs.
+			if !sameJSONIgnoring(string(a), string(b), "meta.ts") {
+				t.Errorf("history entry %d\n  node: %s\n  go:   %s", i, a, b)
+			}
+		}
+	})
+}
+
+// A file added, moved or deleted does not change any document, but the history
+// has to be told in the same words by either service, or a project rebuilt from
+// it comes back with its files in the wrong places.
+func TestSideBySideProjectStructure(t *testing.T) {
+	s := newWritePathSetup(t)
+	project := "/project/" + testProjectID
+
+	s.runProjectCase(t, "add a doc", http.MethodPost, project, map[string]any{
+		"projectHistoryId": "history-1", "userId": "u1", "version": 3,
+		"updates": []map[string]any{{
+			"type": "add-doc", "id": testDocID, "pathname": "/new.tex",
+			"docLines": []string{"hello"}, "url": "http://example.com/doc",
+		}},
+	})
+	s.runProjectCase(t, "rename a doc", http.MethodPost, project, map[string]any{
+		"projectHistoryId": "history-1", "userId": "u1", "version": 3,
+		"updates": []map[string]any{{
+			"type": "rename-doc", "id": testDocID,
+			"pathname": "/main.tex", "newPathname": "/renamed.tex",
+		}},
+	})
+	s.runProjectCase(t, "delete a doc", http.MethodPost, project, map[string]any{
+		"projectHistoryId": "history-1", "userId": "u1", "version": 3,
+		"updates": []map[string]any{{
+			"type": "rename-doc", "id": testDocID,
+			"pathname": "/main.tex", "newPathname": "",
+		}},
+	})
+	s.runProjectCase(t, "add a file", http.MethodPost, project, map[string]any{
+		"projectHistoryId": "history-1", "userId": "u1", "version": 4,
+		"updates": []map[string]any{{
+			"type": "add-file", "id": "6a9eb3bd8a19695a4a6c97ad",
+			"pathname": "/figure.png", "url": "http://example.com/file",
+			"hash": "abc123", "createdBlob": true,
+		}},
+	})
+	s.runProjectCase(t, "rename a file", http.MethodPost, project, map[string]any{
+		"projectHistoryId": "history-1", "userId": "u1", "version": 5,
+		"updates": []map[string]any{{
+			"type": "rename-file", "id": "6a9eb3bd8a19695a4a6c97ad",
+			"pathname": "/figure.png", "newPathname": "/figures/figure.png",
+		}},
+	})
+	s.runProjectCase(t, "several updates at one version", http.MethodPost, project,
+		map[string]any{
+			"projectHistoryId": "history-1", "userId": "u1", "version": 6,
+			"updates": []map[string]any{
+				{"type": "rename-doc", "id": testDocID,
+					"pathname": "/main.tex", "newPathname": "/a.tex"},
+				{"type": "rename-file", "id": "6a9eb3bd8a19695a4a6c97ad",
+					"pathname": "/figure.png", "newPathname": "/b.png"},
+			},
+		})
+	s.runProjectCase(t, "an update from outside the editor", http.MethodPost, project,
+		map[string]any{
+			"projectHistoryId": "history-1", "userId": "u1", "version": 7,
+			"source": "dropbox",
+			"updates": []map[string]any{{
+				"type": "rename-file", "id": "6a9eb3bd8a19695a4a6c97ad",
+				"pathname": "/figure.png", "newPathname": "/c.png",
+			}},
+		})
+	s.runProjectCase(t, "an update from the editor", http.MethodPost, project,
+		map[string]any{
+			"projectHistoryId": "history-1", "userId": "u1", "version": 8,
+			"source": "editor",
+			"updates": []map[string]any{{
+				"type": "rename-file", "id": "6a9eb3bd8a19695a4a6c97ad",
+				"pathname": "/figure.png", "newPathname": "/d.png",
+			}},
+		})
+	s.runProjectCase(t, "an update with an origin", http.MethodPost, project,
+		map[string]any{
+			"projectHistoryId": "history-1", "userId": "u1", "version": 9,
+			"origin": map[string]any{"kind": "file-restore"},
+			"updates": []map[string]any{{
+				"type": "rename-file", "id": "6a9eb3bd8a19695a4a6c97ad",
+				"pathname": "/figure.png", "newPathname": "/e.png",
+			}},
+		})
+	s.runProjectCase(t, "an update of an unknown type", http.MethodPost, project,
+		map[string]any{
+			"projectHistoryId": "history-1", "userId": "u1", "version": 10,
+			"updates": []map[string]any{{"type": "nonsense", "id": testDocID}},
+		})
+
+	// A resync tells the history what the project holds now, which is how the
+	// two are brought back together after they drift apart.
+	s.runProjectCase(t, "resync the structure only", http.MethodPost,
+		project+"/history/resync", map[string]any{
+			"projectHistoryId": "history-1", "resyncProjectStructureOnly": true,
+			"docs":  []map[string]any{{"doc": testDocID, "path": "/main.tex"}},
+			"files": []map[string]any{},
+		})
+	s.runProjectCase(t, "resync a loaded doc", http.MethodPost,
+		project+"/history/resync", map[string]any{
+			"projectHistoryId": "history-1",
+			"docs":             []map[string]any{{"doc": testDocID, "path": "/main.tex"}},
+			"files":            []map[string]any{},
+		})
+	s.runProjectCase(t, "resync with a file", http.MethodPost,
+		project+"/history/resync", map[string]any{
+			"projectHistoryId": "history-1",
+			"docs":             []map[string]any{{"doc": testDocID, "path": "/main.tex"}},
+			"files": []map[string]any{
+				{"file": "6a9eb3bd8a19695a4a6c97ad", "path": "/figure.png", "url": "http://x"},
+			},
+		})
 }

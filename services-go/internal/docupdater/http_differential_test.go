@@ -168,8 +168,9 @@ func startGoService(t *testing.T, webURL, redisAddr string) (string, *redis.Clie
 	store := NewRedisStore(client, rediskeys.Upstream, testMaxDocLength, 0, log)
 	persistence := NewPersistenceClient(webURL, "overleaf", "password")
 	locker := NewLocker(client, rediskeys.Upstream, 0)
-	docs := NewDocumentManager(store, persistence, locker, nil, testMaxDocLength, log)
-	project := NewProjectManager(store, docs, nil, log)
+	history := NewHistoryQueue(client, rediskeys.Upstream)
+	docs := NewDocumentManager(store, persistence, locker, history, nil, testMaxDocLength, log)
+	project := NewProjectManager(store, docs, history, nil, log)
 
 	server := httptest.NewServer(
 		NewServer(docs, project, store, nil, testMaxDocLength, log).Handler(nil))

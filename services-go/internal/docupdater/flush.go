@@ -184,8 +184,8 @@ func (p *ProjectManager) FlushAndDeleteProjectWithLocks(ctx context.Context, pro
 	// The history queue is drained here rather than in the background: web may
 	// delete the project as soon as this call returns, and a flush after that
 	// has nothing left to flush into.
-	if p.history != nil {
-		if err := p.history.FlushProjectChanges(ctx, projectID, opts); err != nil {
+	if p.historyAPI != nil {
+		if err := p.historyAPI.FlushProjectChanges(ctx, projectID, opts); err != nil {
 			return err
 		}
 	}

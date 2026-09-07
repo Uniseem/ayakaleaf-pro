@@ -667,3 +667,32 @@ func (s *RedisStore) UnblockProject(ctx context.Context, projectID string) (bool
 	}
 	return removed == 1, nil
 }
+
+// CountDocsInMemory is how many documents are held in Redis across all
+// projects.
+//
+// It scans rather than reading a counter, because no counter is kept. That is
+// affordable only because this is an operator route nothing calls in the course
+// of ordinary work.
+func (s *RedisStore) CountDocsInMemory(ctx context.Context) (int64, error) {
+	pattern := s.keys.DocsInProject("*")
+	var total int64
+	var cursor uint64
+	for {
+		keys, next, err := s.redis.Scan(ctx, cursor, pattern, 1000).Result()
+		if err != nil {
+			return 0, err
+		}
+		for _, key := range keys {
+			count, err := s.redis.SCard(ctx, key).Result()
+			if err != nil {
+				return 0, err
+			}
+			total += count
+		}
+		if next == 0 {
+			return total, nil
+		}
+		cursor = next
+	}
+}

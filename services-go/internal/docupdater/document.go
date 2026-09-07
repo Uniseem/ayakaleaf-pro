@@ -13,7 +13,8 @@ type DocumentManager struct {
 	redis       *RedisStore
 	persistence *PersistenceClient
 	locker      *Locker
-	history     *HistoryClient
+	history     *HistoryQueue
+	historyAPI  *HistoryClient
 	log         *slog.Logger
 
 	// maxDocLength is the size a document may not exceed, in characters. The
@@ -28,11 +29,11 @@ type DocumentManager struct {
 
 // NewDocumentManager builds a document manager.
 func NewDocumentManager(redis *RedisStore, persistence *PersistenceClient,
-	locker *Locker, history *HistoryClient, maxDocLength int,
-	log *slog.Logger) *DocumentManager {
+	locker *Locker, history *HistoryQueue, historyAPI *HistoryClient,
+	maxDocLength int, log *slog.Logger) *DocumentManager {
 	return &DocumentManager{
 		redis: redis, persistence: persistence, locker: locker, history: history,
-		maxDocLength: maxDocLength, log: log,
+		historyAPI: historyAPI, maxDocLength: maxDocLength, log: log,
 	}
 }
 
@@ -160,16 +161,19 @@ func (m *DocumentManager) PeekDoc(ctx context.Context, projectID, docID string) 
 
 // ProjectManager answers questions about a whole project.
 type ProjectManager struct {
-	redis   *RedisStore
-	docs    *DocumentManager
-	history *HistoryClient
-	log     *slog.Logger
+	redis      *RedisStore
+	docs       *DocumentManager
+	history    *HistoryQueue
+	historyAPI *HistoryClient
+	log        *slog.Logger
 }
 
 // NewProjectManager builds a project manager.
-func NewProjectManager(redis *RedisStore, docs *DocumentManager, history *HistoryClient,
-	log *slog.Logger) *ProjectManager {
-	return &ProjectManager{redis: redis, docs: docs, history: history, log: log}
+func NewProjectManager(redis *RedisStore, docs *DocumentManager, history *HistoryQueue,
+	historyAPI *HistoryClient, log *slog.Logger) *ProjectManager {
+	return &ProjectManager{
+		redis: redis, docs: docs, history: history, historyAPI: historyAPI, log: log,
+	}
 }
 
 // DocRanges is one document's tracked changes and comments.

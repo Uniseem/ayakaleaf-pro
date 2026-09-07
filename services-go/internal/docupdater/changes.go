@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"time"
 
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/rangestracker"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/textot"
@@ -167,7 +166,7 @@ func buildRejectUpdate(docID string, op textot.Op, version int64, userID string)
 		"user_id": nullIfEmpty(userID),
 		// An ISO timestamp rather than the milliseconds an edit from the editor
 		// carries, which is what the Node service puts here.
-		"ts": time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+		"ts": nowISO(),
 	}
 	encodedMeta, err := json.Marshal(meta)
 	if err != nil {

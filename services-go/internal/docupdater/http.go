@@ -92,6 +92,11 @@ func (s *Server) Handler(monitor func(http.Handler) http.Handler) http.Handler {
 	mux.HandleFunc("POST /project/{project_id}/doc/{doc_id}/comment/{comment_id}/reopen", s.reopenComment)
 	mux.HandleFunc("DELETE /project/{project_id}/doc/{doc_id}/comment/{comment_id}", s.deleteComment)
 
+	mux.HandleFunc("POST /project/{project_id}", s.updateProject)
+	mux.HandleFunc("POST /project/{project_id}/history/resync", s.resyncProjectHistory)
+	mux.HandleFunc("GET /flush_queued_projects", s.flushQueuedProjects)
+	mux.HandleFunc("GET /total", s.total)
+
 	mux.HandleFunc("POST /project/{project_id}/block", s.blockProject)
 	mux.HandleFunc("POST /project/{project_id}/unblock", s.unblockProject)
 
@@ -504,6 +509,95 @@ func (s *Server) getProjectDocsAndFlushIfOld(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	writeJSON(w, docs)
+}
+
+func (s *Server) updateProject(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ProjectHistoryID string                   `json:"projectHistoryId"`
+		UserID           string                   `json:"userId"`
+		Updates          []ProjectStructureUpdate `json:"updates"`
+		Version          int64                    `json:"version"`
+		Source           json.RawMessage          `json:"source"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBody)).Decode(&body); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	err := s.project.UpdateProjectWithLocks(r.Context(), r.PathValue("project_id"),
+		body.ProjectHistoryID, body.UserID, body.Updates, body.Version, body.Source)
+	if err != nil {
+		s.writeError(w, r, err, "updateProject")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) resyncProjectHistory(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ProjectHistoryID           string            `json:"projectHistoryId"`
+		Docs                       []json.RawMessage `json:"docs"`
+		Files                      []json.RawMessage `json:"files"`
+		HistoryRangesMigration     string            `json:"historyRangesMigration"`
+		ResyncProjectStructureOnly bool              `json:"resyncProjectStructureOnly"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBody)).Decode(&body); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	err := s.project.ResyncProjectHistory(r.Context(), r.PathValue("project_id"),
+		body.ProjectHistoryID, body.Docs, body.Files, ResyncOptions{
+			StructureOnly:          body.ResyncProjectStructureOnly,
+			HistoryRangesMigration: body.HistoryRangesMigration,
+		})
+	if err != nil {
+		s.writeError(w, r, err, "resyncProjectHistory")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) flushQueuedProjects(w http.ResponseWriter, r *http.Request) {
+	opts := DeleteQueueOptions{
+		Limit:        1000,
+		Timeout:      5 * time.Minute,
+		MinDeleteAge: 5 * time.Minute,
+	}
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			opts.Limit = parsed
+		}
+	}
+	if raw := r.URL.Query().Get("min_delete_age"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			opts.MinDeleteAge = time.Duration(parsed) * time.Millisecond
+		}
+	}
+
+	flushed, err := s.project.FlushAndDeleteOldProjects(r.Context(), opts)
+	if err != nil {
+		s.log.Error("error flushing old projects", slog.String("err", err.Error()))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	s.log.Info("flush of queued projects completed", slog.Int("flushed", flushed))
+	writeJSON(w, map[string]any{"flushed": flushed})
+}
+
+// total answers with how many documents are held in Redis.
+//
+// The Node service has this route too, but it calls a function that is not
+// there any more, so it answers with a 500. It is an operator route that
+// nothing else calls, so this one is made to work rather than made to fail the
+// same way.
+func (s *Server) total(w http.ResponseWriter, r *http.Request) {
+	count, err := s.redis.CountDocsInMemory(r.Context())
+	if err != nil {
+		s.writeError(w, r, err, "total")
+		return
+	}
+	writeJSON(w, map[string]any{"total": count})
 }
 
 func (s *Server) blockProject(w http.ResponseWriter, r *http.Request) {

@@ -73,8 +73,8 @@ func (m *DocumentManager) SetDoc(ctx context.Context, projectID, docID string,
 	result, err := m.FlushAndDeleteDoc(ctx, projectID, docID, false)
 	// The history queue is flushed either way. It is needed when the delete
 	// succeeded, and it does no harm when it did not.
-	if m.history != nil {
-		m.history.FlushProjectChangesAsync(ctx, projectID)
+	if m.historyAPI != nil {
+		m.historyAPI.FlushProjectChangesAsync(ctx, projectID)
 	}
 	return result, err
 }

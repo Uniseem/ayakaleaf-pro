@@ -326,6 +326,10 @@ func metaInt(meta json.RawMessage, field string) int64 {
 
 func nowMillis() int64 { return time.Now().UnixMilli() }
 
+// nowISO renders the current time the way JSON.stringify renders a Date, which
+// is what project-history reads out of the entries this service queues.
+func nowISO() string { return time.Now().UTC().Format("2006-01-02T15:04:05.000Z") }
+
 // HistoryQueue hands operations to project-history.
 type HistoryQueue struct {
 	redis *redis.Client
