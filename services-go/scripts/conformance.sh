@@ -40,11 +40,17 @@ export CI="${CI:-true}"
 # test process. Those tests fail against any external implementation, the Node
 # service included: started as its own process, Node scores the same 75/22 the
 # Go port does.
+#
+# real-time uses it for a duller reason: the whole suite is runnable, but
+# "yarn run" re-resolves the workspace first, and the lockfile in this fork is
+# not always in step with package.json. Calling mocha directly skips a
+# resolution failure that says nothing about the port.
 SERVICES=(
   "chat:3010:services/chat:CHAT_EXTERNAL:"
   "notifications:3042:services/notifications:NOTIFICATIONS_EXTERNAL:"
   "docstore:3016:services/docstore:DOCSTORE_EXTERNAL:test/acceptance/js/GettingDocsTests.js test/acceptance/js/GettingAllDocsTests.js test/acceptance/js/UpdatingDocsTests.js test/acceptance/js/HealthCheckerTest.js"
   "filestore:3009:services/filestore:FILESTORE_EXTERNAL:test/acceptance/js/FilestoreApiTests.js"
+  "real-time:3026:services/real-time:REALTIME_EXTERNAL:--recursive test/acceptance/js"
 )
 
 spec_for() {
@@ -64,6 +70,18 @@ spec_for() {
 # acceptance suite against it, then stops it again.
 run_one() {
   local name=$1 port=$2 dir=$3 external_var=$4 test_files=$5 database=${6:-}
+
+  if [[ "$name" == "real-time" ]]; then
+    # The suite signs its session cookies with the three secrets in
+    # services/real-time/config/settings.test.cjs and checks that all three are
+    # accepted, so the Go service has to be given exactly those.
+    export SESSION_SECRET=static-secret-for-tests
+    export SESSION_SECRET_UPCOMING=static-secret-upcoming-for-tests
+    export SESSION_SECRET_FALLBACK=static-secret-fallback-for-tests
+    # Unlike the other ports, this one needs Redis: sessions, presence and the
+    # pub/sub fan-out all live there.
+    export REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
+  fi
 
   if [[ "$name" == "filestore" ]]; then
     # The filesystem backend stores objects under these directories; a run of

@@ -151,12 +151,15 @@ func (s *Service) shouldDisconnectClient(cc *clientContext, ev editorEvent) bool
 	userID := cc.UserID()
 	switch ev.Message {
 	case "userRemovedFromProject":
-		var removed []string
-		if len(ev.Payload) > 0 && json.Unmarshal(ev.Payload[0], &removed) == nil {
-			for _, id := range removed {
-				if id == userID {
-					return true
-				}
+		// web emits one argument per removed user, so the ids are the payload
+		// entries themselves rather than a list inside the first one.
+		if userID == "" {
+			return false
+		}
+		for _, raw := range ev.Payload {
+			var removed string
+			if json.Unmarshal(raw, &removed) == nil && removed == userID {
+				return true
 			}
 		}
 	case "project:publicAccessLevel:changed":

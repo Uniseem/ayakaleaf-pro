@@ -21,6 +21,7 @@ on:
       - 'services/chat/**'
       - 'services/notifications/**'
       - 'services/linked-url-proxy/**'
+      - 'services/real-time/**'
       - '.github/workflows/go_services.yml'
   pull_request:
     paths:
@@ -28,6 +29,7 @@ on:
       - 'services/chat/**'
       - 'services/notifications/**'
       - 'services/linked-url-proxy/**'
+      - 'services/real-time/**'
       - '.github/workflows/go_services.yml'
   workflow_dispatch:
 
@@ -121,11 +123,24 @@ jobs:
     env:
       # Both implementations read this; see services-go/internal/config.
       MONGO_HOST: mongo
+      # real-time keeps sessions, presence and its pub/sub fan-out in Redis.
+      REDIS_HOST: 127.0.0.1
       NODE_ENV: test
       RETRIES: '3'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Start Redis
+        run: |
+          docker run -d --name redis -p 6379:6379 redis:7.4
+          for i in $(seq 1 30); do
+            if docker exec redis redis-cli ping 2>/dev/null | grep -q PONG; then
+              echo "redis is ready"
+              break
+            fi
+            sleep 1
+          done
 
       - name: Start MongoDB
         run: |
@@ -247,6 +262,13 @@ jobs:
                    "$OVERLEAF_EDITOR_PROJECT_BLOBS_BUCKET"
           PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH" \
           mocha --timeout 20000 --exit test/acceptance/js/FilestoreApiTests.js
+
+      # real-time's suite needs no adaptation at all: it was already a
+      # black-box one, connecting over a real socket and seeding its sessions
+      # straight into Redis.
+      - name: 'Baseline: real-time acceptance suite against the Node service'
+        working-directory: services/real-time
+        run: yarn run test:acceptance:_run
 
       # Each service gets its own database here, so the suites run at the same
       # time without their migrations racing.

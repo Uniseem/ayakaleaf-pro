@@ -83,8 +83,22 @@ func (c *Conn) write(frame string) error {
 }
 
 // Close ends the connection.
+//
+// It sends a disconnect packet first. Without it the client sees a transport
+// that simply died, and socket.io reconnects automatically -- so a deliberate
+// boot (a revoked project, a rejected session, an update that was too large)
+// becomes a reconnect loop instead of a disconnection. The packet is what
+// tells the client it was disconnected on purpose.
 func (c *Conn) Close() {
-	c.once.Do(func() { close(c.closed) })
+	c.once.Do(func() {
+		// Non-blocking: Close must never wait on a client that has stopped
+		// reading. The writer flushes the queue as it shuts down.
+		select {
+		case c.send <- Encode(Packet{Type: PacketDisconnect}):
+		default:
+		}
+		close(c.closed)
+	})
 }
 
 // Disconnected reports whether the connection has ended. The Node service
@@ -154,6 +168,15 @@ type Server struct {
 	// Transports.
 	OfferTransports []string
 
+	// ReadLimit caps one incoming frame, in bytes. Zero uses
+	// DefaultReadLimit.
+	//
+	// It has to exceed the largest update the service will accept, because the
+	// service answers an oversized update with an error the client understands
+	// -- and it can only do that if the frame reaches it. A limit below that
+	// turns the same case into a dropped connection.
+	ReadLimit int64
+
 	mu       sync.Mutex
 	sessions map[string]*pending
 	polling  map[string]*pollingConn
@@ -189,6 +212,11 @@ func NewServer(h Handler, log *slog.Logger) *Server {
 	go s.sweep(ctx)
 	return s
 }
+
+// DefaultReadLimit is the largest frame accepted when ReadLimit is unset. It
+// leaves room above the 7MB+64KB update ceiling of the Node service for the
+// socket.io framing around it.
+const DefaultReadLimit int64 = 9 << 20
 
 // Transports are offered in the handshake, in the order the Node service
 // offers them. The client tries websocket first and falls back to polling when
@@ -407,6 +435,12 @@ func (s *Server) upgrade(w http.ResponseWriter, r *http.Request, sessionID strin
 		return
 	}
 
+	limit := s.ReadLimit
+	if limit <= 0 {
+		limit = DefaultReadLimit
+	}
+	ws.SetReadLimit(limit)
+
 	s.run(s.newConn(sessionID, p.request, "websocket", ws))
 }
 
@@ -444,8 +478,12 @@ func (s *Server) run(c *Conn) {
 		c.Close()
 		wg.Wait()
 		_ = c.ws.CloseNow()
-		s.forget(c)
+		// The handler runs while the client is still in its rooms: leaving
+		// them is what unsubscribes the Redis channels behind them, and a
+		// handler handed an already-empty room list would leak a subscription
+		// per project for the lifetime of the process.
 		s.handler.OnDisconnect(c)
+		s.forget(c)
 	}()
 
 	wg.Add(1)

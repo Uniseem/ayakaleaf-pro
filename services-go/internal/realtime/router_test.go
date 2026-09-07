@@ -102,15 +102,31 @@ func TestShouldDisconnectClient(t *testing.T) {
 		want bool
 	}{
 		{
+			// web emits one argument per removed user, so the ids are the
+			// payload entries themselves.
 			"the removed user is disconnected",
 			user("u1", true),
-			editorEvent{Message: "userRemovedFromProject", Payload: raw(`["u1","u2"]`)},
+			editorEvent{Message: "userRemovedFromProject", Payload: raw(`"u1"`, `"u2"`)},
 			true,
 		},
 		{
 			"other users stay",
 			user("u3", true),
+			editorEvent{Message: "userRemovedFromProject", Payload: raw(`"u1"`, `"u2"`)},
+			false,
+		},
+		{
+			// A list packed into one argument is a different message shape and
+			// is not matched, exactly as the Node service does not match it.
+			"a list inside a single argument is not a match",
+			user("u1", true),
 			editorEvent{Message: "userRemovedFromProject", Payload: raw(`["u1","u2"]`)},
+			false,
+		},
+		{
+			"an anonymous client is never the removed user",
+			&clientContext{user: &User{}},
+			editorEvent{Message: "userRemovedFromProject", Payload: raw(`""`)},
 			false,
 		},
 		{
@@ -156,9 +172,9 @@ func TestShouldDisconnectClient(t *testing.T) {
 			false,
 		},
 		{
-			"a malformed payload disconnects nobody",
+			"a payload that is not an id disconnects nobody",
 			user("u1", true),
-			editorEvent{Message: "userRemovedFromProject", Payload: raw(`"not-a-list"`)},
+			editorEvent{Message: "userRemovedFromProject", Payload: raw(`{"id":"u1"}`)},
 			false,
 		},
 	}

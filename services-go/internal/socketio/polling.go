@@ -107,7 +107,9 @@ func (p *pollingConn) serveGET(w http.ResponseWriter, r *http.Request) {
 
 // servePOST reads frames the client sent.
 func (p *pollingConn) servePOST(w http.ResponseWriter, r *http.Request, dispatch func(Packet)) {
-	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	// The same ceiling as the websocket transport: an oversized update has to
+	// reach the service to be answered with an error the client understands.
+	body, err := io.ReadAll(io.LimitReader(r.Body, DefaultReadLimit))
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -191,8 +193,10 @@ func (s *Server) servePolling(w http.ResponseWriter, r *http.Request, sessionID 
 					s.mu.Lock()
 					delete(s.polling, sessionID)
 					s.mu.Unlock()
-					s.forget(c)
+					// As in the websocket path: the handler needs the rooms
+					// intact to unsubscribe their channels.
 					s.handler.OnDisconnect(c)
+					s.forget(c)
 					return
 				}
 			}

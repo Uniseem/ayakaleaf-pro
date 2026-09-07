@@ -148,14 +148,18 @@ func TestEventAcknowledgement(t *testing.T) {
 	}
 }
 
-func TestAckWithoutArguments(t *testing.T) {
+func TestServerInitiatedDisconnect(t *testing.T) {
 	_, _, base := newTestServer(t)
 	ws, _ := dial(t, base)
 	readFrame(t, ws)
 	readFrame(t, ws)
 
 	writeFrame(t, ws, `5:3+::{"name":"bye","args":[]}`)
-	// bye closes the connection rather than acking, so the read must end.
+	// bye closes the connection rather than acking. The client is told so with
+	// a disconnect packet, which is what stops socket.io reconnecting.
+	if frame := readFrame(t, ws); frame != "0::" {
+		t.Errorf("last frame = %q, want the disconnect packet 0::", frame)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if _, _, err := ws.Read(ctx); err == nil {

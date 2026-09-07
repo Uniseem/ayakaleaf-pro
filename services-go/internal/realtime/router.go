@@ -208,16 +208,16 @@ func (s *Service) handleEvent(c *socketio.Conn, cc *clientContext, ev socketio.E
 
 func (s *Service) handleJoinDoc(ctx context.Context, c *socketio.Conn, cc *clientContext, ev socketio.Event) {
 	if ev.ID == "" {
-		s.invalidArguments(c, cc, "joinDoc")
+		s.invalidArguments(c, cc, "joinDoc", ev.ID)
 		return
 	}
 	docID, fromVersion, options, ok := parseJoinDocArgs(ev.Args)
 	if !ok {
-		s.invalidArguments(c, cc, "joinDoc")
+		s.invalidArguments(c, cc, "joinDoc", ev.ID)
 		return
 	}
 	if !oid.IsValid(docID) {
-		s.validationError(c, cc, "joinDoc", ev.ID)
+		s.validationError(c, cc, "joinDoc", ev.ID, invalidObjectID)
 		return
 	}
 
@@ -272,16 +272,18 @@ func parseJoinDocArgs(args []json.RawMessage) (docID string, fromVersion int64, 
 
 func (s *Service) handleLeaveDoc(ctx context.Context, c *socketio.Conn, cc *clientContext, ev socketio.Event) {
 	if ev.ID == "" {
-		s.invalidArguments(c, cc, "leaveDoc")
+		s.invalidArguments(c, cc, "leaveDoc", ev.ID)
+		return
+	}
+	// The client's callback occupies the second argument, so anything else
+	// there means the call itself was malformed rather than its contents.
+	if len(ev.Args) != 1 {
+		s.invalidArguments(c, cc, "leaveDoc", ev.ID)
 		return
 	}
 	var docID string
-	if len(ev.Args) == 0 || json.Unmarshal(ev.Args[0], &docID) != nil {
-		s.invalidArguments(c, cc, "leaveDoc")
-		return
-	}
-	if !oid.IsValid(docID) {
-		s.validationError(c, cc, "leaveDoc", ev.ID)
+	if json.Unmarshal(ev.Args[0], &docID) != nil || !oid.IsValid(docID) {
+		s.validationError(c, cc, "leaveDoc", ev.ID, invalidObjectID)
 		return
 	}
 	s.LeaveDoc(ctx, c, cc, docID)
@@ -290,19 +292,24 @@ func (s *Service) handleLeaveDoc(ctx context.Context, c *socketio.Conn, cc *clie
 
 func (s *Service) handleApplyOtUpdate(ctx context.Context, c *socketio.Conn, cc *clientContext, ev socketio.Event) {
 	if ev.ID == "" {
-		s.invalidArguments(c, cc, "applyOtUpdate")
+		s.invalidArguments(c, cc, "applyOtUpdate", ev.ID)
+		return
+	}
+	if len(ev.Args) != 2 {
+		s.invalidArguments(c, cc, "applyOtUpdate", ev.ID)
 		return
 	}
 	var docID string
-	var update map[string]json.RawMessage
-	if len(ev.Args) < 2 ||
-		json.Unmarshal(ev.Args[0], &docID) != nil ||
-		json.Unmarshal(ev.Args[1], &update) != nil {
-		s.invalidArguments(c, cc, "applyOtUpdate")
+	if json.Unmarshal(ev.Args[0], &docID) != nil || !oid.IsValid(docID) {
+		s.validationError(c, cc, "applyOtUpdate", ev.ID, invalidObjectID)
 		return
 	}
-	if !oid.IsValid(docID) {
-		s.validationError(c, cc, "applyOtUpdate", ev.ID)
+	// An update that is not an object cannot be an operation, and a client
+	// sending one will keep sending them until it is disconnected.
+	var update map[string]json.RawMessage
+	if json.Unmarshal(ev.Args[1], &update) != nil {
+		s.validationError(c, cc, "applyOtUpdate", ev.ID,
+			"invalid input: expected object")
 		return
 	}
 
@@ -317,7 +324,7 @@ func (s *Service) handleApplyOtUpdate(ctx context.Context, c *socketio.Conn, cc 
 func (s *Service) handleUpdatePosition(ctx context.Context, c *socketio.Conn, cc *clientContext, ev socketio.Event) {
 	var cursor map[string]any
 	if len(ev.Args) == 0 || json.Unmarshal(ev.Args[0], &cursor) != nil {
-		s.invalidArguments(c, cc, "clientTracking.updatePosition")
+		s.invalidArguments(c, cc, "clientTracking.updatePosition", ev.ID)
 		return
 	}
 	if err := s.UpdateClientPosition(ctx, c, cc, cursor); err != nil {
@@ -331,7 +338,7 @@ func (s *Service) handleUpdatePosition(ctx context.Context, c *socketio.Conn, cc
 
 func (s *Service) handleGetConnectedUsers(ctx context.Context, c *socketio.Conn, cc *clientContext, ev socketio.Event) {
 	if ev.ID == "" {
-		s.invalidArguments(c, cc, "clientTracking.getConnectedUsers")
+		s.invalidArguments(c, cc, "clientTracking.getConnectedUsers", ev.ID)
 		return
 	}
 	users, err := s.GetConnectedUsers(ctx, c, cc)
@@ -399,7 +406,7 @@ func (s *Service) serverPingLoop(c *socketio.Conn, cc *clientContext) {
 
 func (s *Service) handleDebug(c *socketio.Conn, cc *clientContext, ev socketio.Event) {
 	if ev.ID == "" {
-		s.invalidArguments(c, cc, "debug")
+		s.invalidArguments(c, cc, "debug", ev.ID)
 		return
 	}
 	s.log.Info("received debug message", slog.String("publicId", cc.PublicID),
@@ -434,20 +441,34 @@ func (s *Service) handleDebug(c *socketio.Conn, cc *clientContext, ev socketio.E
 }
 
 // invalidArguments mirrors Router._handleInvalidArguments: the payload may be
-// large, so it is logged at debug and the client is told only that its call
+// large, so it is logged at debug, and the caller is told only that its call
 // was malformed.
-func (s *Service) invalidArguments(c *socketio.Conn, cc *clientContext, method string) {
+//
+// The answer matters as much as the log. A client that made a bad call is
+// waiting on its callback, and saying nothing leaves it waiting forever
+// instead of failing.
+func (s *Service) invalidArguments(c *socketio.Conn, cc *clientContext, method, ackID string) {
 	s.log.Debug("unexpected arguments", slog.String("method", method),
 		slog.String("client", c.ID), slog.String("project", cc.ProjectID()))
+	_ = c.Ack(ackID, serializedError{Message: ErrUnexpectedArguments.Error()})
 }
 
-// validationError answers a call whose ids did not parse, and disconnects the
-// client shortly afterwards -- a client sending malformed ids is confused
-// enough that a fresh connection is the cheapest repair.
-func (s *Service) validationError(c *socketio.Conn, cc *clientContext, method, ackID string) {
+// invalidObjectID is the message the schema produces for an id that is not an
+// ObjectId; the client shows it as-is.
+const invalidObjectID = "invalid Mongo ObjectId"
+
+// validationError answers a call whose arguments did not validate, and
+// disconnects the client shortly afterwards -- the delay gives it time to
+// receive the answer first.
+//
+// The disconnect is deliberate: a client sending malformed ids or malformed
+// updates is out of step with the server, and a fresh connection is the
+// cheapest repair.
+func (s *Service) validationError(c *socketio.Conn, cc *clientContext, method, ackID, message string) {
 	s.log.Info("validation error", slog.String("method", method),
-		slog.String("client", c.ID), slog.String("project", cc.ProjectID()))
-	_ = c.Ack(ackID, serializedError{Message: "invalid Mongo ObjectId"})
+		slog.String("client", c.ID), slog.String("project", cc.ProjectID()),
+		slog.String("err", message))
+	_ = c.Ack(ackID, serializedError{Message: message})
 	time.AfterFunc(100*time.Millisecond, c.Close)
 }
 
