@@ -215,6 +215,39 @@ them in the socket.io layer:
 6. A malformed rpc has to be answered. A client waiting on a callback that
    never comes waits forever.
 
+### real-time: four more defects that only a browser could find
+
+The suite above passes at parity, and the service still did not work. Opening
+the editor against it found four defects in a row, none of which any test could
+have reached:
+
+1. **The session cookie never verified.** express writes it with
+   `encodeURIComponent`, so a browser sends `s%3A<id>.<sig>`; `cookie-parser`
+   decodes it first, and Go's `Request.Cookie` does not. Every connection was
+   rejected as an invalid session. Both acceptance suites set the `Cookie`
+   header themselves, unencoded, so neither could see it.
+2. **The server never sent heartbeats.** The direction is easy to get
+   backwards: in socket.io 0.9 the *server* sends one every 25 seconds and the
+   client answers. A client that hears nothing for its timeout closes the
+   connection itself, so every session dropped about 30 seconds in. The suite's
+   longest wait is 500ms.
+3. **The Redis key schema was the wrong one.** server-ce replaces it wholesale
+   in `/etc/overleaf/settings.js`, dropping the hash-tag braces:
+   `PendingUpdates:<id>` where the services' own defaults say
+   `PendingUpdates:{<id>}`. Edits were queued under a name document-updater was
+   not reading. Nothing failed and nothing was logged -- the editor showed the
+   typing, then declared the document out of sync. Both suites assert the
+   upstream names, so both agreed with the wrong answer.
+4. **One editor event has a payload that is not an argument list.**
+   document-updater's canary probe publishes a bare object, which Node accepts
+   because it has no types to disagree with. A strict envelope rejected it --
+   and that decode is the one every editor event goes through.
+
+The first three are configuration and protocol: things a service only meets
+once it is wired into a real deployment with a real client. That is now three
+services in a row where the conformance suite passed and the deployment did
+not, which is the argument for doing both.
+
 ### real-time is stateful, so the switch is visible
 
 The four services before it are stateless: swapping one is invisible because
