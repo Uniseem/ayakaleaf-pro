@@ -3,7 +3,29 @@
 # Overleaf Community Edition (overleaf/overleaf)
 # ---------------------------------------------
 
+# Only ARGs declared before the first FROM are in scope for FROM instructions,
+# so both base images have to be named up here -- putting OVERLEAF_BASE_TAG
+# after the go-builder stage scopes it to that stage and leaves the final FROM
+# with a blank base name.
+ARG GO_BUILDER_TAG=golang:1.26-bookworm
 ARG OVERLEAF_BASE_TAG=sharelatex/sharelatex-base:latest
+
+# Build the Go ports of the small services
+# ----------------------------------------
+# These are drop-in replacements selected at runtime by the *_IMPL environment
+# variables; see services-go/README.md. The Node implementations stay in the
+# image, so the switch is reversible without a rebuild.
+FROM $GO_BUILDER_TAG AS go-builder
+WORKDIR /src
+COPY services-go/go.mod services-go/go.sum ./
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+COPY services-go/ ./
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/ ./cmd/...
+
 FROM $OVERLEAF_BASE_TAG
 
 WORKDIR /overleaf
@@ -37,6 +59,10 @@ RUN --mount=type=cache,target=/root/.cache \
     --mount=type=cache,target=/overleaf/services/web/node_modules/.cache,id=server-ce-webpack-cache \
     --mount=type=tmpfs,target=/tmp \
     node genScript compile | bash
+
+# Copy the Go service binaries
+# ----------------------------
+COPY --from=go-builder /out/ /overleaf/bin/go/
 
 # Copy runit service startup scripts to its location
 # --------------------------------------------------

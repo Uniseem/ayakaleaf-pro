@@ -1,12 +1,20 @@
 #!/bin/bash
 
+source /etc/overleaf/env.sh
+export LISTEN_ADDRESS=127.0.0.1
+
+# Go port of this service (services-go/cmd/linked-url-proxy), swapped in by
+# setting LINKED_URL_PROXY_IMPL=go. Any other value, including unset, keeps the
+# Node implementation, so rolling back is one environment variable and a
+# restart.
+if [ "$LINKED_URL_PROXY_IMPL" == "go" ] && [ -x /overleaf/bin/go/linked-url-proxy ]; then
+    exec /sbin/setuser www-data /overleaf/bin/go/linked-url-proxy >> /var/log/overleaf/linked-url-proxy.log 2>&1
+fi
+
 NODE_PARAMS=""
 if [ "$DEBUG_NODE" == "true" ]; then
     echo "running debug - linked-url-proxy"
     NODE_PARAMS="--inspect=0.0.0.0:30660"
 fi
-
-source /etc/overleaf/env.sh
-export LISTEN_ADDRESS=127.0.0.1
 
 exec /sbin/setuser www-data /usr/bin/node $NODE_PARAMS /overleaf/services/linked-url-proxy/app.mjs >> /var/log/overleaf/linked-url-proxy.log 2>&1

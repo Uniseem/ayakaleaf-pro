@@ -1,12 +1,19 @@
 #!/bin/bash
 
+source /etc/overleaf/env.sh
+export LISTEN_ADDRESS=127.0.0.1
+
+# Go port of this service (services-go/cmd/chat), swapped in by setting
+# CHAT_IMPL=go. Any other value, including unset, keeps the Node
+# implementation, so rolling back is one environment variable and a restart.
+if [ "$CHAT_IMPL" == "go" ] && [ -x /overleaf/bin/go/chat ]; then
+    exec /sbin/setuser www-data /overleaf/bin/go/chat >> /var/log/overleaf/chat.log 2>&1
+fi
+
 NODE_PARAMS=""
 if [ "$DEBUG_NODE" == "true" ]; then
     echo "running debug - chat"
     NODE_PARAMS="--inspect=0.0.0.0:30100"
 fi
-
-source /etc/overleaf/env.sh
-export LISTEN_ADDRESS=127.0.0.1
 
 exec /sbin/setuser www-data /usr/bin/node $NODE_PARAMS /overleaf/services/chat/app.js >> /var/log/overleaf/chat.log 2>&1
