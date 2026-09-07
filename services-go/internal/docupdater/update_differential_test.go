@@ -720,7 +720,9 @@ func compareFlush(t *testing.T, node, goSvc flushState) {
 		t.Errorf("calls to project-history\n  node: %v\n  go:   %v",
 			node.HistoryCalls, goSvc.HistoryCalls)
 	}
-	if node.UnflushedTime != goSvc.UnflushedTime {
+	// Only whether there is one: the value is when the document was modified,
+	// which is a different moment for each of the two runs.
+	if (node.UnflushedTime == "") != (goSvc.UnflushedTime == "") {
 		t.Errorf("unflushed time: node %q, go %q", node.UnflushedTime, goSvc.UnflushedTime)
 	}
 	if node.DocLines != goSvc.DocLines {
@@ -838,15 +840,21 @@ func TestSideBySideFlushWithoutChangesWritesNothing(t *testing.T) {
 // the read-only helper does not do.
 func (s *writePathSetup) postJSON(t *testing.T, base, method, path string, body any) (int, string) {
 	t.Helper()
-	encoded, err := json.Marshal(body)
-	if err != nil {
-		t.Fatalf("encoding the body: %v", err)
+	var reader io.Reader
+	if body != nil {
+		encoded, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("encoding the body: %v", err)
+		}
+		reader = strings.NewReader(string(encoded))
 	}
-	req, err := http.NewRequest(method, base+path, strings.NewReader(string(encoded)))
+	req, err := http.NewRequest(method, base+path, reader)
 	if err != nil {
 		t.Fatalf("building request: %v", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -868,6 +876,7 @@ type writeOutcome struct {
 	History    []map[string]any
 	Lines      []string
 	Version    string
+	Ranges     string
 }
 
 // runWriteCase puts the same write to both services from the same starting
@@ -1021,4 +1030,184 @@ func TestSideBySideSetDocDiffs(t *testing.T) {
 		s.runWriteCase(t, c.name, http.MethodPost, doc,
 			map[string]any{"lines": c.lines, "source": "dropbox", "user_id": "u1"}, true)
 	}
+}
+
+// seedMarkers puts a tracked change and a comment into the document, by making
+// the edits that create them rather than by writing the markers directly, so
+// they are exactly what the running service would have produced.
+//
+// It returns the id of the tracked change, which the accept and reject routes
+// address it by.
+func (s *writePathSetup) seedMarkers(t *testing.T, base string, viaNode bool) string {
+	t.Helper()
+	ctx := context.Background()
+
+	tracked := map[string]any{
+		"doc": testDocID,
+		"op":  []map[string]any{{"p": 4, "i": "INSERTED"}},
+		"v":   12,
+		"meta": map[string]any{"source": "P.tc", "user_id": "u1", "ts": 1700000000000,
+			"tc": "0123456789abcdef01"},
+	}
+	comment := map[string]any{
+		"doc":  testDocID,
+		"op":   []map[string]any{{"p": 4, "c": "INSERTED", "t": "thread-1"}},
+		"v":    13,
+		"meta": map[string]any{"source": "P.tc", "user_id": "u2", "ts": 1700000000001},
+	}
+
+	if viaNode {
+		s.loadDocViaNode(t)
+		s.pushUpdate(t, tracked, true)
+		s.waitForVersion(t, "13")
+		s.pushUpdate(t, comment, true)
+		s.waitForVersion(t, "14")
+	} else {
+		s.loadDocViaGo(t)
+		for _, update := range []map[string]any{tracked, comment} {
+			s.pushUpdate(t, update, false)
+			if err := s.updates.ProcessOutstandingUpdatesWithLock(ctx, testProjectID, testDocID); err != nil {
+				t.Fatalf("applying an update: %v", err)
+			}
+		}
+	}
+
+	// The id is generated from the seed, so both sides produce the same one;
+	// reading it back rather than assuming it keeps the test honest.
+	stored, err := s.client.Get(ctx, rediskeys.Upstream.Ranges(testDocID)).Result()
+	if err != nil {
+		t.Fatalf("reading the ranges back: %v", err)
+	}
+	var ranges struct {
+		Changes []struct {
+			ID string `json:"id"`
+		} `json:"changes"`
+	}
+	if err := json.Unmarshal([]byte(stored), &ranges); err != nil {
+		t.Fatalf("decoding the ranges: %v", err)
+	}
+	if len(ranges.Changes) != 1 {
+		t.Fatalf("expected one tracked change, got %s", stored)
+	}
+	return ranges.Changes[0].ID
+}
+
+// runMarkerCase drives one call against each service on a document that has a
+// tracked change and a comment in it, and compares everything left behind.
+func (s *writePathSetup) runMarkerCase(t *testing.T, name, method string,
+	path func(changeID string) string, body any) {
+	t.Helper()
+	s.t.Run(name, func(t *testing.T) {
+		ctx := context.Background()
+
+		run := func(base string, viaNode bool) writeOutcome {
+			if err := s.client.FlushDB(ctx).Err(); err != nil {
+				t.Fatalf("flushing redis: %v", err)
+			}
+			s.web.forgetWrites()
+			s.history.forgetCalls()
+			changeID := s.seedMarkers(t, base, viaNode)
+
+			var status int
+			var answer string
+			ops := s.collectAppliedOps(t, func() {
+				status, answer = s.postJSON(t, base, method, path(changeID), body)
+			})
+
+			out := writeOutcome{Body: answer, AppliedOps: ops}
+			out.flushState = s.captureFlush(t, status)
+			captured := s.capture(t)
+			out.History = captured.History
+			out.Lines = captured.Lines
+			out.Version = captured.Version
+			out.Ranges = captured.Ranges
+			return out
+		}
+
+		fromNode := run(s.node, true)
+		fromGo := run(s.goSvc, false)
+
+		compareFlush(t, fromNode.flushState, fromGo.flushState)
+		// Error bodies are prose and are allowed to differ; the status is the
+		// part callers act on, and compareFlush has already checked it. The
+		// timestamp on a marker is stamped as it is created, so it cannot
+		// match between two runs either.
+		if fromNode.Status < 400 &&
+			!sameJSONIgnoring(nonEmptyJSON(fromNode.Body), nonEmptyJSON(fromGo.Body),
+				"metadata.ts") {
+			t.Errorf("response\n  node: %s\n  go:   %s", fromNode.Body, fromGo.Body)
+		}
+		if strings.Join(fromNode.Lines, "\n") != strings.Join(fromGo.Lines, "\n") {
+			t.Errorf("doc\n  node: %q\n  go:   %q", fromNode.Lines, fromGo.Lines)
+		}
+		if fromNode.Version != fromGo.Version {
+			t.Errorf("version: node %s, go %s", fromNode.Version, fromGo.Version)
+		}
+		if !sameJSONIgnoring(nonEmptyJSON(fromNode.Ranges), nonEmptyJSON(fromGo.Ranges),
+			"changes.metadata.ts", "comments.metadata.ts") {
+			t.Errorf("ranges\n  node: %s\n  go:   %s", fromNode.Ranges, fromGo.Ranges)
+		}
+		if len(fromNode.AppliedOps) != len(fromGo.AppliedOps) {
+			t.Fatalf("published ops\n  node: %v\n  go:   %v",
+				fromNode.AppliedOps, fromGo.AppliedOps)
+		}
+		for i := range fromNode.AppliedOps {
+			a, _ := json.Marshal(fromNode.AppliedOps[i])
+			b, _ := json.Marshal(fromGo.AppliedOps[i])
+			if !sameJSONIgnoring(string(a), string(b), "op.meta.ts", "op.meta.tsRT") {
+				t.Errorf("published op %d\n  node: %s\n  go:   %s", i, a, b)
+			}
+		}
+		if len(fromNode.History) != len(fromGo.History) {
+			t.Fatalf("history entries\n  node: %v\n  go:   %v",
+				fromNode.History, fromGo.History)
+		}
+		for i := range fromNode.History {
+			a, _ := json.Marshal(fromNode.History[i])
+			b, _ := json.Marshal(fromGo.History[i])
+			if !sameJSONIgnoring(string(a), string(b), "meta.ts", "meta.tsRT") {
+				t.Errorf("history entry %d\n  node: %s\n  go:   %s", i, a, b)
+			}
+		}
+	})
+}
+
+// Accepting a change only removes its marker, while rejecting one puts the text
+// back the way it was and is seen by everyone with the document open. The two
+// are easy to get the wrong way round, and the difference is somebody losing
+// their edit.
+func TestSideBySideChangesAndComments(t *testing.T) {
+	s := newWritePathSetup(t)
+
+	doc := fmt.Sprintf("/project/%s/doc/%s", testProjectID, testDocID)
+	fixed := func(path string) func(string) string {
+		return func(string) string { return path }
+	}
+
+	s.runMarkerCase(t, "accept a change by id", http.MethodPost,
+		func(changeID string) string { return doc + "/change/" + changeID + "/accept" }, nil)
+	s.runMarkerCase(t, "accept a list of changes", http.MethodPost,
+		fixed(doc+"/change/accept"),
+		map[string]any{"change_ids": []string{"0123456789abcdef01000001"}})
+	s.runMarkerCase(t, "accept a change that is not there", http.MethodPost,
+		fixed(doc+"/change/accept"), map[string]any{"change_ids": []string{"missing"}})
+	s.runMarkerCase(t, "reject a change", http.MethodPost,
+		fixed(doc+"/change/reject"),
+		map[string]any{"change_ids": []string{"0123456789abcdef01000001"}, "user_id": "u3"})
+	s.runMarkerCase(t, "reject a change that is not there", http.MethodPost,
+		fixed(doc+"/change/reject"),
+		map[string]any{"change_ids": []string{"missing"}, "user_id": "u3"})
+
+	s.runMarkerCase(t, "get a comment", http.MethodGet,
+		fixed(doc+"/comment/thread-1"), nil)
+	s.runMarkerCase(t, "get a comment that is not there", http.MethodGet,
+		fixed(doc+"/comment/thread-missing"), nil)
+	s.runMarkerCase(t, "resolve a comment", http.MethodPost,
+		fixed(doc+"/comment/thread-1/resolve"), map[string]any{"user_id": "u3"})
+	s.runMarkerCase(t, "reopen a comment", http.MethodPost,
+		fixed(doc+"/comment/thread-1/reopen"), map[string]any{"user_id": "u3"})
+	s.runMarkerCase(t, "delete a comment", http.MethodDelete,
+		fixed(doc+"/comment/thread-1"), map[string]any{"user_id": "u3"})
+	s.runMarkerCase(t, "delete a comment that is not there", http.MethodDelete,
+		fixed(doc+"/comment/thread-missing"), map[string]any{"user_id": "u3"})
 }

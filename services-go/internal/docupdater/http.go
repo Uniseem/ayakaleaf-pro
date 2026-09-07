@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -83,6 +84,14 @@ func (s *Server) Handler(monitor func(http.Handler) http.Handler) http.Handler {
 	mux.HandleFunc("POST /project/{project_id}/flush", s.flushProject)
 	mux.HandleFunc("DELETE /project/{project_id}", s.deleteProject)
 	mux.HandleFunc("DELETE /project", s.deleteMultipleProjects)
+	mux.HandleFunc("GET /project/{project_id}/doc/{doc_id}/comment/{comment_id}", s.getComment)
+	mux.HandleFunc("POST /project/{project_id}/doc/{doc_id}/change/{change_id}/accept", s.acceptChanges)
+	mux.HandleFunc("POST /project/{project_id}/doc/{doc_id}/change/accept", s.acceptChanges)
+	mux.HandleFunc("POST /project/{project_id}/doc/{doc_id}/change/reject", s.rejectChanges)
+	mux.HandleFunc("POST /project/{project_id}/doc/{doc_id}/comment/{comment_id}/resolve", s.resolveComment)
+	mux.HandleFunc("POST /project/{project_id}/doc/{doc_id}/comment/{comment_id}/reopen", s.reopenComment)
+	mux.HandleFunc("DELETE /project/{project_id}/doc/{doc_id}/comment/{comment_id}", s.deleteComment)
+
 	mux.HandleFunc("POST /project/{project_id}/block", s.blockProject)
 	mux.HandleFunc("POST /project/{project_id}/unblock", s.unblockProject)
 
@@ -297,6 +306,107 @@ func (s *Server) appendToDoc(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(result)
 }
 
+// changesBody is what the change and comment routes carry.
+type changesBody struct {
+	ChangeIDs []string `json:"change_ids"`
+	UserID    string   `json:"user_id"`
+}
+
+// readChangesBody decodes the body, tolerating an empty one: the accept route
+// with a change id in the path is called without one.
+func readChangesBody(w http.ResponseWriter, r *http.Request) (changesBody, bool) {
+	var body changesBody
+	err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBody)).Decode(&body)
+	if err != nil && !errors.Is(err, io.EOF) {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return body, false
+	}
+	return body, true
+}
+
+func (s *Server) acceptChanges(w http.ResponseWriter, r *http.Request) {
+	body, ok := readChangesBody(w, r)
+	if !ok {
+		return
+	}
+	// One change in the path, or a list in the body.
+	changeIDs := body.ChangeIDs
+	if changeIDs == nil {
+		changeIDs = []string{r.PathValue("change_id")}
+	}
+
+	authors, err := s.docs.AcceptChangesWithLock(r.Context(),
+		r.PathValue("project_id"), r.PathValue("doc_id"), changeIDs)
+	if err != nil {
+		s.writeError(w, r, err, "acceptChanges")
+		return
+	}
+	if authors == nil {
+		authors = []string{}
+	}
+	writeJSON(w, map[string]any{"changeContributors": authors})
+}
+
+func (s *Server) rejectChanges(w http.ResponseWriter, r *http.Request) {
+	body, ok := readChangesBody(w, r)
+	if !ok {
+		return
+	}
+	rejected, err := s.docs.RejectChangesWithLock(r.Context(),
+		r.PathValue("project_id"), r.PathValue("doc_id"), body.ChangeIDs, body.UserID)
+	if err != nil {
+		s.writeError(w, r, err, "rejectChanges")
+		return
+	}
+	writeJSON(w, map[string]any{"rejectedChangeIds": rejected})
+}
+
+func (s *Server) getComment(w http.ResponseWriter, r *http.Request) {
+	comment, err := s.docs.GetCommentWithLock(r.Context(), r.PathValue("project_id"),
+		r.PathValue("doc_id"), r.PathValue("comment_id"))
+	if err != nil {
+		s.writeError(w, r, err, "getComment")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_, _ = w.Write(comment)
+}
+
+func (s *Server) resolveComment(w http.ResponseWriter, r *http.Request) {
+	s.updateCommentState(w, r, true)
+}
+
+func (s *Server) reopenComment(w http.ResponseWriter, r *http.Request) {
+	s.updateCommentState(w, r, false)
+}
+
+func (s *Server) updateCommentState(w http.ResponseWriter, r *http.Request, resolved bool) {
+	body, ok := readChangesBody(w, r)
+	if !ok {
+		return
+	}
+	err := s.docs.UpdateCommentStateWithLock(r.Context(), r.PathValue("project_id"),
+		r.PathValue("doc_id"), r.PathValue("comment_id"), body.UserID, resolved)
+	if err != nil {
+		s.writeError(w, r, err, "updateCommentState")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) deleteComment(w http.ResponseWriter, r *http.Request) {
+	if _, ok := readChangesBody(w, r); !ok {
+		return
+	}
+	err := s.docs.DeleteCommentWithLock(r.Context(), r.PathValue("project_id"),
+		r.PathValue("doc_id"), r.PathValue("comment_id"))
+	if err != nil {
+		s.writeError(w, r, err, "deleteComment")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) flushDocIfLoaded(w http.ResponseWriter, r *http.Request) {
 	projectID := r.PathValue("project_id")
 	docID := r.PathValue("doc_id")
@@ -448,6 +558,8 @@ func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error, m
 		http.Error(w, otErr.Error(), http.StatusUnprocessableEntity)
 	case errors.Is(err, ErrFileTooLarge):
 		http.Error(w, err.Error(), http.StatusRequestEntityTooLarge)
+	case errors.Is(err, ErrHistoryRangesNotSupported):
+		http.Error(w, err.Error(), http.StatusNotImplemented)
 	case errors.Is(err, ErrProjectStateChanged):
 		w.WriteHeader(http.StatusConflict)
 	default:
