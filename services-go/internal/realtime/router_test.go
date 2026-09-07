@@ -15,6 +15,15 @@ func raw(values ...string) []json.RawMessage {
 	return args
 }
 
+// payload encodes an argument list the way it appears on the wire.
+func payload(values ...string) json.RawMessage {
+	encoded, err := json.Marshal(raw(values...))
+	if err != nil {
+		panic(err)
+	}
+	return encoded
+}
+
 // joinDoc has four call shapes because the editor has grown three times
 // without changing the event name. Getting a shape wrong means a client on one
 // version of the frontend silently cannot open documents.
@@ -106,13 +115,13 @@ func TestShouldDisconnectClient(t *testing.T) {
 			// payload entries themselves.
 			"the removed user is disconnected",
 			user("u1", true),
-			editorEvent{Message: "userRemovedFromProject", Payload: raw(`"u1"`, `"u2"`)},
+			editorEvent{Message: "userRemovedFromProject", Payload: payload(`"u1"`, `"u2"`)},
 			true,
 		},
 		{
 			"other users stay",
 			user("u3", true),
-			editorEvent{Message: "userRemovedFromProject", Payload: raw(`"u1"`, `"u2"`)},
+			editorEvent{Message: "userRemovedFromProject", Payload: payload(`"u1"`, `"u2"`)},
 			false,
 		},
 		{
@@ -120,13 +129,13 @@ func TestShouldDisconnectClient(t *testing.T) {
 			// is not matched, exactly as the Node service does not match it.
 			"a list inside a single argument is not a match",
 			user("u1", true),
-			editorEvent{Message: "userRemovedFromProject", Payload: raw(`["u1","u2"]`)},
+			editorEvent{Message: "userRemovedFromProject", Payload: payload(`["u1","u2"]`)},
 			false,
 		},
 		{
 			"an anonymous client is never the removed user",
 			&clientContext{user: &User{}},
-			editorEvent{Message: "userRemovedFromProject", Payload: raw(`""`)},
+			editorEvent{Message: "userRemovedFromProject", Payload: payload(`""`)},
 			false,
 		},
 		{
@@ -134,7 +143,7 @@ func TestShouldDisconnectClient(t *testing.T) {
 			user("u1", false),
 			editorEvent{
 				Message: "project:publicAccessLevel:changed",
-				Payload: raw(`{"newAccessLevel":"private"}`),
+				Payload: payload(`{"newAccessLevel":"private"}`),
 			},
 			true,
 		},
@@ -143,7 +152,7 @@ func TestShouldDisconnectClient(t *testing.T) {
 			user("u1", true),
 			editorEvent{
 				Message: "project:publicAccessLevel:changed",
-				Payload: raw(`{"newAccessLevel":"private"}`),
+				Payload: payload(`{"newAccessLevel":"private"}`),
 			},
 			false,
 		},
@@ -152,7 +161,7 @@ func TestShouldDisconnectClient(t *testing.T) {
 			user("u1", false),
 			editorEvent{
 				Message: "project:publicAccessLevel:changed",
-				Payload: raw(`{"newAccessLevel":"tokenBased"}`),
+				Payload: payload(`{"newAccessLevel":"tokenBased"}`),
 			},
 			false,
 		},
@@ -161,20 +170,20 @@ func TestShouldDisconnectClient(t *testing.T) {
 			user("u1", true),
 			editorEvent{
 				Message: "project:collaboratorAccessLevel:changed",
-				Payload: raw(`{"userId":"u1"}`),
+				Payload: payload(`{"userId":"u1"}`),
 			},
 			true,
 		},
 		{
 			"an unrelated event disconnects nobody",
 			user("u1", true),
-			editorEvent{Message: "projectNameUpdated", Payload: raw(`"new name"`)},
+			editorEvent{Message: "projectNameUpdated", Payload: payload(`"new name"`)},
 			false,
 		},
 		{
 			"a payload that is not an id disconnects nobody",
 			user("u1", true),
-			editorEvent{Message: "userRemovedFromProject", Payload: raw(`{"id":"u1"}`)},
+			editorEvent{Message: "userRemovedFromProject", Payload: payload(`{"id":"u1"}`)},
 			false,
 		},
 	}
@@ -350,5 +359,34 @@ func TestNewPublicID(t *testing.T) {
 	}
 	if newPublicID() == id {
 		t.Error("public ids must not repeat")
+	}
+}
+
+// document-updater publishes its canary probe with a bare object where every
+// other message carries an argument list. A strict envelope rejects the whole
+// message, and the rejection is not confined to the canary: it is the same
+// decode every editor event goes through.
+func TestEditorEventTolerantPayload(t *testing.T) {
+	canary := `{"message":"canary-applied-op","payload":{"ack":42,"broadcast":99,` +
+		`"docId":"d1","projectId":"p1","source":"P.abc"}}`
+	var ev editorEvent
+	if err := json.Unmarshal([]byte(canary), &ev); err != nil {
+		t.Fatalf("the canary message must still decode: %v", err)
+	}
+	if ev.Message != "canary-applied-op" {
+		t.Errorf("message = %q", ev.Message)
+	}
+	// It is consumed here, never forwarded, so it yields no arguments.
+	if args := ev.args(); args != nil {
+		t.Errorf("args = %v, want none for a payload that is not a list", args)
+	}
+
+	normal := `{"room_id":"p1","message":"projectNameUpdated","payload":["Renamed"]}`
+	if err := json.Unmarshal([]byte(normal), &ev); err != nil {
+		t.Fatalf("a normal message must decode: %v", err)
+	}
+	args := ev.args()
+	if len(args) != 1 || string(args[0]) != `"Renamed"` {
+		t.Errorf("args = %v, want the single argument", args)
 	}
 }

@@ -32,13 +32,35 @@ var restrictedUserMessagePassList = map[string]bool{
 }
 
 // editorEvent is the envelope published on the editor-events channel.
+//
+// Payload is usually the argument list of an emit, but not always: the canary
+// probe document-updater publishes sends a bare object instead.
+//
+//	// services/document-updater/app/js/RealTimeRedisManager.js:90
+//	payload: { ack, broadcast, docId, projectId, source }
+//
+// Node never notices, having no types to disagree with. Declaring this field
+// as a list makes every such message fail to decode as a whole -- and the
+// failure is not confined to the odd message, because a strict envelope drops
+// anything that does not fit it.
 type editorEvent struct {
-	RoomID      string            `json:"room_id"`
-	Message     string            `json:"message"`
-	Payload     []json.RawMessage `json:"payload"`
-	ID          string            `json:"_id,omitempty"`
-	HealthCheck bool              `json:"health_check,omitempty"`
-	Key         string            `json:"key,omitempty"`
+	RoomID      string          `json:"room_id"`
+	Message     string          `json:"message"`
+	Payload     json.RawMessage `json:"payload"`
+	ID          string          `json:"_id,omitempty"`
+	HealthCheck bool            `json:"health_check,omitempty"`
+	Key         string          `json:"key,omitempty"`
+}
+
+// args reads the payload as the argument list of an emit. A payload that is
+// not a list belongs to a message this service consumes rather than forwards,
+// and yields no arguments.
+func (e *editorEvent) args() []json.RawMessage {
+	var args []json.RawMessage
+	if err := json.Unmarshal(e.Payload, &args); err != nil {
+		return nil
+	}
+	return args
 }
 
 // EmitToRoom publishes an event to every client in a room, cluster-wide.
@@ -59,7 +81,12 @@ func (s *Service) EmitToRoom(ctx context.Context, roomID, message string, payloa
 		}
 		raw = append(raw, encoded)
 	}
-	data, err := json.Marshal(editorEvent{RoomID: roomID, Message: message, Payload: raw})
+	args, err := json.Marshal(raw)
+	if err != nil {
+		s.log.Error("dropping unencodable event", slog.String("message", message))
+		return
+	}
+	data, err := json.Marshal(editorEvent{RoomID: roomID, Message: message, Payload: args})
 	if err != nil {
 		s.log.Error("dropping unencodable event", slog.String("message", message))
 		return
@@ -83,7 +110,7 @@ func (s *Service) processEditorEvent(channel, raw string) {
 
 	switch {
 	case ev.RoomID == "all":
-		s.io.Broadcast(ev.Message, rawArgs(ev.Payload)...)
+		s.io.Broadcast(ev.Message, rawArgs(ev.args())...)
 
 	case ev.Message == "clientTracking.refresh" && ev.RoomID != "":
 		// web asks every instance to renew the entries of the clients it
@@ -113,7 +140,7 @@ func (s *Service) distributeEditorEvent(ev editorEvent) {
 		return
 	}
 	isRestricted := !restrictedUserMessagePassList[ev.Message]
-	args := rawArgs(ev.Payload)
+	args := rawArgs(ev.args())
 
 	for _, c := range clients {
 		cc := s.context(c)
@@ -144,6 +171,7 @@ func (s *Service) distributeEditorEvent(ev editorEvent) {
 // access away.
 func (s *Service) shouldDisconnectClient(cc *clientContext, ev editorEvent) bool {
 	userID := cc.UserID()
+	payload := ev.args()
 	switch ev.Message {
 	case "userRemovedFromProject":
 		// web emits one argument per removed user, so the ids are the payload
@@ -151,7 +179,7 @@ func (s *Service) shouldDisconnectClient(cc *clientContext, ev editorEvent) bool
 		if userID == "" {
 			return false
 		}
-		for _, raw := range ev.Payload {
+		for _, raw := range payload {
 			var removed string
 			if json.Unmarshal(raw, &removed) == nil && removed == userID {
 				return true
@@ -161,7 +189,7 @@ func (s *Service) shouldDisconnectClient(cc *clientContext, ev editorEvent) bool
 		var info struct {
 			NewAccessLevel string `json:"newAccessLevel"`
 		}
-		if len(ev.Payload) > 0 && json.Unmarshal(ev.Payload[0], &info) == nil {
+		if len(payload) > 0 && json.Unmarshal(payload[0], &info) == nil {
 			// A project turned private drops everyone who was there on a
 			// share link, but keeps the invited members.
 			return info.NewAccessLevel == "private" && !cc.IsInvitedMember()
@@ -170,7 +198,7 @@ func (s *Service) shouldDisconnectClient(cc *clientContext, ev editorEvent) bool
 		var info struct {
 			UserID string `json:"userId"`
 		}
-		if len(ev.Payload) > 0 && json.Unmarshal(ev.Payload[0], &info) == nil {
+		if len(payload) > 0 && json.Unmarshal(payload[0], &info) == nil {
 			return info.UserID == userID
 		}
 	}
