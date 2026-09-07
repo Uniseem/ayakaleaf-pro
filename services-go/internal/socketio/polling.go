@@ -97,7 +97,10 @@ func (p *pollingConn) serveGET(w http.ResponseWriter, r *http.Request) {
 		// Nothing to say; a noop closes this poll so the client opens the next.
 		writePolling(w, r, Encode(Packet{Type: PacketNoop}))
 	case <-p.conn.closed:
-		writePolling(w, r, Encode(Packet{Type: PacketDisconnect}))
+		// Deliver whatever was queued before the close: the last frames are
+		// usually the reason for it, such as connectionRejected.
+		writePolling(w, r, EncodePayload(append(p.take(),
+			Encode(Packet{Type: PacketDisconnect}))))
 	case <-r.Context().Done():
 	}
 }
@@ -174,6 +177,17 @@ func (s *Server) servePolling(w http.ResponseWriter, r *http.Request, sessionID 
 				case frame := <-c.send:
 					pc.queue(frame)
 				case <-c.closed:
+					// Move anything still in flight into the poll queue, so a
+					// client that asks once more still learns why it was cut
+					// off.
+					for drained := true; drained; {
+						select {
+						case frame := <-c.send:
+							pc.queue(frame)
+						default:
+							drained = false
+						}
+					}
 					s.mu.Lock()
 					delete(s.polling, sessionID)
 					s.mu.Unlock()

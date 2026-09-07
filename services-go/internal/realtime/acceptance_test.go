@@ -172,7 +172,12 @@ type Packet struct {
 func (h *harness) connect(t *testing.T, sessionID, projectID string) *client {
 	t.Helper()
 
-	req, _ := http.NewRequest(http.MethodGet, h.server.URL+"/socket.io/1/?t=1", nil)
+	// The query flags and the session cookie go on the HANDSHAKE, not on the
+	// websocket upgrade: socket.io 0.9 appends the client options to the
+	// handshake URL, and the server reads them off that request for the life
+	// of the connection.
+	handshakeURL := fmt.Sprintf("%s/socket.io/1/?t=1&projectId=%s", h.server.URL, projectID)
+	req, _ := http.NewRequest(http.MethodGet, handshakeURL, nil)
 	if sessionID != "" {
 		req.AddCookie(&http.Cookie{Name: "overleaf.sid", Value: signCookie(sessionID)})
 	}
@@ -184,13 +189,9 @@ func (h *harness) connect(t *testing.T, sessionID, projectID string) *client {
 	_ = res.Body.Close()
 	socketID := strings.Split(string(body), ":")[0]
 
-	url := fmt.Sprintf("ws%s/socket.io/1/websocket/%s?projectId=%s",
-		strings.TrimPrefix(h.server.URL, "http"), socketID, projectID)
-	header := http.Header{}
-	if sessionID != "" {
-		header.Set("Cookie", "overleaf.sid="+signCookie(sessionID))
-	}
-	ws, _, err := websocket.Dial(context.Background(), url, &websocket.DialOptions{HTTPHeader: header})
+	url := fmt.Sprintf("ws%s/socket.io/1/websocket/%s",
+		strings.TrimPrefix(h.server.URL, "http"), socketID)
+	ws, _, err := websocket.Dial(context.Background(), url, nil)
 	if err != nil {
 		t.Fatalf("websocket dial: %v", err)
 	}

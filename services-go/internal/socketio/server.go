@@ -410,9 +410,24 @@ func (s *Server) upgrade(w http.ResponseWriter, r *http.Request, sessionID strin
 	s.run(s.newConn(sessionID, p.request, "websocket", ws))
 }
 
+// writeTimeout bounds a single frame write, so one stalled client cannot pin
+// a goroutine indefinitely.
+const writeTimeout = 30 * time.Second
+
 func (s *Server) run(c *Conn) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Closing the connection has to interrupt the blocked read, or a client
+	// the server has rejected would linger until it happened to send
+	// something -- or forever.
+	go func() {
+		select {
+		case <-c.closed:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
 
 	// The writer owns the socket for writes; everything else queues frames.
 	var wg sync.WaitGroup
@@ -431,17 +446,36 @@ func (s *Server) run(c *Conn) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		// Writes use their own deadline rather than the connection context,
+		// which is cancelled the moment the connection closes -- and the
+		// frames that still need writing at that point are precisely the ones
+		// explaining why (connectionRejected, otUpdateError, reconnect
+		// requests).
+		write := func(frame string) bool {
+			writeCtx, done := context.WithTimeout(context.Background(), writeTimeout)
+			defer done()
+			return c.ws.Write(writeCtx, websocket.MessageText, []byte(frame)) == nil
+		}
 		for {
 			select {
 			case frame := <-c.send:
-				if err := c.ws.Write(ctx, websocket.MessageText, []byte(frame)); err != nil {
+				if !write(frame) {
 					c.Close()
 					return
 				}
 			case <-c.closed:
-				return
-			case <-ctx.Done():
-				return
+				// Flush whatever is already queued before giving up on the
+				// socket.
+				for {
+					select {
+					case frame := <-c.send:
+						if !write(frame) {
+							return
+						}
+					default:
+						return
+					}
+				}
 			}
 		}
 	}()
