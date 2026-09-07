@@ -150,6 +150,21 @@ func (s Schema) ProjectNotEmptySince(projectID string) string {
 	return "projectNotEmptySince:" + braced(projectID)
 }
 
+// The project-history queue. These live under redis.project_history in the
+// service defaults, which server-ce points at the same connection without
+// redefining, so they keep their braces.
+
+// ProjectHistoryOps is the queue project-history reads a project's edits from.
+func (s Schema) ProjectHistoryOps(projectID string) string {
+	return "ProjectHistory:Ops:" + braced(projectID)
+}
+
+// ProjectHistoryFirstOpTimestamp is when the oldest unprocessed edit was
+// queued, which is how a history backlog is noticed.
+func (s Schema) ProjectHistoryFirstOpTimestamp(projectID string) string {
+	return "ProjectHistory:FirstOpTimestamp:" + braced(projectID)
+}
+
 // Keys with no id in them, identical under both schemas.
 
 // HistoryRangesSupport is the set of documents whose ranges are tracked in

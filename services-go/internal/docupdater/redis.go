@@ -480,8 +480,13 @@ func (s *RedisStore) UpdateDocument(
 	// oldest unsaved edit is what decides when to write the document out.
 	pipe.SetArgs(ctx, s.keys.UnflushedTime(docID), now, redis.SetArgs{Mode: "NX"})
 
-	_, err = pipe.Exec(ctx)
-	return err
+	// A SET NX that did not set anything answers with nil, which the client
+	// reports as an error. Here it is the ordinary case: the document already
+	// had unsaved changes.
+	if _, err = pipe.Exec(ctx); err != nil && !errors.Is(err, redis.Nil) {
+		return err
+	}
+	return nil
 }
 
 // RenameDoc records a document's new path, but only if it is loaded.
@@ -548,8 +553,13 @@ func (s *RedisStore) SetHistoryRangesSupportFlag(ctx context.Context, docID stri
 // RecordProjectNotificationTimestamp records when a project first changed, for
 // the email that tells collaborators about it. Only the first change counts.
 func (s *RedisStore) RecordProjectNotificationTimestamp(ctx context.Context, projectID string, timestamp int64) error {
-	return s.redis.SetArgs(ctx, s.keys.ProjectNotificationTimestamp(projectID),
+	err := s.redis.SetArgs(ctx, s.keys.ProjectNotificationTimestamp(projectID),
 		timestamp, redis.SetArgs{Mode: "NX"}).Err()
+	if errors.Is(err, redis.Nil) {
+		// Already recorded, which is the point of only recording the first.
+		return nil
+	}
+	return err
 }
 
 // CheckOrSetProjectState records the state of a project's document list and

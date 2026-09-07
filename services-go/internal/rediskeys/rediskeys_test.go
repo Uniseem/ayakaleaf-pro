@@ -72,6 +72,14 @@ func TestKeyNames(t *testing.T) {
 			"projectNotEmptySince:{" + projectID + "}",
 			"projectNotEmptySince:{" + projectID + "}", false},
 
+		{"ProjectHistoryOps", func(s Schema) string { return s.ProjectHistoryOps(projectID) },
+			"ProjectHistory:Ops:{" + projectID + "}",
+			"ProjectHistory:Ops:{" + projectID + "}", false},
+		{"ProjectHistoryFirstOpTimestamp",
+			func(s Schema) string { return s.ProjectHistoryFirstOpTimestamp(projectID) },
+			"ProjectHistory:FirstOpTimestamp:{" + projectID + "}",
+			"ProjectHistory:FirstOpTimestamp:{" + projectID + "}", false},
+
 		// Keys with no id, identical under both.
 		{"HistoryRangesSupport", func(s Schema) string { return s.HistoryRangesSupport() },
 			"HistoryRangesSupport", "HistoryRangesSupport", false},
