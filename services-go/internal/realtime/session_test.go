@@ -62,16 +62,3 @@ func TestGetWithoutCookie(t *testing.T) {
 		t.Errorf("a request with no cookie should report a missing session, got %v", err)
 	}
 }
-
-func TestUserIsAnonymous(t *testing.T) {
-	var nilUser *User
-	if !nilUser.IsAnonymous() {
-		t.Error("a nil user is anonymous")
-	}
-	if !(&User{}).IsAnonymous() {
-		t.Error("a user with no id is anonymous")
-	}
-	if (&User{ID: "507f1f77bcf86cd799439011"}).IsAnonymous() {
-		t.Error("a user with an id is not anonymous")
-	}
-}

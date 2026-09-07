@@ -29,9 +29,6 @@ type User struct {
 	AnonymousAccessToken string `json:"-"`
 }
 
-// IsAnonymous reports whether the connection has no logged-in user.
-func (u *User) IsAnonymous() bool { return u == nil || u.ID == "" }
-
 // Session is the part of an Overleaf session this service reads.
 type Session struct {
 	Passport *struct {

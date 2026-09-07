@@ -67,11 +67,6 @@ func (s *Service) EmitToRoom(ctx context.Context, roomID, message string, payloa
 	s.editorEvents.Publish(ctx, roomID, string(data), s.cfg.PublishOnIndividualChannels)
 }
 
-// EmitToAll publishes an event to every connected client, cluster-wide.
-func (s *Service) EmitToAll(ctx context.Context, message string, payload ...any) {
-	s.EmitToRoom(ctx, "all", message, payload...)
-}
-
 // processEditorEvent distributes one message from the editor-events channel.
 func (s *Service) processEditorEvent(channel, raw string) {
 	if len(raw) > s.cfg.MaxUpdateSize {
