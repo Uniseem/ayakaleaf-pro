@@ -122,13 +122,15 @@ jobs:
       # --- End of Server Image ---
 
       # --- Push Server Image ---
+      # Pull requests build the image but do not publish it: the registry lives
+      # under another account, so a pull request has no credentials for it and
+      # the push step could only ever fail. Building is the part that tells us
+      # whether the change is sound.
       - name: "ReTag Docker Image And Push"
+        if: github.event_name != 'pull_request'
         run: |
           cd ./server-ce
           github_short_sha=$(echo ${{ github.sha }} | head -c7)
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            github_short_sha=$(echo ${{ github.event.pull_request.head.sha }} | head -c7)
-          fi
           tag=$(TZ='Asia/Shanghai' date +'%Y%m%d%H%M')-$github_short_sha
           echo "Building tag: $tag"
           docker tag sharelatex/sharelatex:latest ${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:latest
@@ -137,7 +139,9 @@ jobs:
           docker push ${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:$tag
 
       # --- Retention Policy: Delete old images ---
+      # Nothing was published on a pull request, so there is nothing to prune.
       - name: Delete old images
+        if: github.event_name != 'pull_request'
         uses: snok/container-retention-policy@v2
         with:
           image-names: overleaf-pro/ops*
