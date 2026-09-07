@@ -11,6 +11,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -32,7 +33,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	secrets := sessionSecrets()
+	secrets := config.SessionSecrets()
 	if len(secrets) == 0 {
 		log.Error("no SESSION_SECRET provided")
 		os.Exit(1)
@@ -112,37 +113,25 @@ func main() {
 	}
 }
 
-// sessionSecrets lists the secrets in the order cookie-parser is given them,
-// so a cookie signed with any of them still verifies during a rotation.
-func sessionSecrets() []string {
-	var secrets []string
-	for _, key := range []string{
-		"SESSION_SECRET", "SESSION_SECRET_UPCOMING", "SESSION_SECRET_FALLBACK",
-	} {
-		if v := os.Getenv(key); v != "" {
-			secrets = append(secrets, v)
-		}
-	}
-	return secrets
-}
-
-// redisClient builds a client from the per-purpose variables, each falling
-// back to the shared REDIS_* ones, exactly as settings.defaults does.
-func redisClient(prefix string) *redis.Client {
-	host := config.Env(prefix+"_REDIS_HOST", config.Env("REDIS_HOST", "127.0.0.1"))
-	port := config.Env(prefix+"_REDIS_PORT", config.Env("REDIS_PORT", "6379"))
-	password := config.Env(prefix+"_REDIS_PASSWORD", os.Getenv("REDIS_PASSWORD"))
-	return redis.NewClient(&redis.Options{
-		Addr:     net_JoinHostPort(host, port),
-		Password: password,
+// redisClient builds a client for one purpose. The four purposes are separate
+// connections because the Node service keeps them separate: a deployment may
+// point sessions at one instance and pub/sub at another.
+func redisClient(purpose string) *redis.Client {
+	options := &redis.Options{
+		Addr:     config.RedisAddr(purpose),
+		Password: config.RedisPassword(purpose),
 		// A publish or a session lookup that cannot complete should fail the
 		// request rather than hang the connection it belongs to.
-		MaxRetries: config.EnvInt(prefix+"_REDIS_MAX_RETRIES_PER_REQUEST",
+		MaxRetries: config.EnvInt(purpose+"_REDIS_MAX_RETRIES_PER_REQUEST",
 			config.EnvInt("REDIS_MAX_RETRIES_PER_REQUEST", 20)),
-	})
+	}
+	if config.RedisTLS() {
+		options.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+	return redis.NewClient(options)
 }
 
-func net_JoinHostPort(host, port string) string {
+func hostPort(host, port string) string {
 	if strings.Contains(host, ":") {
 		return "[" + host + "]:" + port
 	}
@@ -152,10 +141,10 @@ func net_JoinHostPort(host, port string) string {
 func webURL() string {
 	host := config.Env("WEB_API_HOST", config.Env("WEB_HOST", "127.0.0.1"))
 	port := config.Env("WEB_API_PORT", config.Env("WEB_PORT", "3000"))
-	return "http://" + net_JoinHostPort(host, port)
+	return "http://" + hostPort(host, port)
 }
 
 func documentUpdaterURL() string {
 	host := config.Env("DOCUMENT_UPDATER_HOST", config.Env("DOCUPDATER_HOST", "127.0.0.1"))
-	return "http://" + net_JoinHostPort(host, "3003")
+	return "http://" + hostPort(host, "3003")
 }

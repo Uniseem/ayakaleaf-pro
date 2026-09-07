@@ -3,4 +3,20 @@
 source /etc/overleaf/env.sh
 export LISTEN_ADDRESS=127.0.0.1
 
+# Go port of this service (services-go/cmd/real-time), swapped in by setting
+# REALTIME_IMPL=go. Any other value, including unset, keeps the Node
+# implementation, so rolling back is one environment variable and a restart.
+#
+# Unlike the stateless services, switching this one is visible to users: it
+# holds live editing sessions, so everyone currently in a project is
+# disconnected and reconnects. Their unsaved work is safe -- edits are already
+# in document-updater -- but the editor blinks.
+if [ "$REALTIME_IMPL" == "go" ] && [ -x /overleaf/bin/go/real-time ]; then
+    # The editor loads its socket.io client from this service, exactly as the
+    # Node app.js serves it out of the socket.io-client package. Without it the
+    # project page cannot open at all.
+    export SOCKET_IO_CLIENT_JS=/overleaf/node_modules/socket.io-client/dist/socket.io.min.js
+    exec /sbin/setuser www-data /overleaf/bin/go/real-time >> /var/log/overleaf/real-time.log 2>&1
+fi
+
 exec /sbin/setuser www-data /usr/bin/node /overleaf/services/real-time/app.js >> /var/log/overleaf/real-time.log 2>&1
