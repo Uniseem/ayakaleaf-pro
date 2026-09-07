@@ -212,9 +212,11 @@ jobs:
         working-directory: services/notifications
         run: yarn run test:acceptance:_run
 
+      # Each service gets its own database here, so the suites run at the same
+      # time without their migrations racing.
       - name: 'Conformance: the same suites against the Go services'
         working-directory: services-go
-        run: ./scripts/conformance.sh all
+        run: ./scripts/conformance.sh --parallel
 
       - name: MongoDB logs
         if: failure()

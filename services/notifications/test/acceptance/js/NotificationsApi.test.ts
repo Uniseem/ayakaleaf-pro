@@ -1,7 +1,6 @@
 import { randomBytes } from 'node:crypto'
-import { beforeAll, describe, it, expect } from 'vitest'
-import { BASE_URL, ensureRunning } from './helpers/NotificationsApp.ts'
-import './MongoHelper.ts'
+import { describe, it, expect } from 'vitest'
+import { BASE_URL } from './helpers/NotificationsApp.ts'
 
 // A black-box contract suite for the notifications HTTP API.
 //
@@ -41,10 +40,6 @@ function sampleNotification(key: string, overrides: Record<string, unknown> = {}
 }
 
 describe('notifications API', () => {
-  beforeAll(async () => {
-    await ensureRunning()
-  })
-
   describe('creating and reading notifications', () => {
     it('stores a notification and returns it for the user', async () => {
       const userId = newObjectId()

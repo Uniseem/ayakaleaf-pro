@@ -40,11 +40,22 @@ is what `scripts/conformance.sh` drives in CI:
 ```bash
 ./scripts/conformance.sh chat            # runs services/chat's suite against cmd/chat
 ./scripts/conformance.sh notifications   # ditto for notifications
-./scripts/conformance.sh all
+./scripts/conformance.sh all             # one after another, shared database
+./scripts/conformance.sh --parallel      # all at once, isolated databases
 ```
 
 It needs a reachable MongoDB — set `MONGO_HOST` or `MONGO_CONNECTION_STRING`.
-A port is only finished when the suite it inherited passes unchanged.
+`--parallel` gives each service its own database so their migrations cannot
+race on the shared migrations collection; it finishes both suites in about
+three seconds.
+
+A port is only finished when the suite it inherited passes unchanged. As of
+the last run both do, with the same test counts as the Node implementations:
+
+| Suite | Node | Go |
+| --- | ---: | ---: |
+| services/chat acceptance | 29 passing | 29 passing |
+| services/notifications acceptance | 18 passing | 18 passing |
 
 **Data formats are untouched.** Same collections, same field names, same BSON
 types — including the detail that `Date.now()` is stored as a BSON *double*,
