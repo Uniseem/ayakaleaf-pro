@@ -265,7 +265,9 @@ jobs:
 
       # real-time's suite needs no adaptation at all: it was already a
       # black-box one, connecting over a real socket and seeding its sessions
-      # straight into Redis.
+      # straight into Redis. It reports one test more than the conformance step
+      # below, which skips a test that asserts on the test process's own logger
+      # stub -- Node fails that one too when started externally.
       - name: 'Baseline: real-time acceptance suite against the Node service'
         working-directory: services/real-time
         run: yarn run test:acceptance:_run

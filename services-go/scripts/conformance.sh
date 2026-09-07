@@ -31,7 +31,7 @@ export RETRIES="${RETRIES:-0}"
 # suite must run once and exit.
 export CI="${CI:-true}"
 
-# name:port:directory:external-flag:test-files
+# name:port:directory:external-flag:test-files:excluded-test
 #
 # test-files is optional. When set, mocha runs exactly those files instead of
 # the service's own script. docstore needs it: three of its acceptance files
@@ -45,12 +45,17 @@ export CI="${CI:-true}"
 # "yarn run" re-resolves the workspace first, and the lockfile in this fork is
 # not always in step with package.json. Calling mocha directly skips a
 # resolution failure that says nothing about the port.
+#
+# excluded-test names a single test to skip by title. real-time has one that
+# asserts on the test process's own logger stub, so it can only pass when the
+# service shares that process -- Node started externally fails it too. Skipping
+# it is what makes a red run mean something.
 SERVICES=(
   "chat:3010:services/chat:CHAT_EXTERNAL:"
   "notifications:3042:services/notifications:NOTIFICATIONS_EXTERNAL:"
   "docstore:3016:services/docstore:DOCSTORE_EXTERNAL:test/acceptance/js/GettingDocsTests.js test/acceptance/js/GettingAllDocsTests.js test/acceptance/js/UpdatingDocsTests.js test/acceptance/js/HealthCheckerTest.js"
   "filestore:3009:services/filestore:FILESTORE_EXTERNAL:test/acceptance/js/FilestoreApiTests.js"
-  "real-time:3026:services/real-time:REALTIME_EXTERNAL:--recursive test/acceptance/js"
+  "real-time:3026:services/real-time:REALTIME_EXTERNAL:--recursive test/acceptance/js:should trigger a low level message only"
 )
 
 spec_for() {
@@ -69,7 +74,7 @@ spec_for() {
 # Starts the Go binary, waits for it to answer /status, runs the Node
 # acceptance suite against it, then stops it again.
 run_one() {
-  local name=$1 port=$2 dir=$3 external_var=$4 test_files=$5 database=${6:-}
+  local name=$1 port=$2 dir=$3 external_var=$4 test_files=$5 exclude=$6 database=${7:-}
 
   if [[ "$name" == "real-time" ]]; then
     # The suite signs its session cookies with the three secrets in
@@ -136,8 +141,12 @@ run_one() {
   echo "--- running $dir acceptance suite against it"
   local rc=0
   if [[ -n "$test_files" ]]; then
-    # shellcheck disable=SC2086
-    ( cd "$REPO_ROOT/$dir"       && env "$external_var=true" PATH="$REPO_ROOT/node_modules/.bin:$PATH"          mocha --timeout 15000 --exit --retries="$RETRIES" $test_files ) || rc=$?
+    local mocha_args=()
+    read -ra mocha_args <<< "$test_files"
+    if [[ -n "$exclude" ]]; then
+      mocha_args+=(--fgrep "$exclude" --invert)
+    fi
+    ( cd "$REPO_ROOT/$dir"       && env "$external_var=true" PATH="$REPO_ROOT/node_modules/.bin:$PATH"          mocha --timeout 15000 --exit --retries="$RETRIES" "${mocha_args[@]}" ) || rc=$?
   else
     ( cd "$REPO_ROOT/$dir" && env "$external_var=true" yarn run test:acceptance:_run ) || rc=$?
   fi
@@ -151,9 +160,9 @@ run_named() {
   local name=$1 database=${2:-}
   local spec
   spec=$(spec_for "$name") || { echo "unknown service: $name" >&2; return 2; }
-  local n port dir external_var test_files
-  IFS=: read -r n port dir external_var test_files <<< "$spec"
-  run_one "$n" "$port" "$dir" "$external_var" "$test_files" "$database"
+  local n port dir external_var test_files exclude
+  IFS=: read -r n port dir external_var test_files exclude <<< "$spec"
+  run_one "$n" "$port" "$dir" "$external_var" "$test_files" "$exclude" "$database"
 }
 
 mkdir -p "$LOG_DIR"
