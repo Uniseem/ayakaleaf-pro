@@ -3,7 +3,6 @@ package docupdater
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -13,15 +12,6 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// ErrRangesNotSupported is returned for a document that carries tracked changes
-// or comments.
-//
-// Moving those in step with an edit is RangesTracker's job and is not ported
-// yet. Applying the edit without moving them would leave every comment anchored
-// to the wrong text, silently, so such a document is refused instead.
-var ErrRangesNotSupported = errors.New(
-	"tracked changes and comments are not supported by this implementation")
-
 // UpdateManager applies the updates queued by real-time.
 type UpdateManager struct {
 	redis    *RedisStore
@@ -29,6 +19,7 @@ type UpdateManager struct {
 	locker   *Locker
 	realtime *RealTimeBridge
 	history  *HistoryQueue
+	web      *WebClient
 	log      *slog.Logger
 
 	maxDocLength int
@@ -36,11 +27,11 @@ type UpdateManager struct {
 
 // NewUpdateManager builds the update pipeline.
 func NewUpdateManager(redis *RedisStore, docs *DocumentManager, locker *Locker,
-	realtime *RealTimeBridge, history *HistoryQueue, maxDocLength int,
-	log *slog.Logger) *UpdateManager {
+	realtime *RealTimeBridge, history *HistoryQueue, web *WebClient,
+	maxDocLength int, log *slog.Logger) *UpdateManager {
 	return &UpdateManager{
 		redis: redis, docs: docs, locker: locker, realtime: realtime,
-		history: history, maxDocLength: maxDocLength, log: log,
+		history: history, web: web, maxDocLength: maxDocLength, log: log,
 	}
 }
 
@@ -131,12 +122,6 @@ func (m *UpdateManager) applyUpdateInner(ctx context.Context, projectID, docID s
 	if loaded.Type() != TypeShareJSTextOT {
 		return &OTTypeMismatchError{Got: loaded.Type(), Want: TypeShareJSTextOT}
 	}
-	// Until RangesTracker is ported, a document with tracked changes or
-	// comments is refused rather than edited without moving them.
-	if hasRanges(loaded.Ranges) || metaHas(update.Meta, "tc") {
-		return ErrRangesNotSupported
-	}
-
 	applied, err := m.applyUpdate(ctx, projectID, docID, update, loaded.Lines, loaded.Version)
 	if err != nil {
 		return err
@@ -153,6 +138,20 @@ func (m *UpdateManager) applyUpdateInner(ctx context.Context, projectID, docID s
 	m.realtime.SendAppliedOp(ctx, projectID, docID, applied.Applied)
 	m.realtime.SendCanaryAppliedOp(ctx, projectID, docID, applied.Applied)
 
+	// The tracked changes and comments move with the edit. This happens before
+	// the document is written back, because it can refuse the edit: markers
+	// that no longer match the text mean the arithmetic went wrong, and storing
+	// the result would make that permanent.
+	var appliedOp textot.Op
+	if err := json.Unmarshal(applied.Applied.Op, &appliedOp); err != nil {
+		return err
+	}
+	ranges, err := applyUpdateToRanges(loaded.Ranges, appliedOp, applied.Lines,
+		metaString(update.Meta, "user_id"), metaString(update.Meta, "tc"))
+	if err != nil {
+		return err
+	}
+
 	appliedOps := []json.RawMessage{}
 	encoded, err := json.Marshal(applied.Applied)
 	if err != nil {
@@ -161,14 +160,35 @@ func (m *UpdateManager) applyUpdateInner(ctx context.Context, projectID, docID s
 	appliedOps = append(appliedOps, encoded)
 
 	if err := m.redis.UpdateDocument(ctx, projectID, docID, applied.Lines,
-		applied.Version, appliedOps, loaded.Ranges,
+		applied.Version, appliedOps, ranges.NewRanges,
 		metaString(update.Meta, "user_id")); err != nil {
 		return err
 	}
 
+	// An edit that removed a tracked change rejected it, and whoever made that
+	// change is told. It is not waited on: the document lock is held here, and
+	// the answer does not affect the edit.
+	if len(ranges.RemovedChangeIDs) > 0 {
+		authors := changeAuthors(loaded.Ranges, ranges.RemovedChangeIDs)
+		go m.notifyRejected(context.WithoutCancel(ctx), projectID, docID, authors,
+			metaString(update.Meta, "user_id"))
+	}
+
+	if ranges.Collapsed {
+		// A marker was emptied or lost, so the content it was attached to is
+		// worth keeping a copy of.
+		m.log.Debug("update collapsed some ranges", slog.String("project", projectID),
+			slog.String("doc", docID), slog.Int64("previousVersion", loaded.Version))
+	}
+
 	// project-history gets the same operation with the metadata it needs to
 	// place it: which file it was, and how long the document was before it.
-	historyUpdate, err := m.historyUpdate(applied.Applied, loaded, projectID)
+	// Only the operations that changed text reach it, so a comment-only update
+	// sends nothing.
+	if len(ranges.HistoryOps) == 0 {
+		return m.recordNotificationTimestamp(ctx, projectID, update)
+	}
+	historyUpdate, err := m.historyUpdate(applied.Applied, ranges.HistoryOps, loaded, projectID)
 	if err != nil {
 		return err
 	}
@@ -184,18 +204,54 @@ func (m *UpdateManager) applyUpdateInner(ctx context.Context, projectID, docID s
 			slog.Int64("queueLength", queueLength))
 	}
 
+	return m.recordNotificationTimestamp(ctx, projectID, update)
+}
+
+// recordNotificationTimestamp notes when a project first changed, for the email
+// that tells collaborators about it.
+func (m *UpdateManager) recordNotificationTimestamp(ctx context.Context, projectID string, update *Update) error {
 	timestamp := nowMillis()
 	if ts := metaInt(update.Meta, "ts"); ts != 0 {
 		timestamp = ts
 	}
-	if err := m.redis.RecordProjectNotificationTimestamp(ctx, projectID, timestamp); err != nil {
-		return err
+	return m.redis.RecordProjectNotificationTimestamp(ctx, projectID, timestamp)
+}
+
+// notifyRejected tells web which authors had a tracked change rejected.
+func (m *UpdateManager) notifyRejected(ctx context.Context, projectID, docID string, authors []string, userID string) {
+	if m.web == nil {
+		return
 	}
-	return nil
+	if err := m.web.NotifyTrackChangesRejected(ctx, projectID, docID, authors, userID); err != nil {
+		m.log.Warn("failed to notify web of rejected track changes",
+			slog.String("project", projectID), slog.String("doc", docID),
+			slog.String("err", err.Error()))
+	}
+}
+
+// changeAuthors reads the authors of the given tracked changes out of the
+// markers as they were before the update, since they are gone from the ones
+// after it.
+func changeAuthors(ranges json.RawMessage, removedIDs []string) []string {
+	changes, _, err := decodeRanges(ranges)
+	if err != nil {
+		return nil
+	}
+	wanted := make(map[string]bool, len(removedIDs))
+	for _, id := range removedIDs {
+		wanted[id] = true
+	}
+	var authors []string
+	for _, change := range changes {
+		if wanted[change.ID] {
+			authors = append(authors, change.Metadata.UserID())
+		}
+	}
+	return authors
 }
 
 // historyUpdate builds the copy of an update that goes to project-history.
-func (m *UpdateManager) historyUpdate(applied *Update, doc *LoadedDoc, projectID string) (json.RawMessage, error) {
+func (m *UpdateManager) historyUpdate(applied *Update, historyOps textot.Op, doc *LoadedDoc, projectID string) (json.RawMessage, error) {
 	// Rendered through a map so the fields this service does not model are
 	// carried across untouched.
 	encoded, err := json.Marshal(applied)
@@ -208,6 +264,10 @@ func (m *UpdateManager) historyUpdate(applied *Update, doc *LoadedDoc, projectID
 	}
 
 	fields["projectHistoryId"], _ = json.Marshal(doc.ProjectHistoryID)
+	fields["op"], err = json.Marshal(historyOps)
+	if err != nil {
+		return nil, err
+	}
 
 	meta := map[string]json.RawMessage{}
 	if len(applied.Meta) > 0 {
@@ -242,23 +302,6 @@ func docLength(lines []string) int {
 		total += textot.T(line).Len()
 	}
 	return total + max(len(lines)-1, 0)
-}
-
-// hasRanges reports whether a document carries tracked changes or comments.
-func hasRanges(ranges json.RawMessage) bool {
-	if len(ranges) == 0 {
-		return false
-	}
-	var parsed struct {
-		Changes  []json.RawMessage `json:"changes"`
-		Comments []json.RawMessage `json:"comments"`
-	}
-	if err := json.Unmarshal(ranges, &parsed); err != nil {
-		// Something is stored that this service cannot read. Treating it as
-		// present is the safe reading: the alternative is editing around it.
-		return true
-	}
-	return len(parsed.Changes) > 0 || len(parsed.Comments) > 0
 }
 
 // metaInt reads a numeric metadata field.

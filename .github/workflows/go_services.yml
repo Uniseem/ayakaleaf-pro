@@ -22,6 +22,8 @@ on:
       - 'services/notifications/**'
       - 'services/linked-url-proxy/**'
       - 'services/real-time/**'
+      - 'services/document-updater/**'
+      - 'libraries/ranges-tracker/**'
       - '.github/workflows/go_services.yml'
   pull_request:
     paths:
@@ -30,6 +32,8 @@ on:
       - 'services/notifications/**'
       - 'services/linked-url-proxy/**'
       - 'services/real-time/**'
+      - 'services/document-updater/**'
+      - 'libraries/ranges-tracker/**'
       - '.github/workflows/go_services.yml'
   workflow_dispatch:
 
@@ -98,6 +102,18 @@ jobs:
           # working directory, not the one set above.
           TEXTOT_SHAREJS_TEXT: ${{ github.workspace }}/services/document-updater/app/js/sharejs/types/text.js
         run: go test -count=1 -run Differential ./internal/textot/ -v
+
+      # The same argument for tracked changes and comments: an edit either side
+      # of a marker moves it, and getting that wrong leaves somebody's comment
+      # anchored to the wrong sentence with nothing to show for it. A smaller
+      # run than the default so the step stays quick; the mistakes found so far
+      # showed up well inside this many.
+      - name: 'Differential: tracked changes and comments against ranges-tracker'
+        working-directory: services-go
+        env:
+          RANGES_TRACKER_DIR: ${{ github.workspace }}/libraries/ranges-tracker
+          RANGES_TRACKER_CASES: '30000'
+        run: go test -count=1 -run Differential ./internal/rangestracker/ -v
 
   build:
     name: Build (linux/${{ matrix.goarch }})

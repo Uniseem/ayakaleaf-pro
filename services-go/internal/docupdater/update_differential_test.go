@@ -53,7 +53,8 @@ func newWritePathSetup(t *testing.T) *writePathSetup {
 	docs := NewDocumentManager(store, persistence, locker, log)
 	bridge := NewRealTimeBridge(client, client, rediskeys.Upstream, false, log)
 	history := NewHistoryQueue(client, rediskeys.Upstream)
-	updates := NewUpdateManager(store, docs, locker, bridge, history, testMaxDocLength, log)
+	updates := NewUpdateManager(store, docs, locker, bridge, history,
+		NewWebClient(web.URL, "overleaf", "password"), testMaxDocLength, log)
 
 	nodeURL := startNodeService(t, nodeDir, web.URL, addr)
 	return &writePathSetup{
@@ -86,6 +87,7 @@ func (s *writePathSetup) pushUpdate(t *testing.T, update map[string]any, toShard
 type outcome struct {
 	Lines      []string
 	Version    string
+	Ranges     string
 	DocOps     []string
 	AppliedOps []map[string]any
 	History    []map[string]any
@@ -101,6 +103,7 @@ func (s *writePathSetup) capture(t *testing.T) outcome {
 		_ = json.Unmarshal([]byte(raw), &out.Lines)
 	}
 	out.Version, _ = s.client.Get(ctx, keys.DocVersion(testDocID)).Result()
+	out.Ranges, _ = s.client.Get(ctx, keys.Ranges(testDocID)).Result()
 	out.DocOps, _ = s.client.LRange(ctx, keys.DocOps(testDocID), 0, -1).Result()
 
 	history, _ := s.client.LRange(ctx, keys.ProjectHistoryOps(testProjectID), 0, -1).Result()
@@ -309,6 +312,15 @@ func compareOutcomes(t *testing.T, node, goSvc outcome) {
 		t.Errorf("version: node %s, go %s", node.Version, goSvc.Version)
 	}
 
+	// The markers have to match exactly, ids included: the editor addresses a
+	// comment thread by the id stored here.
+	if node.Ranges != "" || goSvc.Ranges != "" {
+		if !sameJSONIgnoring(nonEmptyJSON(node.Ranges), nonEmptyJSON(goSvc.Ranges),
+			"changes.metadata.ts", "comments.metadata.ts") {
+			t.Errorf("ranges\n  node: %s\n  go:   %s", node.Ranges, goSvc.Ranges)
+		}
+	}
+
 	if len(node.DocOps) != len(goSvc.DocOps) {
 		t.Fatalf("stored ops\n  node: %v\n  go:   %v", node.DocOps, goSvc.DocOps)
 	}
@@ -361,9 +373,20 @@ func sameJSONIgnoring(a, b string, paths ...string) bool {
 	return string(ae) == string(be)
 }
 
+// removePath deletes a field, descending through lists transparently so
+// that "changes.metadata.ts" reaches every element of the changes array.
 func removePath(value any, path []string) {
+	if len(path) == 0 {
+		return
+	}
+	if list, ok := value.([]any); ok {
+		for _, element := range list {
+			removePath(element, path)
+		}
+		return
+	}
 	object, ok := value.(map[string]any)
-	if !ok || len(path) == 0 {
+	if !ok {
 		return
 	}
 	if len(path) == 1 {
@@ -396,7 +419,8 @@ func TestDispatcherConsumesTheQueue(t *testing.T) {
 	docs := NewDocumentManager(store, persistence, locker, log)
 	bridge := NewRealTimeBridge(client, client, rediskeys.Upstream, false, log)
 	history := NewHistoryQueue(client, rediskeys.Upstream)
-	updates := NewUpdateManager(store, docs, locker, bridge, history, testMaxDocLength, log)
+	updates := NewUpdateManager(store, docs, locker, bridge, history,
+		NewWebClient(web.URL, "overleaf", "password"), testMaxDocLength, log)
 
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -479,5 +503,87 @@ func TestSideBySideEmojiIsReplaced(t *testing.T) {
 	if len(fromGo.Lines) == 0 || !strings.HasPrefix(fromGo.Lines[0], "a��b") {
 		t.Errorf("first line = %q, want the emoji replaced by two replacement characters",
 			fromGo.Lines[0])
+	}
+}
+
+// nonEmptyJSON renders an empty stored value as an empty object, which is what
+// both services read it back as.
+func nonEmptyJSON(stored string) string {
+	if stored == "" {
+		return "{}"
+	}
+	return stored
+}
+
+// Tracked changes and comments have to survive the whole pipeline, not just the
+// tracker: the ids the editor addresses a comment thread by are the ones stored
+// here, so they are compared exactly.
+func TestSideBySideTrackedChangesAndComments(t *testing.T) {
+	s := newWritePathSetup(t)
+	ctx := context.Background()
+
+	// meta.tc turns track changes on and seeds the ids of the markers this edit
+	// creates, so both services produce the same ones.
+	tracked := map[string]any{
+		"doc": testDocID,
+		"op":  []map[string]any{{"p": 4, "i": "INSERTED"}},
+		"v":   12,
+		"meta": map[string]any{"source": "P.tc", "user_id": "u1", "ts": 1700000000000,
+			"tc": "0123456789abcdef01"},
+	}
+	comment := map[string]any{
+		"doc": testDocID,
+		// The comment covers the text the previous update inserted, so it has to
+		// match the document as it stands by then.
+		"op":   []map[string]any{{"p": 4, "c": "INSERTED", "t": "thread-1"}},
+		"v":    13,
+		"meta": map[string]any{"source": "P.tc", "user_id": "u2", "ts": 1700000000001},
+	}
+	// An ordinary edit before both markers, which moves them along.
+	shifting := map[string]any{
+		"doc":  testDocID,
+		"op":   []map[string]any{{"p": 0, "i": "XY"}},
+		"v":    14,
+		"meta": map[string]any{"source": "P.plain", "user_id": "u3", "ts": 1700000000002},
+	}
+
+	run := func(driver func()) outcome {
+		if err := s.client.FlushDB(ctx).Err(); err != nil {
+			t.Fatalf("flushing redis: %v", err)
+		}
+		ops := s.collectAppliedOps(t, driver)
+		out := s.capture(t)
+		out.AppliedOps = ops
+		return out
+	}
+
+	fromNode := run(func() {
+		s.loadDocViaNode(t)
+		s.pushUpdate(t, tracked, true)
+		s.waitForVersion(t, "13")
+		s.pushUpdate(t, comment, true)
+		s.waitForVersion(t, "14")
+		s.pushUpdate(t, shifting, true)
+		s.waitForVersion(t, "15")
+	})
+	fromGo := run(func() {
+		s.loadDocViaGo(t)
+		for _, update := range []map[string]any{tracked, comment, shifting} {
+			s.pushUpdate(t, update, false)
+			if err := s.updates.ProcessOutstandingUpdatesWithLock(ctx, testProjectID, testDocID); err != nil {
+				t.Fatalf("applying an update: %v", err)
+			}
+		}
+	})
+
+	compareOutcomes(t, fromNode, fromGo)
+
+	// The point of the test: both a tracked change and a comment should be
+	// there, and they should have moved past the plain edit at the start.
+	if !strings.Contains(fromGo.Ranges, "INSERTED") {
+		t.Errorf("the tracked change was lost: %s", fromGo.Ranges)
+	}
+	if !strings.Contains(fromGo.Ranges, "thread-1") {
+		t.Errorf("the comment was lost: %s", fromGo.Ranges)
 	}
 }

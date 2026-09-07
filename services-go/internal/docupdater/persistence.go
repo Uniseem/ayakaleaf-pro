@@ -265,3 +265,53 @@ func stringifyID(raw json.RawMessage) string {
 	}
 	return string(bytes.Trim(raw, `"`))
 }
+
+// WebClient calls the parts of the web API that are not about loading a
+// document.
+type WebClient struct {
+	baseURL  string
+	user     string
+	password string
+	client   *http.Client
+}
+
+// NewWebClient builds the client.
+func NewWebClient(baseURL, user, password string) *WebClient {
+	return &WebClient{
+		baseURL: baseURL, user: user, password: password,
+		client: &http.Client{Timeout: maxHTTPRequestLength},
+	}
+}
+
+// NotifyTrackChangesRejected tells web that an edit undid a tracked change,
+// so whoever made it can be told.
+func (c *WebClient) NotifyTrackChangesRejected(
+	ctx context.Context, projectID, docID string, authorIDs []string, userID string,
+) error {
+	endpoint, err := url.JoinPath(c.baseURL, "project", projectID, "doc", docID, "changes", "reject")
+	if err != nil {
+		return err
+	}
+	body, err := json.Marshal(map[string]any{
+		"rejectedChangeAuthorIds": authorIDs, "userId": userID,
+	})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.SetBasicAuth(c.user, c.password)
+
+	res, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = res.Body.Close() }()
+	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 1<<20))
+
+	return statusError(res.StatusCode, projectID, docID)
+}
