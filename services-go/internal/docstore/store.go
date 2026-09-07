@@ -195,9 +195,9 @@ func (s *Store) UpsertIntoDocCollection(ctx context.Context, projectID, docID bs
 	if previousRev != nil && *previousRev != 0 {
 		set := update
 		if _, hasLines := docGet(update, "lines"); hasLines {
-			set = docSet(set, "rev", *previousRev+1)
+			set = docSet(set, "rev", jsNumber(*previousRev+1))
 		} else if _, hasRanges := docGet(update, "ranges"); hasRanges {
-			set = docSet(set, "rev", *previousRev+1)
+			set = docSet(set, "rev", jsNumber(*previousRev+1))
 		}
 		result, err := s.docs.UpdateOne(ctx,
 			bson.D{
@@ -219,7 +219,7 @@ func (s *Store) UpsertIntoDocCollection(ctx context.Context, projectID, docID bs
 	doc := bson.D{
 		{Key: "_id", Value: docID},
 		{Key: "project_id", Value: projectID},
-		{Key: "rev", Value: int64(1)},
+		{Key: "rev", Value: jsNumber(1)},
 	}
 	doc = append(doc, update...)
 	_, err := s.docs.InsertOne(ctx, doc)

@@ -27,12 +27,20 @@ func EnvInt(key string, def int) int {
 	return def
 }
 
-// MongoURL mirrors:
+// MongoURL resolves the connection string the way a service does in each of
+// the environments it runs in.
 //
-//	process.env.MONGO_CONNECTION_STRING ||
-//	  `mongodb://${process.env.MONGO_HOST || '127.0.0.1'}/sharelatex`
+// The services' own settings.defaults read MONGO_CONNECTION_STRING, falling
+// back to MONGO_HOST. A server-ce deployment sets neither: OVERLEAF_CONFIG
+// points at /etc/overleaf/settings.js, which takes the URL from
+// OVERLEAF_MONGO_URL instead. Missing that variable is not a quiet
+// misconfiguration -- the service starts, cannot reach 127.0.0.1:27017, and
+// runit restarts it forever.
 func MongoURL() string {
 	if v := os.Getenv("MONGO_CONNECTION_STRING"); v != "" {
+		return v
+	}
+	if v := os.Getenv("OVERLEAF_MONGO_URL"); v != "" {
 		return v
 	}
 	return "mongodb://" + Env("MONGO_HOST", "127.0.0.1") + "/sharelatex"

@@ -333,7 +333,7 @@ func (m *Manager) tryUpdateDoc(ctx context.Context, projectID, docID bson.Object
 		update = append(update, bson.E{Key: "ranges", Value: ranges})
 	}
 	if updateVersion {
-		update = append(update, bson.E{Key: "version", Value: version})
+		update = append(update, bson.E{Key: "version", Value: jsNumber(version)})
 	}
 	if updateLines || updateRanges {
 		result.Rev++

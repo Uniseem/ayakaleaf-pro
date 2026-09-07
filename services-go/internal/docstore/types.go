@@ -2,6 +2,7 @@ package docstore
 
 import (
 	"errors"
+	"math"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -61,3 +62,16 @@ var (
 
 func boolPtr(b bool) *bool    { return &b }
 func int64Ptr(i int64) *int64 { return &i }
+
+// jsNumber renders an integer the way the Node driver serialises a JavaScript
+// number: int32 when it fits, a double otherwise. Writing int64 instead works
+// -- Mongo compares numerically across types -- but it leaves rev and version
+// stored as Long where the Node service stores Number, and the two
+// implementations are meant to be able to share one database without leaving a
+// trace of which wrote a given document.
+func jsNumber(v int64) any {
+	if v >= math.MinInt32 && v <= math.MaxInt32 {
+		return int32(v)
+	}
+	return float64(v)
+}
