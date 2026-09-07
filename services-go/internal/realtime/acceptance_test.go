@@ -206,13 +206,33 @@ func (h *harness) connect(t *testing.T, sessionID, projectID string) *client {
 
 func (c *client) read() Packet {
 	c.t.Helper()
+	p, err := c.tryRead()
+	if err != nil {
+		c.t.Fatalf("read: %v (frames so far: %v)", err, c.seen())
+	}
+	return p
+}
+
+func (c *client) tryRead() (Packet, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_, data, err := c.ws.Read(ctx)
 	if err != nil {
-		c.t.Fatalf("read: %v", err)
+		return Packet{}, err
 	}
-	return decodeTestFrame(c.t, string(data))
+	p := decodeTestFrame(c.t, string(data))
+	c.inbox = append(c.inbox, p)
+	return p, nil
+}
+
+// seen lists the frames received so far, which is what makes a failure here
+// diagnosable rather than just late.
+func (c *client) seen() []string {
+	frames := make([]string, 0, len(c.inbox))
+	for _, p := range c.inbox {
+		frames = append(frames, p.Raw)
+	}
+	return frames
 }
 
 // waitFor reads until an event with the given name arrives.
@@ -220,12 +240,15 @@ func (c *client) waitFor(name string) Packet {
 	c.t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		p := c.read()
+		p, err := c.tryRead()
+		if err != nil {
+			c.t.Fatalf("waiting for %q: %v (frames received: %v)", name, err, c.seen())
+		}
 		if p.Name == name {
 			return p
 		}
 	}
-	c.t.Fatalf("never received %q", name)
+	c.t.Fatalf("never received %q (frames received: %v)", name, c.seen())
 	return Packet{}
 }
 
@@ -247,12 +270,15 @@ func (c *client) emit(name string, args ...any) Packet {
 
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		p := c.read()
+		p, err := c.tryRead()
+		if err != nil {
+			c.t.Fatalf("waiting to acknowledge %s: %v (frames received: %v)", name, err, c.seen())
+		}
 		if p.Type == 6 && p.ID == id {
 			return p
 		}
 	}
-	c.t.Fatalf("no acknowledgement for %s", name)
+	c.t.Fatalf("no acknowledgement for %s (frames received: %v)", name, c.seen())
 	return Packet{}
 }
 

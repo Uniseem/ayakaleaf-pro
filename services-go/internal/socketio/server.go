@@ -418,19 +418,24 @@ func (s *Server) run(c *Conn) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// The writer owns the socket for writes; everything else queues frames.
+	var wg sync.WaitGroup
+
 	// Closing the connection has to interrupt the blocked read, or a client
 	// the server has rejected would linger until it happened to send
 	// something -- or forever.
+	//
+	// The order matters. Cancelling the read closes the websocket there and
+	// then, so the writer is given the chance to flush first: the frames still
+	// queued when a connection closes are the ones that say why it closed.
 	go func() {
 		select {
 		case <-c.closed:
+			wg.Wait()
 			cancel()
 		case <-ctx.Done():
 		}
 	}()
-
-	// The writer owns the socket for writes; everything else queues frames.
-	var wg sync.WaitGroup
 	defer func() {
 		// Close first, then wait: the writer parks on c.closed, so waiting for
 		// it before closing would hang here forever -- and the disconnect
