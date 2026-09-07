@@ -8,6 +8,7 @@ without changing anything else in the stack.
 | chat | `cmd/chat` | 3010 | `services/chat` | 996 |
 | notifications | `cmd/notifications` | 3042 | `services/notifications` | 539 |
 | linked-url-proxy | `cmd/linked-url-proxy` | 3066 | `services/linked-url-proxy` | 244 |
+| docstore | `cmd/docstore` | 3016 | `services/docstore` | 1,403 |
 
 ## Why these three
 
@@ -56,6 +57,35 @@ the last run both do, with the same test counts as the Node implementations:
 | --- | ---: | ---: |
 | services/chat acceptance | 29 passing | 29 passing |
 | services/notifications acceptance | 18 passing | 18 passing |
+| services/docstore acceptance (black-box files) | 39 passing | 39 passing |
+
+### docstore: three acceptance files cannot judge an external service
+
+`ArchiveDocsTests.js`, `GettingDocsFromArchiveTest.js` and
+`DeletingDocsTests.js` reach into the running service and change its settings
+mid-run:
+
+```js
+// services/docstore/test/acceptance/js/ArchiveDocsTests.js:210
+Settings.docstore.keepSoftDeletedDocsArchived = true
+```
+
+That only takes effect when the service shares a process with the tests. Run
+against a service in its own process they fail, and not because of the
+implementation behind the port -- the **Node** service scores exactly the same
+as the Go one when started externally:
+
+| How the suite is run | Result |
+| --- | --- |
+| Node in-process (the default) | 97 passing |
+| Node as its own process | 75 passing, 22 failing |
+| Go as its own process | 75 passing, 22 failing |
+
+So the conformance step runs the four files that are genuinely black-box, and
+CI runs the Node baseline over the same four for comparison. Making the other
+three usable would mean rewriting them to configure the service over its API or
+environment instead of by assignment, which is a change to the Node test suite
+rather than to the port.
 
 **Data formats are untouched.** Same collections, same field names, same BSON
 types — including the detail that `Date.now()` is stored as a BSON *double*,
