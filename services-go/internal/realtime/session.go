@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/redis/go-redis/v9"
@@ -80,7 +81,7 @@ func (s *SessionStore) Get(ctx context.Context, r *http.Request) (*Session, stri
 	if err != nil {
 		return nil, "", ErrMissingSession
 	}
-	sessionID, ok := s.unsign(cookie.Value)
+	sessionID, ok := s.unsign(decodeCookieValue(cookie.Value))
 	if !ok {
 		// A cookie whose signature does not verify is treated as absent, not
 		// as an error: it is what a client holds after a secret rotation, and
@@ -101,6 +102,26 @@ func (s *SessionStore) Get(ctx context.Context, r *http.Request) (*Session, stri
 		return nil, "", err
 	}
 	return &session, sessionID, nil
+}
+
+// decodeCookieValue undoes the percent-encoding express applies when it sets a
+// cookie.
+//
+// res.cookie() runs the value through encodeURIComponent, so a browser sends
+// "s%3A<id>.<sig>" and not "s:<id>.<sig>". cookie-parser decodes it before
+// looking at it; Go hands back the raw value, so the decoding has to happen
+// here or no browser cookie ever matches.
+//
+// PathUnescape rather than QueryUnescape: the latter turns "+" into a space,
+// and "+" is in the base64 alphabet the signature is written in.
+func decodeCookieValue(raw string) string {
+	decoded, err := url.PathUnescape(raw)
+	if err != nil {
+		// Not percent-encoded at all, which is what a non-browser client
+		// sends.
+		return raw
+	}
+	return decoded
 }
 
 // unsign verifies a cookie signed by cookie-parser.
