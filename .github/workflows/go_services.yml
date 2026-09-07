@@ -82,6 +82,23 @@ jobs:
         working-directory: services-go
         run: go test -race -count=1 ./...
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # The OT transform is the one piece where being close is worthless: two
+      # implementations can each converge and converge on different text. This
+      # runs the Go port and the vendored ShareJS over the same random
+      # scenarios and compares every answer.
+      - name: 'Differential: the OT transform against the vendored ShareJS'
+        working-directory: services-go
+        env:
+          # An absolute path: a Go test runs with its package directory as the
+          # working directory, not the one set above.
+          TEXTOT_SHAREJS_TEXT: ${{ github.workspace }}/services/document-updater/app/js/sharejs/types/text.js
+        run: go test -count=1 -run Differential ./internal/textot/ -v
+
   build:
     name: Build (linux/${{ matrix.goarch }})
     runs-on: ubuntu-latest
