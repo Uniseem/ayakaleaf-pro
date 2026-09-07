@@ -9,17 +9,29 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
 )
 
+// The heartbeat settings are the socket.io 0.9 Manager defaults the Node
+// service runs with.
+//
+// The direction matters and is easy to get backwards: the *server* sends a
+// heartbeat every interval, and the client answers each one. A client that
+// hears nothing for its heartbeat timeout closes the connection itself -- so a
+// server that only echoes heartbeats, never sending any, drops every session
+// after the timeout and the editor reports "lost connection" out of nowhere.
 const (
-	// heartbeatSeconds is the interval the client is told to expect; it sends
-	// a heartbeat frame and the server answers with one.
-	heartbeatSeconds = 30
-	// closeSeconds is how long the client waits before giving up on a
-	// reconnect, matching the defaults of the Node service.
+	// defaultHeartbeatInterval is how often the server sends one.
+	defaultHeartbeatInterval = 25 * time.Second
+	// heartbeatTimeoutSeconds is advertised in the handshake: the client waits
+	// this long for a heartbeat before giving up, and the server waits the
+	// same for a reply.
+	heartbeatTimeoutSeconds = 60
+	// closeSeconds is how long the client may take to reconnect before its
+	// session is considered gone.
 	closeSeconds = 60
 )
 
@@ -38,6 +50,10 @@ type Conn struct {
 	closed chan struct{}
 	once   sync.Once
 	log    *slog.Logger
+
+	// lastSeen is when the client was last heard from, in Unix nanoseconds.
+	// A client that stops answering heartbeats has gone without saying so.
+	lastSeen atomic.Int64
 
 	// rooms is guarded by srv.mu, so a join and the count that decides whether
 	// the room is newly active cannot interleave.
@@ -168,6 +184,10 @@ type Server struct {
 	// Transports.
 	OfferTransports []string
 
+	// HeartbeatInterval overrides how often a heartbeat is sent. Zero uses
+	// defaultHeartbeatInterval; tests set it short.
+	HeartbeatInterval time.Duration
+
 	// ReadLimit caps one incoming frame, in bytes. Zero uses
 	// DefaultReadLimit.
 	//
@@ -246,10 +266,45 @@ func (s *Server) newConn(id string, r *http.Request, transport string, ws *webso
 		log:       s.log,
 		rooms:     map[string]struct{}{},
 	}
+	c.lastSeen.Store(time.Now().UnixNano())
 	s.mu.Lock()
 	s.conns[id] = c
 	s.mu.Unlock()
+	go s.heartbeat(c)
 	return c
+}
+
+// touch records that the client was heard from.
+func (c *Conn) touch() { c.lastSeen.Store(time.Now().UnixNano()) }
+
+// heartbeat keeps one connection alive, and ends it when the client stops
+// answering.
+func (s *Server) heartbeat(c *Conn) {
+	interval := s.HeartbeatInterval
+	if interval <= 0 {
+		interval = defaultHeartbeatInterval
+	}
+	timeout := time.Duration(heartbeatTimeoutSeconds) * time.Second
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	frame := Encode(Packet{Type: PacketHeartbeat})
+	for {
+		select {
+		case <-c.closed:
+			return
+		case now := <-ticker.C:
+			if now.Sub(time.Unix(0, c.lastSeen.Load())) > timeout {
+				s.log.Info("closing connection that stopped answering heartbeats",
+					slog.String("client", c.ID))
+				c.Close()
+				return
+			}
+			if err := c.write(frame); err != nil {
+				return
+			}
+		}
+	}
 }
 
 // forget drops a client and its room memberships once it has disconnected.
@@ -394,7 +449,7 @@ func (s *Server) handshake(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=UTF-8")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	_, _ = w.Write([]byte(Handshake(id, heartbeatSeconds, closeSeconds, s.transports())))
+	_, _ = w.Write([]byte(Handshake(id, heartbeatTimeoutSeconds, closeSeconds, s.transports())))
 }
 
 // sweepLocked drops handshakes that were never upgraded, so an abandoned
@@ -540,6 +595,7 @@ func (s *Server) run(c *Conn) {
 		if err != nil {
 			return
 		}
+		c.touch()
 		p, err := Decode(string(data))
 		if err != nil {
 			s.log.Info("dropping malformed frame", slog.String("err", err.Error()))
@@ -547,11 +603,9 @@ func (s *Server) run(c *Conn) {
 		}
 		switch p.Type {
 		case PacketHeartbeat:
-			// The client expects the heartbeat echoed; a missed one makes it
-			// tear the connection down and reconnect.
-			if err := c.write(Encode(Packet{Type: PacketHeartbeat})); err != nil {
-				return
-			}
+			// A heartbeat from the client is its reply to one of ours, and
+			// c.touch() above has already recorded it. Answering it would be a
+			// loop: the client replies to every heartbeat it receives.
 		case PacketDisconnect:
 			return
 		case PacketEvent:

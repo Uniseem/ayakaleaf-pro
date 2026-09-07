@@ -212,13 +212,14 @@ func (s *Server) servePolling(w http.ResponseWriter, r *http.Request, sessionID 
 	}
 
 	pc.touch()
+	pc.conn.touch()
 
 	switch r.Method {
 	case http.MethodPost:
 		pc.servePOST(w, r, func(p Packet) {
 			switch p.Type {
 			case PacketHeartbeat:
-				pc.queue(Encode(Packet{Type: PacketHeartbeat}))
+				// The client's reply to one of ours; answering it would loop.
 			case PacketDisconnect:
 				pc.conn.Close()
 			case PacketEvent:

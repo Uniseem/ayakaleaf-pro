@@ -120,17 +120,74 @@ func TestHandshakeAndConnect(t *testing.T) {
 	}
 }
 
-func TestHeartbeatIsEchoed(t *testing.T) {
+// The client closes the connection itself if it hears no heartbeat within the
+// timeout the handshake advertises, so the server has to send them. Nothing
+// under a 30-second test notices when it does not: the editor simply drops its
+// connection half a minute in.
+func TestServerSendsHeartbeats(t *testing.T) {
+	h := &testHandler{connected: make(chan *Conn, 4), disconnect: make(chan string, 4)}
+	srv := NewServer(h, slog.New(slog.DiscardHandler))
+	srv.HeartbeatInterval = 50 * time.Millisecond
+	t.Cleanup(srv.Close)
+	ts := httptest.NewServer(srv)
+	t.Cleanup(ts.Close)
+
+	ws, _ := dial(t, ts.URL)
+	readFrame(t, ws) // connect
+	readFrame(t, ws) // connectionAccepted
+
+	if frame := readFrame(t, ws); frame != "2::" {
+		t.Errorf("expected a server-initiated heartbeat, got %q", frame)
+	}
+	if frame := readFrame(t, ws); frame != "2::" {
+		t.Errorf("heartbeats must keep coming, got %q", frame)
+	}
+}
+
+// The handshake tells the client how long to wait. Advertising less than the
+// interval between heartbeats would guarantee a disconnect.
+func TestHandshakeAdvertisesTheHeartbeatTimeout(t *testing.T) {
 	_, _, base := newTestServer(t)
-	ws, _ := dial(t, base)
+	res, err := http.Get(base + "/socket.io/1/?t=1")
+	if err != nil {
+		t.Fatalf("handshake: %v", err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	body, _ := io.ReadAll(res.Body)
+
+	parts := strings.Split(string(body), ":")
+	if parts[1] != "60" || parts[2] != "60" {
+		t.Errorf("handshake = %q, want a heartbeat timeout and close timeout of 60", body)
+	}
+	if timeout, _ := time.ParseDuration(parts[1] + "s"); timeout <= defaultHeartbeatInterval {
+		t.Errorf("the advertised timeout (%s) must exceed the heartbeat interval (%s)",
+			timeout, defaultHeartbeatInterval)
+	}
+}
+
+// A heartbeat from the client is its reply to one of ours. Answering it would
+// put both ends in a loop, each replying to the other as fast as the socket
+// allows.
+func TestClientHeartbeatIsNotEchoed(t *testing.T) {
+	h := &testHandler{connected: make(chan *Conn, 4), disconnect: make(chan string, 4)}
+	srv := NewServer(h, slog.New(slog.DiscardHandler))
+	// Long enough that any frame arriving below is an echo, not a heartbeat of
+	// the server's own.
+	srv.HeartbeatInterval = time.Hour
+	t.Cleanup(srv.Close)
+	ts := httptest.NewServer(srv)
+	t.Cleanup(ts.Close)
+
+	ws, _ := dial(t, ts.URL)
 	readFrame(t, ws) // connect
 	readFrame(t, ws) // connectionAccepted
 
 	writeFrame(t, ws, "2::")
-	if frame := readFrame(t, ws); frame != "2::" {
-		// A missed heartbeat makes the client tear the connection down, so
-		// this is what keeps an idle editor connected.
-		t.Errorf("heartbeat answered with %q, want 2::", frame)
+	// Ask for something that does produce an answer, so the test can tell "no
+	// echo" apart from "nothing works".
+	writeFrame(t, ws, `5:1+::{"name":"echo","args":["after heartbeat"]}`)
+	if frame := readFrame(t, ws); frame != `6:::1+[null,"after heartbeat"]` {
+		t.Errorf("next frame = %q, want the ack with no heartbeat before it", frame)
 	}
 }
 
