@@ -1,0 +1,181 @@
+# services-go
+
+Go ports of the smaller Overleaf services, built to be swapped in one at a time
+without changing anything else in the stack.
+
+| Service | Go binary | Port | Replaces | Node LOC |
+| --- | --- | --- | --- | ---: |
+| chat | `cmd/chat` | 3010 | `services/chat` | 996 |
+| notifications | `cmd/notifications` | 3042 | `services/notifications` | 539 |
+| linked-url-proxy | `cmd/linked-url-proxy` | 3066 | `services/linked-url-proxy` | 244 |
+
+## Why these three
+
+They are the leaves of the dependency graph: each one is reached only over
+HTTP, owns its own Mongo collections, and has no shared mutable state with
+another service. That makes them replaceable in isolation. They are also small
+enough that the port can be read against the original line by line.
+
+The point of starting here is not the memory they save — it is small — but to
+get the replacement mechanism itself working end to end: build, conformance
+test, cut over, roll back.
+
+## What makes the swap safe
+
+**Nothing else has to change.** `web` addresses every internal service through
+an environment variable (`services/web/config/settings.defaults.js`):
+
+```
+CHAT_HOST  NOTIFICATIONS_HOST  LINKED_URL_PROXY_HOST
+```
+
+So a service is swapped by starting a different process on the same port. No
+caller is recompiled, reconfigured, or even aware.
+
+**The old tests are the contract.** The Node services' own acceptance suites
+drive the service over HTTP. They now accept an environment variable that skips
+starting the Node app and points them at whatever is already listening, which
+is what `scripts/conformance.sh` drives in CI:
+
+```bash
+./scripts/conformance.sh chat            # runs services/chat's suite against cmd/chat
+./scripts/conformance.sh notifications   # ditto for notifications
+./scripts/conformance.sh all
+```
+
+It needs a reachable MongoDB — set `MONGO_HOST` or `MONGO_CONNECTION_STRING`.
+A port is only finished when the suite it inherited passes unchanged.
+
+**Data formats are untouched.** Same collections, same field names, same BSON
+types — including the detail that `Date.now()` is stored as a BSON *double*,
+because that is what the Node driver writes for a JS number. Both
+implementations can therefore run against one database at the same time, which
+is what makes shadow-traffic comparison possible.
+
+## Build and test
+
+Builds and tests run in GitHub Actions: [`.github/workflows/go_services.yml`](../.github/workflows/go_services.yml).
+That is the authority, because the acceptance and conformance suites need
+MongoDB and cannot run on a machine without Docker. Three jobs:
+
+| Job | What it proves |
+| --- | --- |
+| `check` | gofmt, `go vet`, unit tests under `-race` |
+| `build` | cross-compiles for linux/amd64 and linux/arm64, uploads the binaries |
+| `conformance` | runs each acceptance suite twice: Node first as a baseline, then the Go binary |
+
+The double run is the point. If the Node baseline fails, the environment is
+broken and the Go result says nothing; if the baseline passes and the Go run
+fails, the port is at fault. There is no ambiguity to argue about.
+
+Locally, as a smoke test only:
+
+```bash
+cd services-go
+make build   # go build -o bin/ ./cmd/...
+make test    # go test ./...
+make lint    # gofmt check + go vet
+```
+
+Go 1.25 or newer is required (set by the module's dependencies).
+
+## Cutting a service over
+
+Each runit script in `server-ce/runit/` picks its implementation at startup:
+
+| Service | Set this to use Go |
+| --- | --- |
+| chat | `CHAT_IMPL=go` |
+| notifications | `NOTIFICATIONS_IMPL=go` |
+| linked-url-proxy | `LINKED_URL_PROXY_IMPL=go` |
+
+Any other value, including unset, runs the Node service exactly as before. Both
+implementations ship in the image, so **rollback is one environment variable
+and a service restart** — no rebuild, no redeploy.
+
+Suggested sequence per service:
+
+1. `./scripts/conformance.sh <service>` — inherited suite passes.
+2. Run both in staging and compare responses on mirrored traffic.
+3. Flip `*_IMPL=go` in production, watch `timer_http_request` and the error
+   rate for a week.
+4. Only then consider deleting the Node implementation.
+
+## Compatibility details worth knowing
+
+These are the places where matching the original took deliberate effort:
+
+- **ObjectId validation** (`internal/oid`). The Node driver's
+  `ObjectId.isValid()` accepts a 24-character hex string *or* any 12-character
+  string, and the services rely on it to decide between 400 and 200. Accepting
+  only hex would have changed behaviour, so both forms are accepted.
+- **Metrics labels** (`internal/obsv`). `timer_http_request` carries the same
+  `method`/`status_code`/`path` labels, with `path` derived from the route
+  template the way `@overleaf/metrics`' `getRoutePath()` derives it, plus the
+  `app`/`host` default labels. An existing acceptance test scrapes `/metrics`
+  and asserts on `path="project_{projectId}_messages"`; it passes.
+- **Logs** (`internal/logx`). Records are bunyan-shaped
+  (`name`/`hostname`/`pid`/`level`/`msg`/`time`/`v`) with the same numeric
+  levels, so existing log tooling and `LOG_LEVEL` keep working.
+- **JSON field order** (`internal/bsonjson`). Raw Mongo documents are rendered
+  with fields in stored order and ObjectIds as hex strings, matching
+  `res.json()` on a document from the Node driver. Go maps would have sorted
+  the keys.
+- **Validation order** in chat. The Node service validates the request body
+  (exegesis) before path parameters (`readContext`) before the controller's own
+  checks. The order decides *which* 400 message a bad request gets, and the
+  acceptance suite asserts on those messages, so it is preserved.
+
+## Deliberate differences from the Node services
+
+Each of these is a case where copying the original exactly would have meant
+copying a defect. They are listed so the choice is visible rather than silent.
+
+1. **Empty `insertMany` batches.** `cloneThreads` and `duplicateRoomToOtherRoom`
+   call `insertMany([])` when there is nothing to copy, which the Mongo driver
+   rejects with "Batch cannot be empty" — so cloning a project with no comment
+   threads fails with a 500. The Go port treats it as a no-op.
+2. **Health-check cleanup.** `HealthCheckController.cleanupNotifications` passes
+   a string where an ObjectId is required, so it never deletes anything and
+   smoke-test documents accumulate. The Go port passes the ObjectId.
+3. **Invalid `blockedNetworks` entries.** The Node proxy discovers an
+   unparseable CIDR at request time and returns 500 for every proxied request.
+   The Go port fails at startup, where an operator will actually see it.
+4. **Invalid `?limit=` on chat message listing.** `parseInt('abc')` yields NaN,
+   which the Node service hands to the driver. The Go port falls back to the
+   default of 50.
+5. **Upstream error bodies in the proxy.** A non-2xx upstream response produces
+   the same status code but a differently worded `Error: ...` body.
+
+## Known gaps, carried over unchanged
+
+- The proxy enforces `MAX_UPLOAD_SIZE` from the upstream `Content-Length`
+  header only. An upstream that omits or understates it can still stream more
+  than the limit. This matches the Node service; fixing it would risk
+  truncating legitimate downloads and belongs in its own change.
+
+## Layout
+
+```
+cmd/                       one main package per service
+internal/
+  bsonjson/                order-preserving BSON -> JSON, matching res.json()
+  chat/                    chat store, formatter, HTTP handlers
+  config/                  the same env vars the Node settings files read
+  httpx/                   JSON helpers and graceful shutdown
+  logx/                    bunyan-compatible slog handler
+  mongox/                  Mongo connection
+  notifications/           notifications store, handlers, health check
+  obsv/                    Prometheus metrics compatible with @overleaf/metrics
+  oid/                     ObjectId parsing with Node's exact semantics
+  proxy/                   SSRF address policy and the proxying handler
+scripts/conformance.sh     runs the Node acceptance suites against these binaries
+```
+
+## What is deliberately not here
+
+`web`, `clsi`, `document-updater`, `real-time`, `history-v1`, `project-history`
+and `filestore` are untouched. `web` alone is roughly 350k lines and holds every
+Pro feature; the rest either have their bottleneck outside Node (`clsi` waits on
+TeX Live) or carry subtle state that a rewrite should not take on until this
+mechanism has proven itself on something small.

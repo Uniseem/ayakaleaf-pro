@@ -3,6 +3,23 @@
 # Overleaf Community Edition (overleaf/overleaf)
 # ---------------------------------------------
 
+# Build the Go ports of the small services
+# ----------------------------------------
+# These are drop-in replacements selected at runtime by the *_IMPL environment
+# variables; see services-go/README.md. The Node implementations stay in the
+# image, so the switch is reversible without a rebuild.
+ARG GO_BUILDER_TAG=golang:1.26-bookworm
+FROM $GO_BUILDER_TAG AS go-builder
+WORKDIR /src
+COPY services-go/go.mod services-go/go.sum ./
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+COPY services-go/ ./
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/ ./cmd/...
+
 ARG OVERLEAF_BASE_TAG=sharelatex/sharelatex-base:latest
 FROM $OVERLEAF_BASE_TAG
 
@@ -37,6 +54,10 @@ RUN --mount=type=cache,target=/root/.cache \
     --mount=type=cache,target=/overleaf/services/web/node_modules/.cache,id=server-ce-webpack-cache \
     --mount=type=tmpfs,target=/tmp \
     node genScript compile | bash
+
+# Copy the Go service binaries
+# ----------------------------
+COPY --from=go-builder /out/ /overleaf/bin/go/
 
 # Copy runit service startup scripts to its location
 # --------------------------------------------------

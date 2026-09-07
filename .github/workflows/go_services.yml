@@ -1,0 +1,221 @@
+# ---------------------------------
+# Build and test the Go ports of the small services (services-go/).
+#
+# The conformance job is the one that matters: it runs each Node service's own
+# acceptance suite twice in the same environment -- once against the Node
+# implementation as a baseline, then against the Go binary. If the baseline
+# fails the environment is at fault; if only the Go run fails the port is.
+#
+# See services-go/README.md.
+# ---------------------------------
+
+name: Go Services
+
+on:
+  push:
+    branches:
+      - server-pro
+      - main
+    paths:
+      - 'services-go/**'
+      - 'services/chat/**'
+      - 'services/notifications/**'
+      - 'services/linked-url-proxy/**'
+      - '.github/workflows/go_services.yml'
+  pull_request:
+    paths:
+      - 'services-go/**'
+      - 'services/chat/**'
+      - 'services/notifications/**'
+      - 'services/linked-url-proxy/**'
+      - '.github/workflows/go_services.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: go-services-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  NODE_VERSION: '24.14.1'
+  MONGO_IMAGE: 'mongo:8.0.11'
+
+jobs:
+  check:
+    name: Lint and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          # Tracks the version in go.mod so the two cannot drift.
+          go-version-file: services-go/go.mod
+          cache-dependency-path: services-go/go.sum
+
+      - name: Check formatting
+        working-directory: services-go
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::these files are not gofmt'd:"
+            echo "$unformatted"
+            gofmt -d .
+            exit 1
+          fi
+
+      - name: Vet
+        working-directory: services-go
+        run: go vet ./...
+
+      - name: Unit tests
+        working-directory: services-go
+        run: go test -race -count=1 ./...
+
+  build:
+    name: Build (linux/${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The project ships x86_64 and arm64 images, so both must compile.
+        goarch: [amd64, arm64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: services-go/go.mod
+          cache-dependency-path: services-go/go.sum
+
+      - name: Build
+        working-directory: services-go
+        env:
+          CGO_ENABLED: '0'
+          GOOS: linux
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -trimpath -ldflags="-s -w" -o "bin/linux-${{ matrix.goarch }}/" ./cmd/...
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: services-go-linux-${{ matrix.goarch }}
+          path: services-go/bin/linux-${{ matrix.goarch }}/
+          if-no-files-found: error
+          retention-days: 7
+
+  conformance:
+    name: Acceptance suites, Node baseline vs Go
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Both implementations read this; see services-go/internal/config.
+      MONGO_HOST: mongo
+      NODE_ENV: test
+      RETRIES: '3'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start MongoDB
+        run: |
+          # The replica set advertises itself as "mongo:27017", so the runner
+          # needs that name to resolve for the driver to connect.
+          echo "127.0.0.1 mongo" | sudo tee -a /etc/hosts
+
+          docker run -d --name mongo -p 27017:27017 \
+            --add-host mongo:127.0.0.1 \
+            -e MONGO_INITDB_DATABASE=sharelatex \
+            "$MONGO_IMAGE" --replSet overleaf
+
+          echo "--- waiting for mongod"
+          for _ in $(seq 1 60); do
+            if docker exec mongo mongosh --quiet --eval 'db.runCommand({ping:1})' >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+
+          docker exec mongo mongosh --quiet --eval \
+            "rs.initiate({_id:'overleaf', members:[{_id:0, host:'mongo:27017'}]})"
+
+          echo "--- waiting for the replica set to elect a primary"
+          for _ in $(seq 1 60); do
+            if docker exec mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' 2>/dev/null | grep -q true; then
+              echo "mongo is ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::MongoDB did not become writable"
+          docker logs mongo
+          exit 1
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache yarn artifacts
+        uses: actions/cache@v4
+        with:
+          # enableGlobalCache is false in .yarnrc.yml, so the cache is in-tree.
+          path: |
+            .yarn/cache
+            .yarn/install-state.gz
+          key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-${{ runner.os }}-
+
+      - name: Install workspace dependencies
+        env:
+          # The lockfile in this fork is not always in step with package.json;
+          # the image workflows install with --mode=update-lockfile for the
+          # same reason. Failing the whole run on that would say nothing about
+          # the Go port.
+          YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
+        run: |
+          corepack enable
+          # Only the workspaces the suites need, which skips services/web and
+          # its very large dependency tree.
+          yarn workspaces focus \
+            @overleaf/chat \
+            @overleaf/notifications \
+            @overleaf/migrations
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: services-go/go.mod
+          cache-dependency-path: services-go/go.sum
+
+      - name: Build the Go services
+        working-directory: services-go
+        run: go build -o bin/ ./cmd/...
+
+      # Baseline first: if these fail, the environment is broken and the Go
+      # results below say nothing.
+      - name: 'Baseline: chat acceptance suite against the Node service'
+        working-directory: services/chat
+        run: yarn run test:acceptance:_run
+
+      - name: 'Baseline: notifications acceptance suite against the Node service'
+        working-directory: services/notifications
+        run: yarn run test:acceptance:_run
+
+      - name: 'Conformance: the same suites against the Go services'
+        working-directory: services-go
+        run: ./scripts/conformance.sh all
+
+      - name: MongoDB logs
+        if: failure()
+        run: docker logs mongo | tail -100
