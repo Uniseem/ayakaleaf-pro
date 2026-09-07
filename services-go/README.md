@@ -10,6 +10,7 @@ without changing anything else in the stack.
 | linked-url-proxy | `cmd/linked-url-proxy` | 3066 | `services/linked-url-proxy` | 244 |
 | docstore | `cmd/docstore` | 3016 | `services/docstore` | 1,403 |
 | filestore | `cmd/filestore` | 3009 | `services/filestore` | 861 |
+| real-time | `cmd/real-time` | 3026 | `services/real-time` | 3,193 |
 
 ## Why these three
 
@@ -60,6 +61,7 @@ the last run both do, with the same test counts as the Node implementations:
 | services/notifications acceptance | 18 passing | 18 passing |
 | services/docstore acceptance (black-box files) | 39 passing | 39 passing |
 | services/filestore contract suite | 13 passing | 13 passing |
+| services/real-time acceptance | 484 passing, 1 failing | 484 passing, 1 failing |
 
 ## Conformance is not enough: run it for real
 
@@ -167,6 +169,61 @@ three usable would mean rewriting them to configure the service over its API or
 environment instead of by assignment, which is a change to the Node test suite
 rather than to the port.
 
+### real-time: the suite needed no adaptation, and it found six defects
+
+`services/real-time` is the opposite case. Its acceptance suite was always
+black-box -- it connects over a real socket with the forked socket.io client,
+seeds sessions straight into Redis, and mocks web and document-updater with
+real HTTP servers -- so all 485 tests run against the Go binary unchanged.
+
+One test cannot pass against any external service, for the same reason as
+docstore's three: it asserts on the test process's own logger stub.
+
+```js
+// services/real-time/test/acceptance/js/LeaveDocTests.js:168
+sinon.assert.calledWith(logger.debug, sinon.match.any,
+  'ignoring request from client to leave room it is not in')
+```
+
+Run externally, Node fails exactly that test and nothing else, and so does Go:
+
+| How the suite is run | Result |
+| --- | --- |
+| Node in-process (the default) | 485 passing |
+| Node as its own process | 484 passing, 1 failing |
+| Go as its own process | 484 passing, 1 failing |
+
+Getting there took six fixes that the Go unit tests had not caught, four of
+them in the socket.io layer:
+
+1. **Rooms were cleared before the disconnect handler ran**, so the handler saw
+   an empty room list and never unsubscribed the Redis channels behind them.
+   Every project leaked an `editor-events:<id>` subscription for the life of
+   the process.
+2. **Closing a connection did not send a disconnect packet.** socket.io only
+   suppresses its automatic reconnect when it is told the disconnect was
+   deliberate; without the packet every boot -- a revoked project, a rejected
+   session -- became a reconnect loop, and a booted client went on to rejoin
+   the project it had just been removed from.
+3. **The websocket read limit was 32KB**, the default of the websocket library.
+   The service is supposed to answer an oversized update with an error the
+   client understands, and it can only do that if the update reaches it.
+4. **Frames queued just before a close were dropped**, which is exactly the
+   frame that says why the connection is closing.
+5. `userRemovedFromProject` carries one user id per event argument, not a list
+   inside the first one.
+6. A malformed rpc has to be answered. A client waiting on a callback that
+   never comes waits forever.
+
+### real-time is stateful, so the switch is visible
+
+The four services before it are stateless: swapping one is invisible because
+nothing is holding a connection. real-time holds every open editor session, so
+restarting it under a different implementation disconnects everyone currently
+typing and they reconnect a moment later. No work is lost -- edits already live
+in document-updater -- but unlike the others, this cut-over is something users
+see.
+
 **Data formats are untouched.** Same collections, same field names, same BSON
 types — including the detail that `Date.now()` is stored as a BSON *double*,
 because that is what the Node driver writes for a JS number. Both
@@ -211,6 +268,7 @@ Each runit script in `server-ce/runit/` picks its implementation at startup:
 | linked-url-proxy | `LINKED_URL_PROXY_IMPL=go` |
 | docstore | `DOCSTORE_IMPL=go` |
 | filestore | `FILESTORE_IMPL=go` |
+| real-time | `REALTIME_IMPL=go` |
 
 Any other value, including unset, runs the Node service exactly as before. Both
 implementations ship in the image, so **rollback is one environment variable
