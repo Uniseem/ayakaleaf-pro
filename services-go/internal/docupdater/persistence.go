@@ -143,51 +143,65 @@ func (c *PersistenceClient) getDocOnce(ctx context.Context, projectID, docID str
 	}, nil
 }
 
-// SetDoc writes a document back through web.
+// SetDoc writes a document back through web and returns what web answered,
+// which carries the revision it assigned.
 func (c *PersistenceClient) SetDoc(
 	ctx context.Context, projectID, docID string, lines []string, version int64,
 	ranges json.RawMessage, lastUpdatedAt string, lastUpdatedBy string,
-) error {
-	return c.withRetries(ctx, func() error {
-		return c.setDocOnce(ctx, projectID, docID, lines, version, ranges, lastUpdatedAt, lastUpdatedBy)
+) (json.RawMessage, error) {
+	var result json.RawMessage
+	err := c.withRetries(ctx, func() error {
+		var err error
+		result, err = c.setDocOnce(ctx, projectID, docID, lines, version, ranges,
+			lastUpdatedAt, lastUpdatedBy)
+		return err
 	})
+	return result, err
 }
 
 func (c *PersistenceClient) setDocOnce(
 	ctx context.Context, projectID, docID string, lines []string, version int64,
 	ranges json.RawMessage, lastUpdatedAt string, lastUpdatedBy string,
-) error {
+) (json.RawMessage, error) {
 	endpoint, err := url.JoinPath(c.baseURL, "project", projectID, "doc", docID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	payload := map[string]any{
-		"lines":         lines,
-		"ranges":        ranges,
-		"version":       version,
-		"lastUpdatedBy": lastUpdatedBy,
+		"lines":   lines,
+		"ranges":  ranges,
+		"version": version,
+		// A document with no recorded editor sends a null rather than an empty
+		// string: that is what web stores, and what it compares against.
+		"lastUpdatedBy": nullIfEmpty(lastUpdatedBy),
 		"lastUpdatedAt": lastUpdatedAt,
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.SetBasicAuth(c.user, c.password)
 
 	res, err := c.client.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() { _ = res.Body.Close() }()
-	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 1<<20))
 
-	return statusError(res.StatusCode, projectID, docID)
+	answer, readErr := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	if err := statusError(res.StatusCode, projectID, docID); err != nil {
+		return nil, err
+	}
+	if readErr != nil {
+		return nil, readErr
+	}
+	return json.RawMessage(answer), nil
 }
 
 // statusError maps a response code to the error the rest of the service
@@ -314,4 +328,12 @@ func (c *WebClient) NotifyTrackChangesRejected(
 	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 1<<20))
 
 	return statusError(res.StatusCode, projectID, docID)
+}
+
+// nullIfEmpty renders an unset string as a JSON null.
+func nullIfEmpty(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
 }

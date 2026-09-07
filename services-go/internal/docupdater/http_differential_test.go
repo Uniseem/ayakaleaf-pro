@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -44,6 +45,31 @@ type mockWeb struct {
 	pathname         string
 	projectHistoryID string
 	requests         int
+
+	// writes are the documents written back, in order. A flush is judged by
+	// what reached the database, which is the part that outlives Redis.
+	mu     sync.Mutex
+	writes []webWrite
+}
+
+// webWrite is one call to the write side of the web API.
+type webWrite struct {
+	Path string          `json:"path"`
+	Body json.RawMessage `json:"body"`
+}
+
+// recordedWrites returns the writes so far.
+func (m *mockWeb) recordedWrites() []webWrite {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]webWrite(nil), m.writes...)
+}
+
+// forgetWrites drops the record, so each side starts from nothing.
+func (m *mockWeb) forgetWrites() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.writes = nil
 }
 
 func newMockWeb(t *testing.T) *mockWeb {
@@ -57,6 +83,10 @@ func newMockWeb(t *testing.T) *mockWeb {
 	}
 	m.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
+			body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+			m.mu.Lock()
+			m.writes = append(m.writes, webWrite{Path: r.URL.Path, Body: body})
+			m.mu.Unlock()
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{}`))
 			return
@@ -138,10 +168,11 @@ func startGoService(t *testing.T, webURL, redisAddr string) (string, *redis.Clie
 	store := NewRedisStore(client, rediskeys.Upstream, testMaxDocLength, 0, log)
 	persistence := NewPersistenceClient(webURL, "overleaf", "password")
 	locker := NewLocker(client, rediskeys.Upstream, 0)
-	docs := NewDocumentManager(store, persistence, locker, log)
-	project := NewProjectManager(store, docs, log)
+	docs := NewDocumentManager(store, persistence, locker, nil, testMaxDocLength, log)
+	project := NewProjectManager(store, docs, nil, log)
 
-	server := httptest.NewServer(NewServer(docs, project, store, log).Handler(nil))
+	server := httptest.NewServer(
+		NewServer(docs, project, store, nil, testMaxDocLength, log).Handler(nil))
 	t.Cleanup(server.Close)
 	return server.URL, client
 }

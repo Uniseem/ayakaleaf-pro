@@ -4,10 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -31,6 +35,7 @@ type writePathSetup struct {
 	updates *UpdateManager
 	store   *RedisStore
 	web     *mockWeb
+	history *mockProjectHistory
 	goBase  string
 }
 
@@ -47,20 +52,77 @@ func newWritePathSetup(t *testing.T) *writePathSetup {
 	t.Cleanup(func() { _ = client.Close() })
 
 	log := slog.New(slog.DiscardHandler)
+	// The Node service has the project-history port built in, so the mock has
+	// to listen on that one for both sides to reach the same place.
+	projectHistory := newMockProjectHistory(t)
+	historyClient := NewHistoryClient(projectHistory.URL, log)
+
 	store := NewRedisStore(client, rediskeys.Upstream, testMaxDocLength, 0, log)
 	persistence := NewPersistenceClient(web.URL, "overleaf", "password")
 	locker := NewLocker(client, rediskeys.Upstream, 0)
-	docs := NewDocumentManager(store, persistence, locker, log)
+	docs := NewDocumentManager(store, persistence, locker, historyClient, testMaxDocLength, log)
 	bridge := NewRealTimeBridge(client, client, rediskeys.Upstream, false, log)
 	history := NewHistoryQueue(client, rediskeys.Upstream)
 	updates := NewUpdateManager(store, docs, locker, bridge, history,
 		NewWebClient(web.URL, "overleaf", "password"), testMaxDocLength, log)
+	docs.UseUpdateManager(updates)
+
+	project := NewProjectManager(store, docs, historyClient, log)
+	goServer := httptest.NewServer(
+		NewServer(docs, project, store, historyClient, testMaxDocLength, log).Handler(nil))
+	t.Cleanup(goServer.Close)
 
 	nodeURL := startNodeService(t, nodeDir, web.URL, addr)
 	return &writePathSetup{
-		sideBySide: &sideBySide{t: t, node: nodeURL, client: client},
-		updates:    updates, store: store, web: web,
+		sideBySide: &sideBySide{t: t, node: nodeURL, goSvc: goServer.URL, client: client},
+		updates:    updates, store: store, web: web, goBase: goServer.URL,
+		history: projectHistory,
 	}
+}
+
+// mockProjectHistory stands in for the project-history service and records the
+// flushes asked of it.
+type mockProjectHistory struct {
+	*httptest.Server
+	mu    sync.Mutex
+	calls []string
+}
+
+// projectHistoryPort is where the Node service looks for project-history. Only
+// the host is configurable there, so the mock takes the port.
+const projectHistoryPort = "127.0.0.1:3054"
+
+func newMockProjectHistory(t *testing.T) *mockProjectHistory {
+	t.Helper()
+	m := &mockProjectHistory{}
+	listener, err := net.Listen("tcp", projectHistoryPort)
+	if err != nil {
+		t.Skipf("cannot listen on %s for the project-history mock: %v", projectHistoryPort, err)
+	}
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		m.mu.Lock()
+		m.calls = append(m.calls, r.Method+" "+r.URL.RequestURI())
+		m.mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	_ = server.Listener.Close()
+	server.Listener = listener
+	server.Start()
+	t.Cleanup(server.Close)
+	m.Server = server
+	return m
+}
+
+func (m *mockProjectHistory) recordedCalls() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string(nil), m.calls...)
+}
+
+func (m *mockProjectHistory) forgetCalls() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls = nil
 }
 
 // pushUpdate queues an edit the way real-time does.
@@ -413,14 +475,20 @@ func TestDispatcherConsumesTheQueue(t *testing.T) {
 	}
 
 	log := slog.New(slog.DiscardHandler)
+	// The Node service has the project-history port built in, so the mock has
+	// to listen on that one for both sides to reach the same place.
+	projectHistory := newMockProjectHistory(t)
+	historyClient := NewHistoryClient(projectHistory.URL, log)
+
 	store := NewRedisStore(client, rediskeys.Upstream, testMaxDocLength, 0, log)
 	persistence := NewPersistenceClient(web.URL, "overleaf", "password")
 	locker := NewLocker(client, rediskeys.Upstream, 0)
-	docs := NewDocumentManager(store, persistence, locker, log)
+	docs := NewDocumentManager(store, persistence, locker, historyClient, testMaxDocLength, log)
 	bridge := NewRealTimeBridge(client, client, rediskeys.Upstream, false, log)
 	history := NewHistoryQueue(client, rediskeys.Upstream)
 	updates := NewUpdateManager(store, docs, locker, bridge, history,
 		NewWebClient(web.URL, "overleaf", "password"), testMaxDocLength, log)
+	docs.UseUpdateManager(updates)
 
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -585,5 +653,372 @@ func TestSideBySideTrackedChangesAndComments(t *testing.T) {
 	}
 	if !strings.Contains(fromGo.Ranges, "thread-1") {
 		t.Errorf("the comment was lost: %s", fromGo.Ranges)
+	}
+}
+
+// flushState is what a flush left behind: what was written back to the
+// database, and what is left in Redis afterwards.
+type flushState struct {
+	Writes        []webWrite
+	HistoryCalls  []string
+	UnflushedTime string
+	DocLines      string
+	DocsInProject []string
+	Status        int
+}
+
+func (s *writePathSetup) captureFlush(t *testing.T, status int) flushState {
+	t.Helper()
+	ctx := context.Background()
+	keys := rediskeys.Upstream
+
+	// A flush of the history queue may be made in the background on either
+	// side, so this waits briefly for one to arrive rather than reading
+	// whatever happens to have landed by now.
+	deadline := time.Now().Add(time.Second)
+	for len(s.history.recordedCalls()) == 0 && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	state := flushState{
+		Writes: s.web.recordedWrites(), HistoryCalls: s.history.recordedCalls(),
+		Status: status,
+	}
+	state.UnflushedTime, _ = s.client.Get(ctx, keys.UnflushedTime(testDocID)).Result()
+	state.DocLines, _ = s.client.Get(ctx, keys.DocLines(testDocID)).Result()
+	state.DocsInProject, _ = s.client.SMembers(ctx, keys.DocsInProject(testProjectID)).Result()
+	return state
+}
+
+// compareFlush reports any difference in what the two services wrote back and
+// what they left behind.
+func compareFlush(t *testing.T, node, goSvc flushState) {
+	t.Helper()
+
+	if node.Status != goSvc.Status {
+		t.Errorf("status: node %d, go %d", node.Status, goSvc.Status)
+	}
+	if len(node.Writes) != len(goSvc.Writes) {
+		t.Fatalf("writes to web\n  node: %d %v\n  go:   %d %v",
+			len(node.Writes), node.Writes, len(goSvc.Writes), goSvc.Writes)
+	}
+	for i := range node.Writes {
+		if node.Writes[i].Path != goSvc.Writes[i].Path {
+			t.Errorf("write %d path: node %s, go %s", i,
+				node.Writes[i].Path, goSvc.Writes[i].Path)
+			continue
+		}
+		// lastUpdatedAt is when the edit was applied, which cannot match
+		// between two runs.
+		if !sameJSONIgnoring(string(node.Writes[i].Body), string(goSvc.Writes[i].Body),
+			"lastUpdatedAt") {
+			t.Errorf("write %d body\n  node: %s\n  go:   %s", i,
+				node.Writes[i].Body, goSvc.Writes[i].Body)
+		}
+	}
+	if strings.Join(node.HistoryCalls, ",") != strings.Join(goSvc.HistoryCalls, ",") {
+		t.Errorf("calls to project-history\n  node: %v\n  go:   %v",
+			node.HistoryCalls, goSvc.HistoryCalls)
+	}
+	if node.UnflushedTime != goSvc.UnflushedTime {
+		t.Errorf("unflushed time: node %q, go %q", node.UnflushedTime, goSvc.UnflushedTime)
+	}
+	if node.DocLines != goSvc.DocLines {
+		t.Errorf("doc lines left in redis\n  node: %s\n  go:   %s",
+			node.DocLines, goSvc.DocLines)
+	}
+	if strings.Join(node.DocsInProject, ",") != strings.Join(goSvc.DocsInProject, ",") {
+		t.Errorf("docs in project: node %v, go %v", node.DocsInProject, goSvc.DocsInProject)
+	}
+}
+
+// edit is the update both sides are given before a flush, so there is something
+// unsaved for the flush to write.
+func flushTestUpdate() map[string]any {
+	return map[string]any{
+		"doc":  testDocID,
+		"op":   []map[string]any{{"p": 23, "i": " % edited"}},
+		"v":    12,
+		"meta": map[string]any{"source": "P.testsource", "user_id": "u1", "ts": 1700000000000},
+	}
+}
+
+// runFlushCase drives one HTTP call against each service, from a clean Redis
+// and with an edit applied first, and compares what each left behind.
+func (s *writePathSetup) runFlushCase(t *testing.T, name, method, path string) {
+	t.Helper()
+	s.t.Run(name, func(t *testing.T) {
+		ctx := context.Background()
+
+		fromNode := func() flushState {
+			if err := s.client.FlushDB(ctx).Err(); err != nil {
+				t.Fatalf("flushing redis: %v", err)
+			}
+			s.web.forgetWrites()
+			s.history.forgetCalls()
+			s.loadDocViaNode(t)
+			s.pushUpdate(t, flushTestUpdate(), true)
+			s.waitForVersion(t, "13")
+			status, _ := s.request(t, s.node, method, path)
+			return s.captureFlush(t, status)
+		}()
+
+		fromGo := func() flushState {
+			if err := s.client.FlushDB(ctx).Err(); err != nil {
+				t.Fatalf("flushing redis: %v", err)
+			}
+			s.web.forgetWrites()
+			s.history.forgetCalls()
+			s.loadDocViaGo(t)
+			s.pushUpdate(t, flushTestUpdate(), false)
+			if err := s.updates.ProcessOutstandingUpdatesWithLock(ctx, testProjectID, testDocID); err != nil {
+				t.Fatalf("applying the update: %v", err)
+			}
+			status, _ := s.request(t, s.goSvc, method, path)
+			return s.captureFlush(t, status)
+		}()
+
+		compareFlush(t, fromNode, fromGo)
+	})
+}
+
+// A flush is where an edit stops being something only this service knows about.
+// Whichever implementation performs it, the same document has to reach the
+// database and the same state has to be left in Redis, because the other one
+// may be what reads it next.
+func TestSideBySideFlushAndDelete(t *testing.T) {
+	s := newWritePathSetup(t)
+
+	doc := fmt.Sprintf("/project/%s/doc/%s", testProjectID, testDocID)
+	project := "/project/" + testProjectID
+
+	s.runFlushCase(t, "flush a doc", http.MethodPost, doc+"/flush")
+	s.runFlushCase(t, "delete a doc", http.MethodDelete, doc)
+	s.runFlushCase(t, "delete a doc ignoring flush errors", http.MethodDelete,
+		doc+"?ignore_flush_errors=true")
+	s.runFlushCase(t, "flush a project", http.MethodPost, project+"/flush")
+	s.runFlushCase(t, "delete a project in the background", http.MethodDelete,
+		project+"?background=true")
+	s.runFlushCase(t, "delete a project", http.MethodDelete, project)
+	s.runFlushCase(t, "delete a project on shutdown", http.MethodDelete,
+		project+"?shutdown=true")
+	s.runFlushCase(t, "block a project", http.MethodPost, project+"/block")
+	s.runFlushCase(t, "unblock a project", http.MethodPost, project+"/unblock")
+}
+
+// Flushing a document that has not been edited must not write it back: the copy
+// in the database is already the current one, and writing it again would make a
+// revision out of nothing.
+func TestSideBySideFlushWithoutChangesWritesNothing(t *testing.T) {
+	s := newWritePathSetup(t)
+	ctx := context.Background()
+	path := fmt.Sprintf("/project/%s/doc/%s/flush", testProjectID, testDocID)
+
+	run := func(base string, load func(*testing.T)) flushState {
+		if err := s.client.FlushDB(ctx).Err(); err != nil {
+			t.Fatalf("flushing redis: %v", err)
+		}
+		s.web.forgetWrites()
+		s.history.forgetCalls()
+		load(t)
+		status, _ := s.request(t, base, http.MethodPost, path)
+		return s.captureFlush(t, status)
+	}
+
+	fromNode := run(s.node, s.loadDocViaNode)
+	fromGo := run(s.goSvc, s.loadDocViaGo)
+
+	compareFlush(t, fromNode, fromGo)
+	if len(fromGo.Writes) != 0 {
+		t.Errorf("an unmodified doc was written back: %v", fromGo.Writes)
+	}
+}
+
+// postJSON sends a request with a JSON body, which the write routes need and
+// the read-only helper does not do.
+func (s *writePathSetup) postJSON(t *testing.T, base, method, path string, body any) (int, string) {
+	t.Helper()
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("encoding the body: %v", err)
+	}
+	req, err := http.NewRequest(method, base+path, strings.NewReader(string(encoded)))
+	if err != nil {
+		t.Fatalf("building request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("%s %s: %v", method, path, err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	answer, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatalf("reading body: %v", err)
+	}
+	return res.StatusCode, strings.TrimSpace(string(answer))
+}
+
+// writeOutcome is everything a write through the HTTP API produced.
+type writeOutcome struct {
+	flushState
+	Body       string
+	AppliedOps []map[string]any
+	History    []map[string]any
+	Lines      []string
+	Version    string
+}
+
+// runWriteCase puts the same write to both services from the same starting
+// state and compares everything each of them produced.
+//
+// preload says whether the document is already in Redis when the write arrives,
+// which is the difference between a document somebody has open and one nobody
+// does. The two take different branches: the first is flushed and left, the
+// second is flushed and dropped.
+func (s *writePathSetup) runWriteCase(t *testing.T, name, method, path string, body any, preload bool) {
+	t.Helper()
+	s.t.Run(name, func(t *testing.T) {
+		ctx := context.Background()
+
+		run := func(base string, load func(*testing.T)) writeOutcome {
+			if err := s.client.FlushDB(ctx).Err(); err != nil {
+				t.Fatalf("flushing redis: %v", err)
+			}
+			s.web.forgetWrites()
+			s.history.forgetCalls()
+			if preload {
+				load(t)
+			}
+
+			var status int
+			var answer string
+			ops := s.collectAppliedOps(t, func() {
+				status, answer = s.postJSON(t, base, method, path, body)
+			})
+
+			out := writeOutcome{Body: answer, AppliedOps: ops}
+			out.flushState = s.captureFlush(t, status)
+			captured := s.capture(t)
+			out.History = captured.History
+			out.Lines = captured.Lines
+			out.Version = captured.Version
+			return out
+		}
+
+		fromNode := run(s.node, s.loadDocViaNode)
+		fromGo := run(s.goSvc, s.loadDocViaGo)
+
+		compareFlush(t, fromNode.flushState, fromGo.flushState)
+		if !sameJSON(fromNode.Body, fromGo.Body) {
+			t.Errorf("response\n  node: %s\n  go:   %s", fromNode.Body, fromGo.Body)
+		}
+		if strings.Join(fromNode.Lines, "\n") != strings.Join(fromGo.Lines, "\n") {
+			t.Errorf("doc left in redis\n  node: %q\n  go:   %q",
+				fromNode.Lines, fromGo.Lines)
+		}
+		if fromNode.Version != fromGo.Version {
+			t.Errorf("version: node %s, go %s", fromNode.Version, fromGo.Version)
+		}
+
+		if len(fromNode.AppliedOps) != len(fromGo.AppliedOps) {
+			t.Fatalf("published ops\n  node: %v\n  go:   %v",
+				fromNode.AppliedOps, fromGo.AppliedOps)
+		}
+		for i := range fromNode.AppliedOps {
+			a, _ := json.Marshal(fromNode.AppliedOps[i])
+			b, _ := json.Marshal(fromGo.AppliedOps[i])
+			if !sameJSONIgnoring(string(a), string(b), "op.meta.ts", "op.meta.tsRT") {
+				t.Errorf("published op %d\n  node: %s\n  go:   %s", i, a, b)
+			}
+		}
+		if len(fromNode.History) != len(fromGo.History) {
+			t.Fatalf("history entries\n  node: %v\n  go:   %v",
+				fromNode.History, fromGo.History)
+		}
+		for i := range fromNode.History {
+			a, _ := json.Marshal(fromNode.History[i])
+			b, _ := json.Marshal(fromGo.History[i])
+			if !sameJSONIgnoring(string(a), string(b), "meta.ts", "meta.tsRT") {
+				t.Errorf("history entry %d\n  node: %s\n  go:   %s", i, a, b)
+			}
+		}
+	})
+}
+
+// A write through the API is turned into an edit by diffing against what is
+// already there. The two services have to find the same difference: it is what
+// the other editors are told, what the tracked changes move against, and what
+// the history records.
+func TestSideBySideSetDoc(t *testing.T) {
+	s := newWritePathSetup(t)
+
+	doc := fmt.Sprintf("/project/%s/doc/%s", testProjectID, testDocID)
+	original := []string{`\documentclass{article}`, "", "café 中文", `\end{document}`}
+
+	edited := append([]string(nil), original...)
+	edited[2] = "café 中文 with more text"
+
+	rewritten := []string{`\documentclass{report}`, "", "an entirely different line",
+		"and another", `\end{document}`}
+
+	shorter := []string{`\documentclass{article}`, `\end{document}`}
+
+	for _, preloaded := range []bool{true, false} {
+		suffix := " (loaded)"
+		if !preloaded {
+			suffix = " (not loaded)"
+		}
+		s.runWriteCase(t, "an edit in the middle"+suffix, http.MethodPost, doc,
+			map[string]any{"lines": edited, "source": "dropbox", "user_id": "u1"}, preloaded)
+		s.runWriteCase(t, "a rewrite"+suffix, http.MethodPost, doc,
+			map[string]any{"lines": rewritten, "source": "dropbox", "user_id": "u1"}, preloaded)
+		s.runWriteCase(t, "lines removed"+suffix, http.MethodPost, doc,
+			map[string]any{"lines": shorter, "source": "dropbox", "user_id": "u1"}, preloaded)
+		s.runWriteCase(t, "no change at all"+suffix, http.MethodPost, doc,
+			map[string]any{"lines": original, "source": "dropbox", "user_id": "u1"}, preloaded)
+		s.runWriteCase(t, "an undo"+suffix, http.MethodPost, doc,
+			map[string]any{"lines": edited, "source": "dropbox", "user_id": "u1",
+				"undoing": true}, preloaded)
+		s.runWriteCase(t, "an origin rather than a source"+suffix, http.MethodPost, doc,
+			map[string]any{"lines": edited, "user_id": "u1",
+				"origin": map[string]any{"kind": "file-restore"}}, preloaded)
+		s.runWriteCase(t, "no source at all"+suffix, http.MethodPost, doc,
+			map[string]any{"lines": edited, "user_id": "u1"}, preloaded)
+		s.runWriteCase(t, "no user"+suffix, http.MethodPost, doc,
+			map[string]any{"lines": edited, "source": "dropbox"}, preloaded)
+
+		s.runWriteCase(t, "append a line"+suffix, http.MethodPost, doc+"/append",
+			map[string]any{"lines": []string{"appended"}, "source": "dropbox",
+				"user_id": "u1"}, preloaded)
+		s.runWriteCase(t, "append nothing"+suffix, http.MethodPost, doc+"/append",
+			map[string]any{"lines": []string{}, "source": "dropbox", "user_id": "u1"}, preloaded)
+	}
+}
+
+// The diff has to be found the same way on text that gives it something to do:
+// repeated words, moved lines, and characters outside the basic plane, where
+// counting in the wrong unit puts every later position out by one.
+func TestSideBySideSetDocDiffs(t *testing.T) {
+	s := newWritePathSetup(t)
+	doc := fmt.Sprintf("/project/%s/doc/%s", testProjectID, testDocID)
+
+	cases := []struct {
+		name  string
+		lines []string
+	}{
+		{"a word repeated", []string{`\documentclass{article}`, "", "café 中文 café café", `\end{document}`}},
+		{"lines swapped", []string{"", `\documentclass{article}`, `\end{document}`, "café 中文"}},
+		{"everything replaced", []string{"nothing", "in", "common"}},
+		{"emptied", []string{""}},
+		{"one long line", []string{strings.Repeat("the quick brown fox. ", 200)}},
+		{"astral characters", []string{`\documentclass{article}`, "", "café 中文 🎉🎉 tail", `\end{document}`}},
+		{"a line split in two", []string{`\documentclass{article}`, "", "café", "中文", `\end{document}`}},
+		{"leading whitespace changed", []string{`  \documentclass{article}`, "", "  café 中文", `\end{document}`}},
+	}
+	for _, c := range cases {
+		s.runWriteCase(t, c.name, http.MethodPost, doc,
+			map[string]any{"lines": c.lines, "source": "dropbox", "user_id": "u1"}, true)
 	}
 }

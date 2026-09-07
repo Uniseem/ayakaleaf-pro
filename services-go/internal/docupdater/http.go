@@ -15,12 +15,25 @@ type Server struct {
 	docs    *DocumentManager
 	project *ProjectManager
 	redis   *RedisStore
+	history *HistoryClient
 	log     *slog.Logger
+
+	// maxDocLength is the size a document may not exceed, in characters. A
+	// write larger than this is refused before anything is loaded.
+	maxDocLength int
 }
 
+// maxRequestBody bounds a request body this service parses. Nothing it accepts
+// is large; the document content arrives on the update queue, not here.
+const maxRequestBody = 8 << 20
+
 // NewServer builds the HTTP server.
-func NewServer(docs *DocumentManager, project *ProjectManager, redis *RedisStore, log *slog.Logger) *Server {
-	return &Server{docs: docs, project: project, redis: redis, log: log}
+func NewServer(docs *DocumentManager, project *ProjectManager, redis *RedisStore,
+	history *HistoryClient, maxDocLength int, log *slog.Logger) *Server {
+	return &Server{
+		docs: docs, project: project, redis: redis, history: history,
+		maxDocLength: maxDocLength, log: log,
+	}
 }
 
 // docResponse is what a GET of a document returns.
@@ -60,6 +73,18 @@ func (s *Server) Handler(monitor func(http.Handler) http.Handler) http.Handler {
 	mux.HandleFunc("GET /project/{project_id}/ranges", s.getProjectRanges)
 	mux.HandleFunc("GET /project/{project_id}/last_updated_at", s.getProjectLastUpdatedAt)
 	mux.HandleFunc("POST /project/{project_id}/clearState", s.clearProjectState)
+	mux.HandleFunc("POST /project/{project_id}/get_and_flush_if_old", s.getProjectDocsAndFlushIfOld)
+	mux.HandleFunc("GET /project/{project_id}/doc", s.getProjectDocsAndFlushIfOld)
+
+	mux.HandleFunc("POST /project/{project_id}/doc/{doc_id}", s.setDoc)
+	mux.HandleFunc("POST /project/{project_id}/doc/{doc_id}/append", s.appendToDoc)
+	mux.HandleFunc("POST /project/{project_id}/doc/{doc_id}/flush", s.flushDocIfLoaded)
+	mux.HandleFunc("DELETE /project/{project_id}/doc/{doc_id}", s.deleteDoc)
+	mux.HandleFunc("POST /project/{project_id}/flush", s.flushProject)
+	mux.HandleFunc("DELETE /project/{project_id}", s.deleteProject)
+	mux.HandleFunc("DELETE /project", s.deleteMultipleProjects)
+	mux.HandleFunc("POST /project/{project_id}/block", s.blockProject)
+	mux.HandleFunc("POST /project/{project_id}/unblock", s.unblockProject)
 
 	if monitor != nil {
 		return monitor(mux)
@@ -187,6 +212,206 @@ func (s *Server) clearProjectState(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("OK"))
+}
+
+// setDocBody is what a write through the API carries.
+type setDocBody struct {
+	Lines []string `json:"lines"`
+	// Source is either a name or an object; it is passed on as it arrived.
+	Source  json.RawMessage `json:"source"`
+	UserID  string          `json:"user_id"`
+	Undoing bool            `json:"undoing"`
+}
+
+func (s *Server) setDoc(w http.ResponseWriter, r *http.Request) {
+	projectID := r.PathValue("project_id")
+	docID := r.PathValue("doc_id")
+
+	var body setDocBody
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBody)).Decode(&body); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	// Checked before the document is loaded: a document this size will be
+	// refused whatever is in Redis, and loading it first would be work for
+	// nothing.
+	if totalSizeOfLines(body.Lines) > s.maxDocLength {
+		s.log.Warn("document too large, refusing to set it",
+			slog.String("project", projectID), slog.String("doc", docID),
+			slog.Int("size", totalSizeOfLines(body.Lines)))
+		w.WriteHeader(http.StatusNotAcceptable)
+		_, _ = w.Write([]byte("Not Acceptable"))
+		return
+	}
+
+	result, err := s.docs.SetDocWithLock(r.Context(), projectID, docID, body.Lines,
+		SetDocOptions{
+			OriginOrSource: body.Source, UserID: body.UserID,
+			Undoing: body.Undoing, External: true,
+		})
+	if err != nil {
+		s.writeError(w, r, err, "setDoc")
+		return
+	}
+	// A write that changed nothing flushes nothing, so there is no answer from
+	// web to pass on. An empty object goes back rather than nothing at all,
+	// which would not be valid JSON.
+	if len(result) == 0 {
+		result = json.RawMessage("{}")
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_, _ = w.Write(result)
+}
+
+func (s *Server) appendToDoc(w http.ResponseWriter, r *http.Request) {
+	projectID := r.PathValue("project_id")
+	docID := r.PathValue("doc_id")
+
+	var body setDocBody
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBody)).Decode(&body); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	result, err := s.docs.AppendToDocWithLock(r.Context(), projectID, docID, body.Lines,
+		SetDocOptions{OriginOrSource: body.Source, UserID: body.UserID})
+	if err != nil {
+		if errors.Is(err, ErrFileTooLarge) {
+			// Not the 413 a write gets: appending is refused because of what
+			// the document would become, not because of what was sent.
+			s.log.Warn("refusing to append to file, it would become too large",
+				slog.String("project", projectID), slog.String("doc", docID))
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_, _ = w.Write([]byte("Unprocessable Entity"))
+			return
+		}
+		s.writeError(w, r, err, "appendToDoc")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if len(result) == 0 {
+		// res.json(undefined) sends an empty body in Express, which is what
+		// this reproduces.
+		return
+	}
+	_, _ = w.Write(result)
+}
+
+func (s *Server) flushDocIfLoaded(w http.ResponseWriter, r *http.Request) {
+	projectID := r.PathValue("project_id")
+	docID := r.PathValue("doc_id")
+
+	if err := s.docs.FlushDocIfLoadedWithLock(r.Context(), projectID, docID); err != nil {
+		s.writeError(w, r, err, "flushDocIfLoaded")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) deleteDoc(w http.ResponseWriter, r *http.Request) {
+	projectID := r.PathValue("project_id")
+	docID := r.PathValue("doc_id")
+	ignoreFlushErrors := r.URL.Query().Get("ignore_flush_errors") == "true"
+
+	err := s.docs.FlushAndDeleteDocWithLock(r.Context(), projectID, docID, ignoreFlushErrors)
+	// The history queue is flushed either way: a document that failed to write
+	// back still has operations queued, and sometimes the failure is what makes
+	// the flush necessary.
+	if s.history != nil {
+		s.history.FlushProjectChangesAsync(r.Context(), projectID)
+	}
+	if err != nil {
+		s.writeError(w, r, err, "deleteDoc")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) flushProject(w http.ResponseWriter, r *http.Request) {
+	if err := s.project.FlushProjectWithLocks(r.Context(), r.PathValue("project_id")); err != nil {
+		s.writeError(w, r, err, "flushProject")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) deleteProject(w http.ResponseWriter, r *http.Request) {
+	projectID := r.PathValue("project_id")
+	query := r.URL.Query()
+	// Express treats any value as present, so "?background=" counts. The two
+	// callers pass "true", but matching the check keeps a stray empty value
+	// from taking the other branch here than it does there.
+	background := query.Has("background") && query.Get("background") != "false"
+	shutdown := query.Has("shutdown") && query.Get("shutdown") != "false"
+
+	if background {
+		if err := s.project.QueueFlushAndDeleteProject(r.Context(), projectID); err != nil {
+			s.writeError(w, r, err, "deleteProject")
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	// real-time shutting down skips the history flush: the queue is in Redis
+	// and whoever opens the project next will drain it.
+	opts := FlushOptions{Background: background, SkipHistoryFlush: shutdown}
+	if err := s.project.FlushAndDeleteProjectWithLocks(r.Context(), projectID, opts); err != nil {
+		s.writeError(w, r, err, "deleteProject")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) deleteMultipleProjects(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ProjectIDs []string `json:"project_ids"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBody)).Decode(&body); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	for _, projectID := range body.ProjectIDs {
+		if err := s.project.QueueFlushAndDeleteProject(r.Context(), projectID); err != nil {
+			s.writeError(w, r, err, "deleteMultipleProjects")
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) getProjectDocsAndFlushIfOld(w http.ResponseWriter, r *http.Request) {
+	projectID := r.PathValue("project_id")
+	// The caller sends the hash it believes describes the project structure.
+	//
+	// It also sends an "exclude" list of documents it already has. The Node
+	// service parses it and then does nothing with it, so neither does this.
+	stateHash := r.URL.Query().Get("state")
+
+	docs, err := s.project.GetProjectDocsAndFlushIfOld(r.Context(), projectID, stateHash)
+	if err != nil {
+		s.writeError(w, r, err, "getProjectDocsAndFlushIfOld")
+		return
+	}
+	writeJSON(w, docs)
+}
+
+func (s *Server) blockProject(w http.ResponseWriter, r *http.Request) {
+	blocked, err := s.redis.BlockProject(r.Context(), r.PathValue("project_id"))
+	if err != nil {
+		s.writeError(w, r, err, "blockProject")
+		return
+	}
+	writeJSON(w, map[string]any{"blocked": blocked})
+}
+
+func (s *Server) unblockProject(w http.ResponseWriter, r *http.Request) {
+	wasBlocked, err := s.redis.UnblockProject(r.Context(), r.PathValue("project_id"))
+	if err != nil {
+		s.writeError(w, r, err, "unblockProject")
+		return
+	}
+	writeJSON(w, map[string]any{"wasBlocked": wasBlocked})
 }
 
 func (s *Server) healthCheck(w http.ResponseWriter, r *http.Request) {

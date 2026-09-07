@@ -115,6 +115,21 @@ jobs:
           RANGES_TRACKER_CASES: '30000'
         run: go test -count=1 -run Differential ./internal/rangestracker/ -v
 
+      # A write through the HTTP API is turned into an edit by diffing against
+      # what is already stored, and several correct diffs exist for the same
+      # pair of documents. The one chosen is what the other editors are shown
+      # and what goes into the history, so it has to be the one the real
+      # DiffCodec would have chosen.
+      - name: 'Differential: the diff against the vendored diff-match-patch'
+        working-directory: services-go
+        env:
+          DOCUPDATER_NODE_DIR: ${{ github.workspace }}/services/document-updater
+          DIFF_CODEC_CASES: '30000'
+        run: |
+          npm --prefix "$GITHUB_WORKSPACE" ls diff-match-patch >/dev/null 2>&1 ||
+            npm --prefix "$GITHUB_WORKSPACE" install --no-save --no-audit               --no-fund diff-match-patch
+          go test -count=1 -run DiffDifferential ./internal/docupdater/ -v
+
   build:
     name: Build (linux/${{ matrix.goarch }})
     runs-on: ubuntu-latest

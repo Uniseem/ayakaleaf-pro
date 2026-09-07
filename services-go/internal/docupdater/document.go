@@ -13,13 +13,32 @@ type DocumentManager struct {
 	redis       *RedisStore
 	persistence *PersistenceClient
 	locker      *Locker
+	history     *HistoryClient
 	log         *slog.Logger
+
+	// maxDocLength is the size a document may not exceed, in characters. The
+	// append path checks it before doing the work of a diff.
+	maxDocLength int
+
+	// updates is what a write through the API becomes once the difference has
+	// been worked out. It is set after construction because the two managers
+	// need each other: the update manager reads documents through this one.
+	updates *UpdateManager
 }
 
 // NewDocumentManager builds a document manager.
 func NewDocumentManager(redis *RedisStore, persistence *PersistenceClient,
-	locker *Locker, log *slog.Logger) *DocumentManager {
-	return &DocumentManager{redis: redis, persistence: persistence, locker: locker, log: log}
+	locker *Locker, history *HistoryClient, maxDocLength int,
+	log *slog.Logger) *DocumentManager {
+	return &DocumentManager{
+		redis: redis, persistence: persistence, locker: locker, history: history,
+		maxDocLength: maxDocLength, log: log,
+	}
+}
+
+// UseUpdateManager completes the wiring for the write paths.
+func (m *DocumentManager) UseUpdateManager(updates *UpdateManager) {
+	m.updates = updates
 }
 
 // LoadedDoc is a document together with how it was obtained.
@@ -141,14 +160,16 @@ func (m *DocumentManager) PeekDoc(ctx context.Context, projectID, docID string) 
 
 // ProjectManager answers questions about a whole project.
 type ProjectManager struct {
-	redis *RedisStore
-	docs  *DocumentManager
-	log   *slog.Logger
+	redis   *RedisStore
+	docs    *DocumentManager
+	history *HistoryClient
+	log     *slog.Logger
 }
 
 // NewProjectManager builds a project manager.
-func NewProjectManager(redis *RedisStore, docs *DocumentManager, log *slog.Logger) *ProjectManager {
-	return &ProjectManager{redis: redis, docs: docs, log: log}
+func NewProjectManager(redis *RedisStore, docs *DocumentManager, history *HistoryClient,
+	log *slog.Logger) *ProjectManager {
+	return &ProjectManager{redis: redis, docs: docs, history: history, log: log}
 }
 
 // DocRanges is one document's tracked changes and comments.
