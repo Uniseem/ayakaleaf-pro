@@ -191,6 +191,7 @@ jobs:
             @overleaf/chat \
             @overleaf/notifications \
             @overleaf/docstore \
+            @overleaf/filestore \
             @overleaf/migrations
 
       - name: Set up Go
@@ -228,6 +229,24 @@ jobs:
             test/acceptance/js/GettingAllDocsTests.js \
             test/acceptance/js/UpdatingDocsTests.js \
             test/acceptance/js/HealthCheckerTest.js
+
+      # filestore's own suite cannot serve as a baseline: FilestoreTests.js
+      # reads TLS certificates from /certs at import time, needs
+      # fake-gcs-server, and calls FileHandler._TESTONLYSwapPersistorManager to
+      # replace the persistor inside the running service. FilestoreApiTests.js
+      # is a black-box replacement, run against Node here for comparison.
+      - name: 'Baseline: filestore acceptance suite against the Node service'
+        working-directory: services/filestore
+        env:
+          BACKEND: fs
+          TEMPLATE_FILES_BUCKET_NAME: /tmp/ci-filestore/template
+          OVERLEAF_EDITOR_BLOBS_BUCKET: /tmp/ci-filestore/global-blobs
+          OVERLEAF_EDITOR_PROJECT_BLOBS_BUCKET: /tmp/ci-filestore/project-blobs
+        run: |
+          mkdir -p "$TEMPLATE_FILES_BUCKET_NAME" "$OVERLEAF_EDITOR_BLOBS_BUCKET" \
+                   "$OVERLEAF_EDITOR_PROJECT_BLOBS_BUCKET"
+          PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH" \
+          mocha --timeout 20000 --exit test/acceptance/js/FilestoreApiTests.js
 
       # Each service gets its own database here, so the suites run at the same
       # time without their migrations racing.

@@ -44,6 +44,7 @@ SERVICES=(
   "chat:3010:services/chat:CHAT_EXTERNAL:"
   "notifications:3042:services/notifications:NOTIFICATIONS_EXTERNAL:"
   "docstore:3016:services/docstore:DOCSTORE_EXTERNAL:test/acceptance/js/GettingDocsTests.js test/acceptance/js/GettingAllDocsTests.js test/acceptance/js/UpdatingDocsTests.js test/acceptance/js/HealthCheckerTest.js"
+  "filestore:3009:services/filestore:FILESTORE_EXTERNAL:test/acceptance/js/FilestoreApiTests.js"
 )
 
 spec_for() {
@@ -64,10 +65,31 @@ spec_for() {
 run_one() {
   local name=$1 port=$2 dir=$3 external_var=$4 test_files=$5 database=${6:-}
 
+  if [[ "$name" == "filestore" ]]; then
+    # The filesystem backend stores objects under these directories; a run of
+    # its own keeps concurrent services from sharing state.
+    local root="${TMPDIR:-/tmp}/conformance-filestore-$$"
+    export BACKEND="${BACKEND:-fs}"
+    export TEMPLATE_FILES_BUCKET_NAME="$root/template"
+    export OVERLEAF_EDITOR_BLOBS_BUCKET="$root/global-blobs"
+    export OVERLEAF_EDITOR_PROJECT_BLOBS_BUCKET="$root/project-blobs"
+    rm -rf "$root"
+    mkdir -p "$TEMPLATE_FILES_BUCKET_NAME" "$OVERLEAF_EDITOR_BLOBS_BUCKET"              "$OVERLEAF_EDITOR_PROJECT_BLOBS_BUCKET"
+  fi
+
   if [[ -n "$database" ]]; then
     # An isolated database lets services run concurrently without their
     # migrations racing on the shared migrations collection.
     export MONGO_CONNECTION_STRING="mongodb://${MONGO_HOST}/${database}?directConnection=true"
+  fi
+
+  # A service left behind by an earlier run would answer the readiness check
+  # below, and the suite would then test that stale process -- against its
+  # configuration, not this one's. Refuse to start rather than report a result
+  # about the wrong thing.
+  if curl -fsS "http://127.0.0.1:${port}/status" >/dev/null 2>&1; then
+    echo "error: something is already listening on port $port; stop it first" >&2
+    return 1
   fi
 
   echo "--- starting the Go $name service on port $port"

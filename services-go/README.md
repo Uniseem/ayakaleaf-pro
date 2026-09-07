@@ -9,6 +9,7 @@ without changing anything else in the stack.
 | notifications | `cmd/notifications` | 3042 | `services/notifications` | 539 |
 | linked-url-proxy | `cmd/linked-url-proxy` | 3066 | `services/linked-url-proxy` | 244 |
 | docstore | `cmd/docstore` | 3016 | `services/docstore` | 1,403 |
+| filestore | `cmd/filestore` | 3009 | `services/filestore` | 861 |
 
 ## Why these three
 
@@ -58,6 +59,7 @@ the last run both do, with the same test counts as the Node implementations:
 | services/chat acceptance | 29 passing | 29 passing |
 | services/notifications acceptance | 18 passing | 18 passing |
 | services/docstore acceptance (black-box files) | 39 passing | 39 passing |
+| services/filestore contract suite | 13 passing | 13 passing |
 
 ## Conformance is not enough: run it for real
 
@@ -86,7 +88,7 @@ builds, boots and works with it. What was checked on the live deployment:
 | --- | --- |
 | All four binaries present in the image | yes |
 | runit selects Go when `*_IMPL=go` | all four |
-| Runs alongside the Node services (filestore, real-time, project-history) | yes |
+| Runs alongside the Node services (real-time, project-history, clsi) | yes |
 | Register, log in, create a project | yes |
 | Compile LaTeX to PDF | success |
 | Project chat through the Go service | send and read back |
@@ -111,6 +113,31 @@ Two notes on building the image, both of which cost time to work out:
 - The same collision means a `docker run sharelatex/sharelatex:latest` after a
   failed build quietly tests the *upstream* image. Verify what you are looking
   at before concluding anything from it.
+
+### filestore: its own suite cannot run at all, and DELETE was broken
+
+`FilestoreTests.js` never loads outside its docker-compose environment — its
+`TestConfig.js` reads TLS certificates from `/certs/public.crt` at import time.
+It also needs fake-gcs-server, and `FilestoreApp.runServer()` calls
+`FileHandler._TESTONLYSwapPersistorManager()` to replace the persistor inside
+the running service. It parametrises over eight backend shards, five of which
+(`gcs`, `s3SSEC`, and three fallback/migration combinations) are unreachable
+from server-ce's `settings.js`.
+
+Writing a black-box replacement, `FilestoreApiTests.js`, immediately found that
+**every DELETE returned 500**:
+
+```
+FileHandler.deleteFile is not a function
+```
+
+`deleteFile` was exported only under `promises`, while `FileController` calls
+the callback-style top-level entry. The one-line fix is in this change; without
+a suite that could run, nothing had exercised the path.
+
+The Go port covers the `fs` and `s3` backends and refuses to start on any
+other, rather than appearing to work against storage it cannot reach. GCS,
+per-project client-side encryption and cross-backend migration are not ported.
 
 ### docstore: three acceptance files cannot judge an external service
 
@@ -182,6 +209,8 @@ Each runit script in `server-ce/runit/` picks its implementation at startup:
 | chat | `CHAT_IMPL=go` |
 | notifications | `NOTIFICATIONS_IMPL=go` |
 | linked-url-proxy | `LINKED_URL_PROXY_IMPL=go` |
+| docstore | `DOCSTORE_IMPL=go` |
+| filestore | `FILESTORE_IMPL=go` |
 
 Any other value, including unset, runs the Node service exactly as before. Both
 implementations ship in the image, so **rollback is one environment variable
