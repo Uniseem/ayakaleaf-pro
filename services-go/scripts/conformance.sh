@@ -31,10 +31,19 @@ export RETRIES="${RETRIES:-0}"
 # suite must run once and exit.
 export CI="${CI:-true}"
 
-# name:port:directory:external-flag
+# name:port:directory:external-flag:test-files
+#
+# test-files is optional. When set, mocha runs exactly those files instead of
+# the service's own script. docstore needs it: three of its acceptance files
+# mutate the running service's Settings object at runtime -- see
+# ArchiveDocsTests.js:210 -- which only works when the service runs inside the
+# test process. Those tests fail against any external implementation, the Node
+# service included: started as its own process, Node scores the same 75/22 the
+# Go port does.
 SERVICES=(
-  "chat:3010:services/chat:CHAT_EXTERNAL"
-  "notifications:3042:services/notifications:NOTIFICATIONS_EXTERNAL"
+  "chat:3010:services/chat:CHAT_EXTERNAL:"
+  "notifications:3042:services/notifications:NOTIFICATIONS_EXTERNAL:"
+  "docstore:3016:services/docstore:DOCSTORE_EXTERNAL:test/acceptance/js/GettingDocsTests.js test/acceptance/js/GettingAllDocsTests.js test/acceptance/js/UpdatingDocsTests.js test/acceptance/js/HealthCheckerTest.js"
 )
 
 spec_for() {
@@ -53,7 +62,7 @@ spec_for() {
 # Starts the Go binary, waits for it to answer /status, runs the Node
 # acceptance suite against it, then stops it again.
 run_one() {
-  local name=$1 port=$2 dir=$3 external_var=$4 database=${5:-}
+  local name=$1 port=$2 dir=$3 external_var=$4 test_files=$5 database=${6:-}
 
   if [[ -n "$database" ]]; then
     # An isolated database lets services run concurrently without their
@@ -86,7 +95,12 @@ run_one() {
 
   echo "--- running $dir acceptance suite against it"
   local rc=0
-  ( cd "$REPO_ROOT/$dir" && env "$external_var=true" yarn run test:acceptance:_run ) || rc=$?
+  if [[ -n "$test_files" ]]; then
+    # shellcheck disable=SC2086
+    ( cd "$REPO_ROOT/$dir"       && env "$external_var=true" PATH="$REPO_ROOT/node_modules/.bin:$PATH"          mocha --timeout 15000 --exit --retries="$RETRIES" $test_files ) || rc=$?
+  else
+    ( cd "$REPO_ROOT/$dir" && env "$external_var=true" yarn run test:acceptance:_run ) || rc=$?
+  fi
 
   kill "$pid" 2>/dev/null
   wait "$pid" 2>/dev/null
@@ -97,9 +111,9 @@ run_named() {
   local name=$1 database=${2:-}
   local spec
   spec=$(spec_for "$name") || { echo "unknown service: $name" >&2; return 2; }
-  local n port dir external_var
-  IFS=: read -r n port dir external_var <<< "$spec"
-  run_one "$n" "$port" "$dir" "$external_var" "$database"
+  local n port dir external_var test_files
+  IFS=: read -r n port dir external_var test_files <<< "$spec"
+  run_one "$n" "$port" "$dir" "$external_var" "$test_files" "$database"
 }
 
 mkdir -p "$LOG_DIR"

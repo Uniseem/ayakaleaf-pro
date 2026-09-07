@@ -190,6 +190,7 @@ jobs:
           yarn workspaces focus \
             @overleaf/chat \
             @overleaf/notifications \
+            @overleaf/docstore \
             @overleaf/migrations
 
       - name: Set up Go
@@ -211,6 +212,22 @@ jobs:
       - name: 'Baseline: notifications acceptance suite against the Node service'
         working-directory: services/notifications
         run: yarn run test:acceptance:_run
+
+      # docstore's baseline covers exactly the files the conformance step runs.
+      # Its other three acceptance files reach into the running service and
+      # mutate its Settings object (ArchiveDocsTests.js:210 is one), so they
+      # pass only when the service shares a process with the tests and cannot
+      # judge an external implementation -- Node started as its own process
+      # fails them too. See services-go/README.md.
+      - name: 'Baseline: docstore acceptance suite against the Node service'
+        working-directory: services/docstore
+        run: |
+          PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH" \
+          mocha --timeout 15000 --exit \
+            test/acceptance/js/GettingDocsTests.js \
+            test/acceptance/js/GettingAllDocsTests.js \
+            test/acceptance/js/UpdatingDocsTests.js \
+            test/acceptance/js/HealthCheckerTest.js
 
       # Each service gets its own database here, so the suites run at the same
       # time without their migrations racing.

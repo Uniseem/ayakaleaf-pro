@@ -8,6 +8,7 @@ without changing anything else in the stack.
 | chat | `cmd/chat` | 3010 | `services/chat` | 996 |
 | notifications | `cmd/notifications` | 3042 | `services/notifications` | 539 |
 | linked-url-proxy | `cmd/linked-url-proxy` | 3066 | `services/linked-url-proxy` | 244 |
+| docstore | `cmd/docstore` | 3016 | `services/docstore` | 1,403 |
 
 ## Why these three
 
@@ -56,6 +57,88 @@ the last run both do, with the same test counts as the Node implementations:
 | --- | ---: | ---: |
 | services/chat acceptance | 29 passing | 29 passing |
 | services/notifications acceptance | 18 passing | 18 passing |
+| services/docstore acceptance (black-box files) | 39 passing | 39 passing |
+
+## Conformance is not enough: run it for real
+
+The acceptance suites check the HTTP contract. They do not check that a service
+can be *deployed*, and three defects got through them and were only found by
+building the image and running the product:
+
+1. **docstore had no `DOCSTORE_IMPL` toggle.** The port was complete and
+   passing, and there was no way to select it. Nothing in a conformance run
+   ever reads the runit scripts.
+2. **The services did not read `OVERLEAF_MONGO_URL`.** A server-ce deployment
+   configures Mongo through `OVERLEAF_CONFIG` → `/etc/overleaf/settings.js` →
+   `OVERLEAF_MONGO_URL`, and sets neither `MONGO_CONNECTION_STRING` nor
+   `MONGO_HOST`. The conformance script exports `MONGO_HOST` itself, so that
+   path was never exercised: every service started, failed to reach
+   127.0.0.1:27017, and was restarted by runit forever.
+3. **`rev` and `version` were written as int64.** The Node driver stores a
+   JavaScript number as int32, so documents carried a visible trace of which
+   implementation wrote them. Harmless to queries, but it broke the promise
+   that both can share one database.
+
+So a port is finished when it passes the inherited suite **and** the product
+builds, boots and works with it. What was checked on the live deployment:
+
+| Check | Result |
+| --- | --- |
+| All four binaries present in the image | yes |
+| runit selects Go when `*_IMPL=go` | all four |
+| Runs alongside the Node services (filestore, real-time, project-history) | yes |
+| Register, log in, create a project | yes |
+| Compile LaTeX to PDF | success |
+| Project chat through the Go service | send and read back |
+| Go reads and updates a project Node wrote | rev 1 → 2 → 3, type preserved |
+| Lines beginning with `$` survive storage | `$1.00`, `$foo` stored literally |
+| Rollback: drop `*_IMPL`, restart | back on Node in 12s |
+
+Two notes on building the image, both of which cost time to work out:
+
+- `sharelatex/sharelatex-base` and `sharelatex/sharelatex` are **real public
+  repositories on Docker Hub**. A local build is silently replaced by the
+  published upstream image, which is old enough that its corepack has no
+  `install` subcommand. Build the base under a name that cannot collide and
+  pass it explicitly:
+
+  ```bash
+  docker build -f server-ce/Dockerfile-base -t ayakaleaf-base:local .
+  docker build -f server-ce/Dockerfile \
+    --build-arg OVERLEAF_BASE_TAG=ayakaleaf-base:local -t ayakaleaf-pro:go .
+  ```
+
+- The same collision means a `docker run sharelatex/sharelatex:latest` after a
+  failed build quietly tests the *upstream* image. Verify what you are looking
+  at before concluding anything from it.
+
+### docstore: three acceptance files cannot judge an external service
+
+`ArchiveDocsTests.js`, `GettingDocsFromArchiveTest.js` and
+`DeletingDocsTests.js` reach into the running service and change its settings
+mid-run:
+
+```js
+// services/docstore/test/acceptance/js/ArchiveDocsTests.js:210
+Settings.docstore.keepSoftDeletedDocsArchived = true
+```
+
+That only takes effect when the service shares a process with the tests. Run
+against a service in its own process they fail, and not because of the
+implementation behind the port -- the **Node** service scores exactly the same
+as the Go one when started externally:
+
+| How the suite is run | Result |
+| --- | --- |
+| Node in-process (the default) | 97 passing |
+| Node as its own process | 75 passing, 22 failing |
+| Go as its own process | 75 passing, 22 failing |
+
+So the conformance step runs the four files that are genuinely black-box, and
+CI runs the Node baseline over the same four for comparison. Making the other
+three usable would mean rewriting them to configure the service over its API or
+environment instead of by assignment, which is a change to the Node test suite
+rather than to the port.
 
 **Data formats are untouched.** Same collections, same field names, same BSON
 types — including the detail that `Date.now()` is stored as a BSON *double*,

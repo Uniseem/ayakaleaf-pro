@@ -1,12 +1,19 @@
 #!/bin/bash
 
+source /etc/overleaf/env.sh
+export LISTEN_ADDRESS=127.0.0.1
+
+# Go port of this service (services-go/cmd/docstore), swapped in by setting
+# DOCSTORE_IMPL=go. Any other value, including unset, keeps the Node
+# implementation, so rolling back is one environment variable and a restart.
+if [ "$DOCSTORE_IMPL" == "go" ] && [ -x /overleaf/bin/go/docstore ]; then
+    exec /sbin/setuser www-data /overleaf/bin/go/docstore >> /var/log/overleaf/docstore.log 2>&1
+fi
+
 NODE_PARAMS=""
 if [ "$DEBUG_NODE" == "true" ]; then
     echo "running debug - docstore"
     NODE_PARAMS="--inspect=0.0.0.0:30160"
 fi
-
-source /etc/overleaf/env.sh
-export LISTEN_ADDRESS=127.0.0.1
 
 exec /sbin/setuser www-data /usr/bin/node $NODE_PARAMS /overleaf/services/docstore/app.js >> /var/log/overleaf/docstore.log 2>&1
