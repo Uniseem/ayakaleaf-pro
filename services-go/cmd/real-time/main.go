@@ -25,6 +25,7 @@ import (
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/logx"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/obsv"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/realtime"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/rediskeys"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -55,7 +56,7 @@ func main() {
 		TrustedProxyIPs: config.Env("TRUSTED_PROXY_IPS", "loopback"),
 		// server-ce replaces the Redis key schema wholesale; its runit script
 		// says so with REDIS_KEY_SCHEMA=server-ce.
-		Keys: realtime.NewKeySchema(os.Getenv("REDIS_KEY_SCHEMA")),
+		Keys: rediskeys.New(os.Getenv("REDIS_KEY_SCHEMA")),
 	}
 
 	pubsubRedis := redisClient("PUBSUB")

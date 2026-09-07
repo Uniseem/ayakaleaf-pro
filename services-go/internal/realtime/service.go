@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/rediskeys"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/socketio"
 	"github.com/redis/go-redis/v9"
 )
@@ -36,7 +37,7 @@ type Config struct {
 
 	// Keys names the Redis keys shared with document-updater. The zero value
 	// is the upstream schema.
-	Keys KeySchema
+	Keys rediskeys.Schema
 }
 
 // clientContext is the per-connection state the Node service keeps on
@@ -137,7 +138,7 @@ type Service struct {
 	drain  *DrainManager
 	addr   *AddressResolver
 
-	keys KeySchema
+	keys rediskeys.Schema
 
 	editorEvents *ChannelManager
 	appliedOps   *ChannelManager

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/rediskeys"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -41,12 +42,12 @@ type ConnectedUser struct {
 // collaborators may be connected to different real-time instances.
 type ConnectedUsersManager struct {
 	redis *redis.Client
-	keys  KeySchema
+	keys  rediskeys.Schema
 	log   *slog.Logger
 }
 
 // NewConnectedUsersManager builds a manager over the realtime Redis.
-func NewConnectedUsersManager(client *redis.Client, keys KeySchema, log *slog.Logger) *ConnectedUsersManager {
+func NewConnectedUsersManager(client *redis.Client, keys rediskeys.Schema, log *slog.Logger) *ConnectedUsersManager {
 	return &ConnectedUsersManager{redis: client, keys: keys, log: log}
 }
 
