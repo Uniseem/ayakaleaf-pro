@@ -29,7 +29,8 @@ func (h *handler) OnConnect(c *socketio.Conn) error {
 	return c.Emit("connectionAccepted", nil, c.ID)
 }
 
-func (h *handler) OnEvent(c *socketio.Conn, name string, args []json.RawMessage) {
+func (h *handler) OnEvent(c *socketio.Conn, ev socketio.Event) {
+	name, args := ev.Name, ev.Args
 	h.log.Info("event", slog.String("id", c.ID), slog.String("name", name),
 		slog.Int("args", len(args)))
 

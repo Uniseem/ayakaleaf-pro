@@ -3,6 +3,7 @@ package socketio
 import (
 	"context"
 	"io"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -12,6 +13,12 @@ import (
 // noop. The client reissues immediately, which keeps proxies from closing an
 // idle connection themselves.
 const pollTimeout = 20 * time.Second
+
+// idlePollTimeout is how long a polling client may go without making a
+// request before it is treated as gone. A live client reissues its GET the
+// moment the previous one returns, so anything past a few poll timeouts is a
+// client that has left.
+const idlePollTimeout = 3 * pollTimeout
 
 // pollingConn is a Conn served over xhr-polling rather than a websocket.
 //
@@ -24,12 +31,30 @@ type pollingConn struct {
 
 	mu      sync.Mutex
 	pending []string
+	// lastSeen is when the client last made a request. A polling client that
+	// vanishes sends nothing to notice, so the only way to disconnect it is to
+	// stop hearing from it.
+	lastSeen time.Time
 	// waiting is signalled when a frame arrives while a GET is parked.
 	waiting chan struct{}
 }
 
 func newPollingConn(c *Conn) *pollingConn {
-	return &pollingConn{conn: c, waiting: make(chan struct{}, 1)}
+	return &pollingConn{conn: c, waiting: make(chan struct{}, 1), lastSeen: time.Now()}
+}
+
+// touch records that the client is still there.
+func (p *pollingConn) touch() {
+	p.mu.Lock()
+	p.lastSeen = time.Now()
+	p.mu.Unlock()
+}
+
+// idleFor reports how long it has been since the client last asked.
+func (p *pollingConn) idleFor(now time.Time) time.Duration {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return now.Sub(p.lastSeen)
 }
 
 // queue adds a frame to be delivered on the next poll.
@@ -133,15 +158,11 @@ func (s *Server) servePolling(w http.ResponseWriter, r *http.Request, sessionID 
 			return
 		}
 		delete(s.sessions, sessionID)
+		s.mu.Unlock()
 
-		c := &Conn{
-			ID:      sessionID,
-			Request: p.request,
-			send:    make(chan string, 64),
-			closed:  make(chan struct{}),
-			log:     s.log,
-		}
+		c := s.newConn(sessionID, p.request, "xhr-polling", nil)
 		pc = newPollingConn(c)
+		s.mu.Lock()
 		s.polling[sessionID] = pc
 		s.mu.Unlock()
 
@@ -156,6 +177,7 @@ func (s *Server) servePolling(w http.ResponseWriter, r *http.Request, sessionID 
 					s.mu.Lock()
 					delete(s.polling, sessionID)
 					s.mu.Unlock()
+					s.forget(c)
 					s.handler.OnDisconnect(c)
 					return
 				}
@@ -171,6 +193,8 @@ func (s *Server) servePolling(w http.ResponseWriter, r *http.Request, sessionID 
 		s.mu.Unlock()
 	}
 
+	pc.touch()
+
 	switch r.Method {
 	case http.MethodPost:
 		pc.servePOST(w, r, func(p Packet) {
@@ -180,7 +204,7 @@ func (s *Server) servePolling(w http.ResponseWriter, r *http.Request, sessionID 
 			case PacketDisconnect:
 				pc.conn.Close()
 			case PacketEvent:
-				s.handler.OnEvent(pc.conn, p.Name, p.Args)
+				s.handler.OnEvent(pc.conn, Event{Name: p.Name, Args: p.Args, ID: p.ID})
 			}
 		})
 	case http.MethodGet:
@@ -197,19 +221,41 @@ func (s *Server) servePolling(w http.ResponseWriter, r *http.Request, sessionID 
 	}
 }
 
-// closeIdlePolling drops polling sessions whose client has stopped asking.
-func (s *Server) closeIdlePolling(ctx context.Context) {
+// sweep drops abandoned handshakes and polling sessions.
+//
+// A websocket announces its own departure, but a polling client that closes
+// its browser simply stops asking. Without this its connection would stay in
+// its rooms forever, holding the Redis subscriptions open and leaving a ghost
+// in every collaborator list.
+func (s *Server) sweep(ctx context.Context) {
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case now := <-ticker.C:
 			s.mu.Lock()
 			s.sweepLocked()
+			idle := make([]*pollingConn, 0)
+			for _, pc := range s.polling {
+				if pc.idleFor(now) > idlePollTimeout {
+					idle = append(idle, pc)
+				}
+			}
 			s.mu.Unlock()
-			s.log.Debug("swept expired socket.io handshakes")
+
+			for _, pc := range idle {
+				s.log.Info("closing idle polling connection",
+					slog.String("client", pc.conn.ID))
+				pc.conn.Close()
+			}
 		}
 	}
+}
+
+// Close stops the background sweeper. A Server normally lives as long as the
+// process, so this exists for tests and for a clean shutdown.
+func (s *Server) Close() {
+	s.closeOnce.Do(func() { close(s.done) })
 }
