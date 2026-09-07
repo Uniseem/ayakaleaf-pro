@@ -65,7 +65,7 @@ func newWritePathSetup(t *testing.T) *writePathSetup {
 		testMaxDocLength, log)
 	bridge := NewRealTimeBridge(client, client, rediskeys.Upstream, false, log)
 	updates := NewUpdateManager(store, docs, locker, bridge, history,
-		NewWebClient(web.URL, "overleaf", "password"), testMaxDocLength, log)
+		NewWebClient(web.URL, "overleaf", "password"), nil, testMaxDocLength, log)
 	docs.UseUpdateManager(updates)
 
 	project := NewProjectManager(store, docs, history, historyClient, log)
@@ -489,7 +489,7 @@ func TestDispatcherConsumesTheQueue(t *testing.T) {
 		testMaxDocLength, log)
 	bridge := NewRealTimeBridge(client, client, rediskeys.Upstream, false, log)
 	updates := NewUpdateManager(store, docs, locker, bridge, history,
-		NewWebClient(web.URL, "overleaf", "password"), testMaxDocLength, log)
+		NewWebClient(web.URL, "overleaf", "password"), nil, testMaxDocLength, log)
 	docs.UseUpdateManager(updates)
 
 	runCtx, cancel := context.WithCancel(ctx)

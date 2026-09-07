@@ -9,4 +9,21 @@ fi
 source /etc/overleaf/env.sh
 export LISTEN_ADDRESS=127.0.0.1
 
+# Go port of this service (services-go/cmd/document-updater), swapped in by
+# setting DOCUPDATER_IMPL=go. Any other value, including unset, keeps the Node
+# implementation, so rolling back is one environment variable and a restart.
+#
+# Switching this one is invisible to users: the documents live in Redis and
+# both implementations read and write them the same way, so an editor that is
+# open stays open across the restart.
+if [ "$DOCUPDATER_IMPL" == "go" ] && [ -x /overleaf/bin/go/document-updater ]; then
+    # /etc/overleaf/settings.js replaces the Redis key schema of every service
+    # with an unbraced one -- PendingUpdates:<id> rather than the
+    # PendingUpdates:{<id>} in the services own defaults. Writing the wrong
+    # names is silent: real-time queues an edit under a key this service is not
+    # reading, and the editor declares the document out of sync.
+    export REDIS_KEY_SCHEMA=server-ce
+    exec /sbin/setuser www-data /overleaf/bin/go/document-updater >> /var/log/overleaf/document-updater.log 2>&1
+fi
+
 exec /sbin/setuser www-data /usr/bin/node $NODE_PARAMS /overleaf/services/document-updater/app.js >> /var/log/overleaf/document-updater.log 2>&1

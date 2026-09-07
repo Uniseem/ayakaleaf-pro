@@ -243,7 +243,7 @@ func (s *Server) setDoc(w http.ResponseWriter, r *http.Request) {
 
 	var body setDocBody
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBody)).Decode(&body); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		writeBodyError(w, err)
 		return
 	}
 	// Checked before the document is loaded: a document this size will be
@@ -283,7 +283,7 @@ func (s *Server) appendToDoc(w http.ResponseWriter, r *http.Request) {
 
 	var body setDocBody
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBody)).Decode(&body); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		writeBodyError(w, err)
 		return
 	}
 
@@ -323,7 +323,7 @@ func readChangesBody(w http.ResponseWriter, r *http.Request) (changesBody, bool)
 	var body changesBody
 	err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBody)).Decode(&body)
 	if err != nil && !errors.Is(err, io.EOF) {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		writeBodyError(w, err)
 		return body, false
 	}
 	return body, true
@@ -483,7 +483,7 @@ func (s *Server) deleteMultipleProjects(w http.ResponseWriter, r *http.Request) 
 		ProjectIDs []string `json:"project_ids"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBody)).Decode(&body); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		writeBodyError(w, err)
 		return
 	}
 	for _, projectID := range body.ProjectIDs {
@@ -520,7 +520,7 @@ func (s *Server) updateProject(w http.ResponseWriter, r *http.Request) {
 		Source           json.RawMessage          `json:"source"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBody)).Decode(&body); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		writeBodyError(w, err)
 		return
 	}
 
@@ -542,7 +542,7 @@ func (s *Server) resyncProjectHistory(w http.ResponseWriter, r *http.Request) {
 		ResyncProjectStructureOnly bool              `json:"resyncProjectStructureOnly"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBody)).Decode(&body); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		writeBodyError(w, err)
 		return
 	}
 
@@ -652,6 +652,10 @@ func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error, m
 		http.Error(w, otErr.Error(), http.StatusUnprocessableEntity)
 	case errors.Is(err, ErrFileTooLarge):
 		http.Error(w, err.Error(), http.StatusRequestEntityTooLarge)
+	case errors.Is(err, ErrDocumentValidation):
+		// web answered, but with a document missing the fields that make it
+		// usable. That is not this service failing, so it is not a 500.
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 	case errors.Is(err, ErrHistoryRangesNotSupported):
 		http.Error(w, err.Error(), http.StatusNotImplemented)
 	case errors.Is(err, ErrProjectStateChanged):
@@ -666,4 +670,17 @@ func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error, m
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+// writeBodyError answers a request whose body could not be read.
+//
+// A body over the limit is reported as too large rather than as malformed,
+// which is what the caller acts on: it means send less, not send it again.
+func writeBodyError(w http.ResponseWriter, err error) {
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		http.Error(w, "request entity too large", http.StatusRequestEntityTooLarge)
+		return
+	}
+	http.Error(w, "invalid request body", http.StatusBadRequest)
 }

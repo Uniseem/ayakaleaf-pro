@@ -5,12 +5,14 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"sync/atomic"
 
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/rediskeys"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/textot"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -112,8 +114,26 @@ func (b *RealTimeBridge) SendAppliedOp(ctx context.Context, projectID, docID str
 // applied. real-time disconnects them, and they reload.
 func (b *RealTimeBridge) SendError(ctx context.Context, projectID, docID string, cause error) {
 	b.send(ctx, docID, appliedOpMessage{
-		ProjectID: projectID, DocID: docID, Error: cause.Error(), ID: b.messageID(),
+		ProjectID: projectID, DocID: docID, Error: errorForClient(cause), ID: b.messageID(),
 	})
+}
+
+// errorForClient is what the editor is told went wrong.
+//
+// A delete that does not match is reported by a fixed phrase rather than by
+// what was expected and what was found: the client only uses it to decide to
+// reload, and the two texts are the document, which does not belong in a
+// message every other editor of it also receives.
+func errorForClient(cause error) string {
+	if errors.Is(cause, textot.ErrDeleteMismatch) {
+		return "Delete component does not match"
+	}
+	// The same for a document that is not there: which document it was is in
+	// the request the client made, not something it learns from the answer.
+	if errors.Is(cause, ErrNotFound) {
+		return "doc not found"
+	}
+	return cause.Error()
 }
 
 func (b *RealTimeBridge) send(ctx context.Context, docID string, message appliedOpMessage) {

@@ -14,13 +14,14 @@ import (
 
 // UpdateManager applies the updates queued by real-time.
 type UpdateManager struct {
-	redis    *RedisStore
-	docs     *DocumentManager
-	locker   *Locker
-	realtime *RealTimeBridge
-	history  *HistoryQueue
-	web      *WebClient
-	log      *slog.Logger
+	redis     *RedisStore
+	docs      *DocumentManager
+	locker    *Locker
+	realtime  *RealTimeBridge
+	history   *HistoryQueue
+	web       *WebClient
+	snapshots *SnapshotStore
+	log       *slog.Logger
 
 	maxDocLength int
 }
@@ -28,10 +29,11 @@ type UpdateManager struct {
 // NewUpdateManager builds the update pipeline.
 func NewUpdateManager(redis *RedisStore, docs *DocumentManager, locker *Locker,
 	realtime *RealTimeBridge, history *HistoryQueue, web *WebClient,
-	maxDocLength int, log *slog.Logger) *UpdateManager {
+	snapshots *SnapshotStore, maxDocLength int, log *slog.Logger) *UpdateManager {
 	return &UpdateManager{
 		redis: redis, docs: docs, locker: locker, realtime: realtime,
-		history: history, web: web, maxDocLength: maxDocLength, log: log,
+		history: history, web: web, snapshots: snapshots,
+		maxDocLength: maxDocLength, log: log,
 	}
 }
 
@@ -174,11 +176,19 @@ func (m *UpdateManager) applyUpdateInner(ctx context.Context, projectID, docID s
 			metaString(update.Meta, "user_id"))
 	}
 
-	if ranges.Collapsed {
-		// A marker was emptied or lost, so the content it was attached to is
-		// worth keeping a copy of.
-		m.log.Debug("update collapsed some ranges", slog.String("project", projectID),
-			slog.String("doc", docID), slog.Int64("previousVersion", loaded.Version))
+	if ranges.Collapsed && m.snapshots != nil {
+		// A marker was emptied or lost, and there is nothing left in the
+		// document to recover it from, so the document as it was is kept.
+		m.log.Debug("update collapsed some ranges, snapshotting previous content",
+			slog.String("project", projectID), slog.String("doc", docID),
+			slog.Int64("previousVersion", loaded.Version))
+
+		// Last, because it is the one call here that leaves Redis. Overrunning
+		// the lock does not matter by this point: everything else is done.
+		if err := m.snapshots.RecordSnapshot(ctx, projectID, docID, loaded.Version,
+			loaded.Pathname, loaded.Lines, loaded.Ranges); err != nil {
+			return err
+		}
 	}
 
 	// project-history gets the same operation with the metadata it needs to

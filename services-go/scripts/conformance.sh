@@ -46,16 +46,24 @@ export CI="${CI:-true}"
 # not always in step with package.json. Calling mocha directly skips a
 # resolution failure that says nothing about the port.
 #
-# excluded-test names a single test to skip by title. real-time has one that
+# excluded-test is a regex of test titles to skip. real-time has one that
 # asserts on the test process's own logger stub, so it can only pass when the
 # service shares that process -- Node started externally fails it too. Skipping
 # it is what makes a red run mean something.
+#
+# document-updater has two categories rather than one test. Its suite covers
+# history-ot, a second OT type this port does not implement, and one case that
+# turns on historyRangesSupport, which records the tracked changes in the
+# history as well and needs a form of them this port does not produce. Both are
+# refused outright by the Go service rather than half-handled, and both are
+# named in services-go/README.md as what is not ported.
 SERVICES=(
   "chat:3010:services/chat:CHAT_EXTERNAL:"
   "notifications:3042:services/notifications:NOTIFICATIONS_EXTERNAL:"
   "docstore:3016:services/docstore:DOCSTORE_EXTERNAL:test/acceptance/js/GettingDocsTests.js test/acceptance/js/GettingAllDocsTests.js test/acceptance/js/UpdatingDocsTests.js test/acceptance/js/HealthCheckerTest.js"
   "filestore:3009:services/filestore:FILESTORE_EXTERNAL:test/acceptance/js/FilestoreApiTests.js"
   "real-time:3026:services/real-time:REALTIME_EXTERNAL:--recursive test/acceptance/js:should trigger a low level message only"
+  "document-updater:3003:services/document-updater:DOCUPDATER_EXTERNAL:--recursive test/acceptance/js:history-ot|accepting multiple changes"
 )
 
 spec_for() {
@@ -85,6 +93,12 @@ run_one() {
     export SESSION_SECRET_FALLBACK=static-secret-fallback-for-tests
     # Unlike the other ports, this one needs Redis: sessions, presence and the
     # pub/sub fan-out all live there.
+    export REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
+  fi
+
+  if [[ "$name" == "document-updater" ]]; then
+    # The documents, the locks and the queue real-time pushes edits onto all
+    # live in Redis.
     export REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
   fi
 
@@ -144,7 +158,8 @@ run_one() {
     local mocha_args=()
     read -ra mocha_args <<< "$test_files"
     if [[ -n "$exclude" ]]; then
-      mocha_args+=(--fgrep "$exclude" --invert)
+      # A regex, so a whole category can be left out rather than one test.
+      mocha_args+=(--grep "$exclude" --invert)
     fi
     ( cd "$REPO_ROOT/$dir"       && env "$external_var=true" PATH="$REPO_ROOT/node_modules/.bin:$PATH"          mocha --timeout 15000 --exit --retries="$RETRIES" "${mocha_args[@]}" ) || rc=$?
   else

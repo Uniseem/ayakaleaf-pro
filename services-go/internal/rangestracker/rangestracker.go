@@ -80,6 +80,36 @@ type Change struct {
 	ID       string           `json:"id"`
 	Op       textot.Component `json:"op"`
 	Metadata Metadata         `json:"metadata"`
+
+	// raw is the marker as it was stored.
+	//
+	// The fields below are the ones this package understands, and a stored
+	// marker can carry others: a comment op written by an older version of the
+	// editor names its thread "tid" rather than "t". The Node service moves
+	// the marker by changing the position on the object it read, so whatever
+	// else is on it survives. Keeping the original here is how the same thing
+	// happens when the marker is rebuilt from parsed fields instead.
+	raw map[string]json.RawMessage
+}
+
+// UnmarshalJSON decodes the marker and keeps a copy of what it contained.
+func (c *Change) UnmarshalJSON(data []byte) error {
+	type fields struct {
+		ID       string           `json:"id"`
+		Op       textot.Component `json:"op"`
+		Metadata Metadata         `json:"metadata"`
+	}
+	var decoded fields
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	c.ID, c.Op, c.Metadata = decoded.ID, decoded.Op, decoded.Metadata
+	return json.Unmarshal(data, &c.raw)
+}
+
+// MarshalJSON renders the marker, keeping whatever it arrived with.
+func (c Change) MarshalJSON() ([]byte, error) {
+	return marshalMarker(c.raw, c.ID, c.Op, c.Metadata, true)
 }
 
 // Comment is a span of text a thread is attached to.
@@ -87,6 +117,88 @@ type Comment struct {
 	ID       string           `json:"id"`
 	Op       textot.Component `json:"op"`
 	Metadata Metadata         `json:"metadata,omitempty"`
+
+	// raw is the marker as it was stored; see Change.
+	raw map[string]json.RawMessage
+}
+
+// UnmarshalJSON decodes the marker and keeps a copy of what it contained.
+func (c *Comment) UnmarshalJSON(data []byte) error {
+	type fields struct {
+		ID       string           `json:"id"`
+		Op       textot.Component `json:"op"`
+		Metadata Metadata         `json:"metadata,omitempty"`
+	}
+	var decoded fields
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	c.ID, c.Op, c.Metadata = decoded.ID, decoded.Op, decoded.Metadata
+	return json.Unmarshal(data, &c.raw)
+}
+
+// MarshalJSON renders the marker, keeping whatever it arrived with.
+func (c Comment) MarshalJSON() ([]byte, error) {
+	return marshalMarker(c.raw, c.ID, c.Op, c.Metadata, false)
+}
+
+// marshalMarker writes a marker back, starting from what it arrived with and
+// overwriting only the fields this package owns.
+func marshalMarker(raw map[string]json.RawMessage, id string, op textot.Component,
+	metadata Metadata, metadataAlways bool) ([]byte, error) {
+
+	out := make(map[string]json.RawMessage, len(raw)+3)
+	for key, value := range raw {
+		out[key] = value
+	}
+
+	encodedID, err := json.Marshal(id)
+	if err != nil {
+		return nil, err
+	}
+	out["id"] = encodedID
+
+	encodedOp, err := mergeOp(raw["op"], op)
+	if err != nil {
+		return nil, err
+	}
+	out["op"] = encodedOp
+
+	switch {
+	case len(metadata) > 0 || metadataAlways:
+		encodedMetadata, err := json.Marshal(metadata)
+		if err != nil {
+			return nil, err
+		}
+		out["metadata"] = encodedMetadata
+	default:
+		delete(out, "metadata")
+	}
+	return json.Marshal(out)
+}
+
+// mergeOp writes the operation back over the one that was stored, so a field
+// this package does not model stays where it was.
+func mergeOp(stored json.RawMessage, op textot.Component) (json.RawMessage, error) {
+	encoded, err := json.Marshal(op)
+	if err != nil {
+		return nil, err
+	}
+	if len(stored) == 0 {
+		return encoded, nil
+	}
+
+	var was, now map[string]json.RawMessage
+	if err := json.Unmarshal(stored, &was); err != nil {
+		return encoded, nil
+	}
+	if err := json.Unmarshal(encoded, &now); err != nil {
+		return nil, err
+	}
+	for key, value := range now {
+		was[key] = value
+	}
+	return json.Marshal(was)
 }
 
 // Ranges is what is stored against a document.
