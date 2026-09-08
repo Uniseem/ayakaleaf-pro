@@ -4,6 +4,11 @@ import { db } from '../../../../app/src/infrastructure/mongodb.mjs'
 import { User } from '../../../../app/src/models/User.mjs'
 import EmailHelper from '../../../../app/src/Features/Helpers/EmailHelper.mjs'
 
+// The document whose existence means the first-administrator place is taken.
+// It lives beside the settings because it is the same kind of thing: one fact
+// about this site, held once.
+const ADMIN_CLAIM_ID = 'first-admin-claim'
+
 // Who may create an account, decided when somebody asks rather than when the
 // process started.
 //
@@ -103,27 +108,49 @@ const RegistrationPolicy = {
   /**
    * Makes the first account an administrator.
    *
-   * The check is repeated here under a condition that only matches while there
-   * is still no admin, so two people registering at the same moment cannot
-   * both be promoted: the second update matches nothing.
+   * Two people registering in the same second must not both get it, and no
+   * query over the users collection can settle that -- both would read no
+   * administrator and both would then write one. So the claim is an insert of
+   * a single document with a fixed id: Mongo lets exactly one of them succeed
+   * and gives the other a duplicate key, which is the whole of the tie-break.
+   *
+   * The check for an administrator who already exists is still made first, and
+   * separately: it is what stops the claim being available on a site that has
+   * had an administrator all along.
    */
   async promoteIfFirstUser(userId) {
-    const existing = await db.users.findOne(
-      { isAdmin: true },
-      { projection: { _id: 1 } }
-    )
-    if (existing) {
+    if (!(await noAdminExists())) {
       return false
     }
-    const result = await User.updateOne(
-      { _id: userId, isAdmin: { $ne: true } },
-      { $set: { isAdmin: true } }
-    ).exec()
-    if (result.modifiedCount === 1) {
-      logger.info({ userId }, 'first account on this site, made an administrator')
-      return true
+
+    try {
+      await db.siteSettings.insertOne({
+        _id: ADMIN_CLAIM_ID,
+        userId: String(userId),
+        claimedAt: new Date(),
+      })
+    } catch (error) {
+      if (error.code === 11000) {
+        // Somebody else was a moment quicker.
+        return false
+      }
+      throw error
     }
-    return false
+
+    try {
+      await User.updateOne(
+        { _id: userId, isAdmin: { $ne: true } },
+        { $set: { isAdmin: true } }
+      ).exec()
+    } catch (error) {
+      // Holding a claim nobody can act on would leave the site with no way to
+      // get an administrator at all, so it is given back.
+      await db.siteSettings.deleteOne({ _id: ADMIN_CLAIM_ID })
+      throw error
+    }
+
+    logger.info({ userId }, 'first account on this site, made an administrator')
+    return true
   },
 }
 

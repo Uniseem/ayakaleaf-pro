@@ -37,8 +37,10 @@ export default {
     AuthenticationController.addEndpointToLoginWhitelist('/register')
     AuthenticationController.addEndpointToLoginWhitelist('/register/status')
 
-    // Both ways of signing up are always mounted; which one the page offers is
-    // decided by whether email is configured, and both check the policy.
+    // Signing up with a password is what the page offers. The second route
+    // sends somebody an activation link instead, which needs a mail server and
+    // so is left to an administrator or a script rather than put on the page;
+    // both ask the policy the same question.
     webRouter.post(
       '/register',
       RateLimiterMiddleware.rateLimit(registrationRateLimiters.postRegister),
