@@ -82,6 +82,12 @@ check "find the root document" "$(echo "$doc_id" | cut -c1-8)" "$doc_id"
 history_id=$(inmongo "var p = db.projects.findOne({_id: ObjectId('$project_id')}); print(p.overleaf.history.id)")
 check "the project has a history" "$(echo "$history_id" | cut -c1-4)" "$history_id"
 
+# The history records who made a change by their user id, and refuses one that
+# is not an id: an edit attributed to a name rather than a person is refused by
+# the store, not stored under the name.
+user_id=$(inmongo "print(db.users.findOne({email: '$EMAIL'})._id.toString())")
+check "find the signed-in user" "$(echo "$user_id" | cut -c1-8)" "$user_id"
+
 echo
 echo "=== a project starts with a history of its own creation ==="
 version=$(incontainer "curl -s http://127.0.0.1:3054/project/$project_id/version")
@@ -97,7 +103,7 @@ echo "=== an edit reaches the history ==="
 # editor's own history endpoints.
 edit=$(incontainer "curl -s -X POST http://127.0.0.1:3003/project/$project_id/doc/$doc_id \
   -H 'Content-Type: application/json' \
-  -d '{\"lines\":[\"% written by the go port\",\"\\\\documentclass{article}\",\"\\\\begin{document}\",\"Hello history.\",\"\\\\end{document}\"],\"source\":\"verify\",\"user_id\":\"verify-user\",\"undoing\":false}'")
+  -d '{\"lines\":[\"% written by the go port\",\"\\\\documentclass{article}\",\"\\\\begin{document}\",\"Hello history.\",\"\\\\end{document}\"],\"source\":\"verify\",\"user_id\":\"$user_id\",\"undoing\":false}'")
 check "set the document contents" "" "$edit"
 
 flush=$(incontainer "curl -s -o /dev/null -w '%{http_code}' -X POST \
@@ -118,14 +124,14 @@ fi
 
 updates=$(incontainer "curl -s 'http://127.0.0.1:3054/project/$project_id/updates?min_count=10'")
 check "the edit is in the history" "main.tex" "$updates"
-check "and it says who made it" "verify-user" "$updates"
+check "and it says who made it" "$user_id" "$updates"
 
 echo
 echo "=== the diff says what changed, and who changed it ==="
 diff=$(incontainer "curl -s 'http://127.0.0.1:3054/project/$project_id/diff?pathname=main.tex&from=$start_version&to=$end_version'")
 check "GET /diff" '"diff"' "$diff"
 check "the inserted text is marked as an insertion" '"i":"% written by the go port' "$diff"
-check "the insertion carries its author" "verify-user" "$diff"
+check "the insertion carries its author" "$user_id" "$diff"
 check "text that did not change is unmarked" '"u":' "$diff"
 
 tree=$(incontainer "curl -s 'http://127.0.0.1:3054/project/$project_id/filetree/diff?from=$start_version&to=$end_version'")
@@ -155,7 +161,7 @@ echo
 echo "=== a version can be named and the name read back ==="
 label=$(incontainer "curl -s -X POST http://127.0.0.1:3054/project/$project_id/labels \
   -H 'Content-Type: application/json' \
-  -d '{\"version\":$end_version,\"comment\":\"before the rewrite\",\"user_id\":\"6a9f00000000000000000001\"}'")
+  -d '{\"version\":$end_version,\"comment\":\"before the rewrite\",\"user_id\":\"$user_id\"}'")
 check "create a label" "before the rewrite" "$label"
 label_id=$(echo "$label" | grep -o '"id":"[^"]*' | cut -d'"' -f4)
 
