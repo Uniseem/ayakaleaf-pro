@@ -88,27 +88,37 @@ function fromEnvironment(definition) {
  * across the upgrade: whatever was in its compose file becomes the first
  * stored value, and after that the page is the only place it changes.
  */
-async function loadDocument() {
-  const stored = await db.siteSettings.findOne({ _id: DOCUMENT_ID })
-  if (stored) {
-    seededFromEnvironment = stored.seededFromEnvironment === true
-    return stored.values || {}
-  }
-
+/**
+ * Reads what the environment says about settings nothing has stored yet.
+ *
+ * This runs on every load, not only for a new site. A setting added to the
+ * catalogue after a site was first started has no stored value, and taking its
+ * default would put that default into the environment -- removing whatever the
+ * operator had actually set in their compose file. So the rule is: a setting
+ * nobody has ever chosen still follows the environment, and choosing it in the
+ * page takes it over from then on.
+ */
+function seedFromEnvironment(values) {
   const seeded = {}
   for (const definition of SETTINGS) {
+    if (definition.key in values) continue
     const value = fromEnvironment(definition)
     if (value !== undefined) {
       seeded[definition.key] = value
     }
   }
+
   // OVERLEAF_ALLOW_PUBLIC_REGISTRATION said two things in one variable: 'true'
   // for open registration, or an '@domain' meaning open but only for that
   // domain. Read as a boolean, '@example.com' is false -- which would turn
   // registration off on exactly the deployments that had restricted it, and
   // say nothing about why.
   const registration = process.env.OVERLEAF_ALLOW_PUBLIC_REGISTRATION
-  if (registration && registration.trim().startsWith('@')) {
+  if (
+    registration &&
+    registration.trim().startsWith('@') &&
+    !('registrationEmailDomains' in values)
+  ) {
     seeded.allowPublicRegistration = true
     seeded.registrationEmailDomains = registration
       .split(',')
@@ -117,20 +127,37 @@ async function loadDocument() {
       .join(',')
   }
 
+  return seeded
+}
+
+async function loadDocument() {
+  const stored = await db.siteSettings.findOne({ _id: DOCUMENT_ID })
+  const values = stored ? stored.values || {} : {}
+
+  const seeded = seedFromEnvironment(values)
+  if (stored && Object.keys(seeded).length === 0) {
+    seededFromEnvironment = stored.seededFromEnvironment === true
+    return values
+  }
+
+  Object.assign(values, seeded)
   await db.siteSettings.updateOne(
     { _id: DOCUMENT_ID },
     {
-      $set: { values: seeded, seededFromEnvironment: true },
+      $set: { values, seededFromEnvironment: true },
       $currentDate: { updatedAt: true },
     },
     { upsert: true }
   )
-  seededFromEnvironment = Object.keys(seeded).length > 0
+  // Only true when something actually came from the environment: a fresh site
+  // with nothing set has no compose file to warn anybody about.
+  seededFromEnvironment =
+    Object.keys(seeded).length > 0 || stored?.seededFromEnvironment === true
   logger.info(
-    { count: Object.keys(seeded).length },
-    'seeded site settings from the environment'
+    { count: Object.keys(seeded).length, keys: Object.keys(seeded) },
+    'took site settings from the environment'
   )
-  return seeded
+  return values
 }
 
 /** Puts the values into the Settings object every module reads. */
