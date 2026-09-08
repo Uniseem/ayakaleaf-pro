@@ -48,6 +48,12 @@ export const SECTIONS = [
   { id: 'storage', label: 'Storage', help: 'Keep files and history on this server, or in S3.' },
   { id: 'enterpriseAuth', label: 'LDAP, SAML and OIDC', help: 'Sign-in against a directory or an identity provider.' },
   { id: 'cleanup', label: 'Deleting things', help: 'What happens to projects and accounts after they are deleted.' },
+  {
+    id: 'services',
+    label: 'Service implementations',
+    help:
+      'Both implementations of each of these ship in the image. Changing one back is this page and a restart -- no rebuild.',
+  },
   { id: 'advanced', label: 'Advanced', help: 'Settings that have no field of their own yet.' },
 ]
 
@@ -1175,6 +1181,115 @@ export const SETTINGS = [
     type: 'text',
     label: 'Anything else, as NAME=value lines',
     help: 'One per line. These are put into the environment before any module is loaded, which is how everything above works too. Use it for settings that have no field of their own yet. Unlike the password fields above, what you type here is shown back to anybody who can open this page.',
+    default: '',
+    restart: true,
+  },
+
+  // Which implementation each service runs. Both are in the image, and
+  // every runit script falls back to Node unless its variable says go, so
+  // these are off until somebody turns them on -- which up to now meant
+  // knowing eight variable names that appear only in services-go/README.md.
+  {
+    key: 'implChat',
+    env: 'CHAT_IMPL',
+    section: 'services',
+    type: 'select',
+    label: 'Chat',
+    options: [
+      { value: '', label: 'Node' },
+      { value: 'go', label: 'Go' },
+    ],
+    default: '',
+    restart: true,
+  },
+  {
+    key: 'implDocstore',
+    env: 'DOCSTORE_IMPL',
+    section: 'services',
+    type: 'select',
+    label: 'Docstore',
+    options: [
+      { value: '', label: 'Node' },
+      { value: 'go', label: 'Go' },
+    ],
+    default: '',
+    restart: true,
+  },
+  {
+    key: 'implDocumentUpdater',
+    env: 'DOCUPDATER_IMPL',
+    section: 'services',
+    type: 'select',
+    label: 'Document updater',
+    options: [
+      { value: '', label: 'Node' },
+      { value: 'go', label: 'Go' },
+    ],
+    default: '',
+    restart: true,
+  },
+  {
+    key: 'implFilestore',
+    env: 'FILESTORE_IMPL',
+    section: 'services',
+    type: 'select',
+    label: 'Filestore',
+    options: [
+      { value: '', label: 'Node' },
+      { value: 'go', label: 'Go' },
+    ],
+    default: '',
+    restart: true,
+  },
+  {
+    key: 'implLinkedUrlProxy',
+    env: 'LINKED_URL_PROXY_IMPL',
+    section: 'services',
+    type: 'select',
+    label: 'Linked URL proxy',
+    options: [
+      { value: '', label: 'Node' },
+      { value: 'go', label: 'Go' },
+    ],
+    default: '',
+    restart: true,
+  },
+  {
+    key: 'implNotifications',
+    env: 'NOTIFICATIONS_IMPL',
+    section: 'services',
+    type: 'select',
+    label: 'Notifications',
+    options: [
+      { value: '', label: 'Node' },
+      { value: 'go', label: 'Go' },
+    ],
+    default: '',
+    restart: true,
+  },
+  {
+    key: 'implProjectHistory',
+    env: 'PROJECTHISTORY_IMPL',
+    section: 'services',
+    type: 'select',
+    label: 'Project history',
+    options: [
+      { value: '', label: 'Node' },
+      { value: 'go', label: 'Go' },
+    ],
+    default: '',
+    restart: true,
+  },
+  {
+    key: 'implRealTime',
+    env: 'REALTIME_IMPL',
+    section: 'services',
+    type: 'select',
+    label: 'Real-time',
+    options: [
+      { value: '', label: 'Node' },
+      { value: 'go', label: 'Go' },
+    ],
     default: '',
     restart: true,
   },
