@@ -207,7 +207,8 @@ func (s *Service) fail(w http.ResponseWriter, r *http.Request, err error) {
 
 	if s.logger != nil {
 		s.logger.Error("request failed",
-			"method", r.Method, "path", r.URL.Path, "status", status, "err", err)
+			"method", r.Method, "path", r.URL.Path, "status", status,
+			"err", err.Error())
 	}
 	w.WriteHeader(status)
 }
