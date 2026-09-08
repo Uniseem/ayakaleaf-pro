@@ -87,6 +87,35 @@ spec_for() {
   return 1
 }
 
+# clear_mongo <script>
+#
+# Runs a snippet against the test database. There is not always a client on
+# the host -- the database is usually a container -- so this tries the host
+# first and then the container that publishes the port, and says so when it
+# cannot: a run that quietly kept the last one's records is a run whose
+# results are about the wrong thing.
+clear_mongo() {
+  local script=$1
+  local uri="${MONGO_CONNECTION_STRING:-mongodb://${MONGO_HOST}/sharelatex}"
+
+  local client
+  for client in mongosh mongo; do
+    if command -v "$client" >/dev/null 2>&1; then
+      "$client" "$uri" --quiet --eval "$script" >/dev/null 2>&1 && return 0
+    fi
+  done
+
+  local container
+  container=$(docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null |
+    awk '/:27017->/ {print $1; exit}')
+  if [[ -n "$container" ]]; then
+    docker exec "$container" mongosh "mongodb://127.0.0.1/sharelatex"       --quiet --eval "$script" >/dev/null 2>&1 && return 0
+  fi
+
+  echo "warning: could not clear mongo; this run will be judging what the"     "last one left behind" >&2
+  return 1
+}
+
 # run_one <name> <port> <dir> <external-var> [database]
 #
 # Starts the Go binary, waits for it to answer /status, runs the Node
@@ -113,21 +142,19 @@ run_one() {
   fi
 
   if [[ "$name" == "project-history" ]]; then
-    # The queue document-updater fills, and the lock, are in Redis.
     export REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
-    # Failure records, labels and sync state accumulate in Mongo and are read
-    # back by the tests as a baseline, so a run has to start from nothing or it
-    # is judging what the last one left behind.
-    # The queues, the locks and the remembered history ids are in Redis, and
-    # a queue left behind by an earlier run is a project this one will try to
-    # flush: the sweep over old queues would then be judging what the last run
-    # left rather than what this one did.
-    redis-cli -h "${REDIS_HOST:-127.0.0.1}" --scan --pattern 'ProjectHistory:*'       2>/dev/null | xargs -r redis-cli -h "${REDIS_HOST:-127.0.0.1}" del       >/dev/null 2>&1 || true
-    mongosh "${MONGO_CONNECTION_STRING:-mongodb://$MONGO_HOST/sharelatex}"       --quiet --eval '
-        db.projectHistoryFailures.deleteMany({});
-        db.projectHistoryLabels.deleteMany({});
-        db.projectHistorySyncState.deleteMany({});
-      ' >/dev/null 2>&1 || true
+    # The queue document-updater fills, the lock, and the remembered history
+    # ids are in Redis; the failure records, labels and sync state are in
+    # Mongo. Both are read back by the tests as a baseline, and a queue left
+    # behind by an earlier run is a project this one will try to flush -- so a
+    # run has to start from nothing or it is judging what the last one left.
+    redis-cli -h "$REDIS_HOST" --scan --pattern 'ProjectHistory:*' 2>/dev/null |
+      xargs -r redis-cli -h "$REDIS_HOST" del >/dev/null 2>&1 || true
+    clear_mongo '
+      db.projectHistoryFailures.deleteMany({});
+      db.projectHistoryLabels.deleteMany({});
+      db.projectHistorySyncState.deleteMany({});
+    '
   fi
 
   if [[ "$name" == "filestore" ]]; then
