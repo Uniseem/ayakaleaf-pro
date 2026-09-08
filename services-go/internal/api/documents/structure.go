@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -25,9 +26,15 @@ import (
 type StructureUpdate map[string]any
 
 // AddedDoc reports a new document.
+//
+// The text goes as one string and not as the lines it is stored in: that is
+// what the history reads, and a list of lines arrives there as nothing at all.
+// A document added with the wrong shape is recorded as an empty file, and
+// every later edit to it fails to apply against text that is not there.
 func AddedDoc(id bson.ObjectID, path string, lines []string) StructureUpdate {
 	return StructureUpdate{
-		"type": "add-doc", "id": id.Hex(), "pathname": path, "docLines": lines,
+		"type": "add-doc", "id": id.Hex(), "pathname": path,
+		"docLines": strings.Join(lines, "\n"),
 	}
 }
 
