@@ -67,6 +67,22 @@ the last run both do, with the same test counts as the Node implementations:
 | services/document-updater acceptance | 165 passing | 165 passing |
 | services/project-history acceptance | 119 passing | 119 passing |
 
+## What it bought
+
+Both implementations measured in the same container, minutes apart, with
+`clsi`, `history-v1` and `web` left on Node as a control. Full numbers and
+method in [BENCHMARK.md](BENCHMARK.md).
+
+| | Node | Go |
+| --- | ---: | ---: |
+| memory held by the eight ported services | 802 MB | 152 MB |
+| whole container | 1,386 MB | 743 MB |
+| a document read through document-updater | 3.1 ms | 1.2 ms |
+| the same, 16 clients at once | 262 req/s | 489 req/s |
+
+The memory is the result worth having. The latency is real and compounds under
+load, but two milliseconds is invisible to one person typing.
+
 ## Conformance is not enough: run it for real
 
 The acceptance suites check the HTTP contract. They do not check that a service
