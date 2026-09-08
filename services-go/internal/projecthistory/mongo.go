@@ -44,8 +44,15 @@ type Failure struct {
 	// ResyncStartedAt is set while a resync is running, so a project stuck
 	// mid-resync can be told from one that simply failed.
 	ResyncStartedAt *time.Time `bson:"resyncStartedAt,omitempty" json:"resyncStartedAt,omitempty"`
-	// RequestCount is how many times a resync has been asked for.
+	// RequestCount is how many times the last failure has been asked about,
+	// which tells a project somebody is watching from one nobody is.
 	RequestCount int `bson:"requestCount,omitempty" json:"requestCount,omitempty"`
+	// ResyncAttempts is how many times the project has been sent again, which
+	// is what decides whether it gets another one.
+	ResyncAttempts int `bson:"resyncAttempts,omitempty" json:"resyncAttempts,omitempty"`
+	// ForceDebug lets a project be processed past a history whose versions are
+	// out of order, so that somebody can see what it does next.
+	ForceDebug bool `bson:"forceDebug,omitempty" json:"forceDebug,omitempty"`
 	// History is the last few failures, newest first.
 	History []bson.M `bson:"history,omitempty" json:"history,omitempty"`
 }
