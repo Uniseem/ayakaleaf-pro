@@ -12,6 +12,7 @@ without changing anything else in the stack.
 | filestore | `cmd/filestore` | 3009 | `services/filestore` | 861 |
 | real-time | `cmd/real-time` | 3026 | `services/real-time` | 3,193 |
 | document-updater | `cmd/document-updater` | 3003 | `services/document-updater` | 5,834 |
+| project-history | `cmd/project-history` | 3054 | `services/project-history` | 9,982 |
 
 ## Why these three
 
@@ -64,6 +65,7 @@ the last run both do, with the same test counts as the Node implementations:
 | services/filestore contract suite | 13 passing | 13 passing |
 | services/real-time acceptance | 484 passing, 1 failing | 484 passing, 1 failing |
 | services/document-updater acceptance | 165 passing | 165 passing |
+| services/project-history acceptance | 119 passing | 119 passing |
 
 ## Conformance is not enough: run it for real
 
@@ -431,13 +433,26 @@ internal/
   obsv/                    Prometheus metrics compatible with @overleaf/metrics
   oid/                     ObjectId parsing with Node's exact semantics
   proxy/                   SSRF address policy and the proxying handler
+  histmodel/               the history's data model: changes, snapshots, the
+                           scan-based text operation, tracked changes, comments
+  projecthistory/          the queue, the resync, the translation between the
+                           editor's operations and the history's, and the read
+                           path the editor's history view uses
+  textdiff/                diff-match-patch's diff half, in UTF-16 code units
+  textot/                  the ShareJS text type the editor speaks
 scripts/conformance.sh     runs the Node acceptance suites against these binaries
 ```
 
 ## What is deliberately not here
 
-`web`, `clsi`, `document-updater`, `real-time`, `history-v1`, `project-history`
-and `filestore` are untouched. `web` alone is roughly 350k lines and holds every
-Pro feature; the rest either have their bottleneck outside Node (`clsi` waits on
-TeX Live) or carry subtle state that a rewrite should not take on until this
-mechanism has proven itself on something small.
+`web`, `clsi` and `history-v1` are untouched. `web` alone is roughly 350k lines
+and holds every Pro feature; `clsi` has its bottleneck outside Node, waiting on
+TeX Live; and `history-v1` is the store the history is actually kept in, which
+is the last thing to move rather than the next.
+
+One thing inside `project-history` is deliberately partial: a project whose
+editor speaks the history's own operation type sends operations already in the
+history's form. Those are passed through and composed by the history's own
+rules, which is what the inherited suite exercises, but the port does not
+implement that operation type end to end -- `document-updater` does not either,
+and neither does server-ce use it.
