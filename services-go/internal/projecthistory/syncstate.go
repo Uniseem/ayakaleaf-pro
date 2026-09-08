@@ -107,7 +107,7 @@ func (s *Store) GetSyncStateFor(ctx context.Context, projectID string) (*SyncSta
 // to be measured as stuck from; one that says a resync has finished is given
 // an expiry and has the stuck bookkeeping cleared.
 func (s *Store) WriteSyncState(ctx context.Context, state *SyncState) error {
-	id, err := bson.ObjectIDFromHex(state.ProjectID)
+	id, err := objectIDFor(state.ProjectID)
 	if err != nil {
 		return err
 	}
@@ -179,7 +179,7 @@ func (s *Store) WriteSyncState(ctx context.Context, state *SyncState) error {
 func (s *Store) RecordStuckClear(ctx context.Context, projectID string,
 	docPaths []string) error {
 
-	id, err := bson.ObjectIDFromHex(projectID)
+	id, err := objectIDFor(projectID)
 	if err != nil {
 		return err
 	}
@@ -204,7 +204,7 @@ func (s *Store) RecordStuckClear(ctx context.Context, projectID string,
 func (s *Store) ClearSyncStateIfAllAfter(ctx context.Context, projectID string,
 	after time.Time) error {
 
-	id, err := bson.ObjectIDFromHex(projectID)
+	id, err := objectIDFor(projectID)
 	if err != nil {
 		return err
 	}

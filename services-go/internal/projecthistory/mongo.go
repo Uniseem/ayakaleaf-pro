@@ -2,8 +2,11 @@ package projecthistory
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,6 +35,26 @@ func NewStore(database *mongo.Database) *Store {
 		syncState: database.Collection("projectHistorySyncState"),
 		projects:  database.Collection("projects"),
 	}
+}
+
+// objectIDFor turns a project id into the id these collections are keyed by.
+//
+// Most are twenty-four hex characters. A few are numbers -- projects whose
+// history predates the current store -- and the reference implementation turns
+// one of those into an object id built from the number as a timestamp, so this
+// does too: a project's labels have to be looked for where they were put.
+func objectIDFor(projectID string) (bson.ObjectID, error) {
+	if id, err := objectIDFor(projectID); err == nil {
+		return id, nil
+	}
+	number, err := strconv.ParseUint(projectID, 10, 32)
+	if err != nil {
+		return bson.ObjectID{}, fmt.Errorf("%w: not a project id: %s",
+			ErrBadRequest, projectID)
+	}
+	var id bson.ObjectID
+	binary.BigEndian.PutUint32(id[0:4], uint32(number))
+	return id, nil
 }
 
 // StoredID is a project id as it is stored.
@@ -201,11 +224,11 @@ func (l Label) MarshalJSON() ([]byte, error) {
 // CloneLabels copies one project's labels onto another, which is what copying
 // a project needs so that the copy keeps the versions somebody marked.
 func (s *Store) CloneLabels(ctx context.Context, fromProjectID, toProjectID string) error {
-	from, err := bson.ObjectIDFromHex(fromProjectID)
+	from, err := objectIDFor(fromProjectID)
 	if err != nil {
 		return err
 	}
-	to, err := bson.ObjectIDFromHex(toProjectID)
+	to, err := objectIDFor(toProjectID)
 	if err != nil {
 		return err
 	}
@@ -234,7 +257,7 @@ func (s *Store) CloneLabels(ctx context.Context, fromProjectID, toProjectID stri
 
 // GetLabels returns the labels on a project.
 func (s *Store) GetLabels(ctx context.Context, projectID string) ([]Label, error) {
-	id, err := bson.ObjectIDFromHex(projectID)
+	id, err := objectIDFor(projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +276,7 @@ func (s *Store) GetLabels(ctx context.Context, projectID string) ([]Label, error
 func (s *Store) CreateLabel(ctx context.Context, projectID, userID, comment string,
 	version int, createdAt time.Time) (*Label, error) {
 
-	project, err := bson.ObjectIDFromHex(projectID)
+	project, err := objectIDFor(projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -280,7 +303,7 @@ func (s *Store) CreateLabel(ctx context.Context, projectID, userID, comment stri
 
 // DeleteLabel takes a label off, whoever put it there.
 func (s *Store) DeleteLabel(ctx context.Context, projectID, labelID string) error {
-	project, err := bson.ObjectIDFromHex(projectID)
+	project, err := objectIDFor(projectID)
 	if err != nil {
 		return err
 	}
@@ -297,7 +320,7 @@ func (s *Store) DeleteLabel(ctx context.Context, projectID, labelID string) erro
 // The user id is part of the query rather than checked beforehand: it is what
 // stops one person removing another person's label.
 func (s *Store) DeleteLabelForUser(ctx context.Context, projectID, userID, labelID string) error {
-	project, err := bson.ObjectIDFromHex(projectID)
+	project, err := objectIDFor(projectID)
 	if err != nil {
 		return err
 	}
@@ -338,7 +361,7 @@ type RawSyncState bson.M
 
 // GetSyncState reads it, or nil when the project has never been resynced.
 func (s *Store) GetSyncState(ctx context.Context, projectID string) (RawSyncState, error) {
-	id, err := bson.ObjectIDFromHex(projectID)
+	id, err := objectIDFor(projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -356,7 +379,7 @@ func (s *Store) GetSyncState(ctx context.Context, projectID string) (RawSyncStat
 // SetSyncState writes it, keeping the last few states alongside so that a
 // project that keeps getting stuck can be looked at.
 func (s *Store) SetSyncState(ctx context.Context, projectID string, state bson.M) error {
-	id, err := bson.ObjectIDFromHex(projectID)
+	id, err := objectIDFor(projectID)
 	if err != nil {
 		return err
 	}
@@ -380,7 +403,7 @@ func (s *Store) SetSyncState(ctx context.Context, projectID string, state bson.M
 
 // ClearSyncState forgets it.
 func (s *Store) ClearSyncState(ctx context.Context, projectID string) error {
-	id, err := bson.ObjectIDFromHex(projectID)
+	id, err := objectIDFor(projectID)
 	if err != nil {
 		return err
 	}
@@ -391,11 +414,11 @@ func (s *Store) ClearSyncState(ctx context.Context, projectID string) error {
 // CloneSyncState copies the state of one project onto another, which is what a
 // project copied from a template needs.
 func (s *Store) CloneSyncState(ctx context.Context, fromProjectID, toProjectID string) error {
-	from, err := bson.ObjectIDFromHex(fromProjectID)
+	from, err := objectIDFor(fromProjectID)
 	if err != nil {
 		return err
 	}
-	to, err := bson.ObjectIDFromHex(toProjectID)
+	to, err := objectIDFor(toProjectID)
 	if err != nil {
 		return err
 	}
