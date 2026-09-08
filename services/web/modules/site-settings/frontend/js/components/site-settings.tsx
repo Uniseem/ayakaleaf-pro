@@ -99,7 +99,10 @@ export default function SiteSettings() {
 
   return (
     <div className="site-settings">
-      <div className="d-flex align-items-center justify-content-between my-4">
+      <div
+        className="d-flex align-items-center justify-content-between my-4 py-2"
+        style={{ position: 'sticky', top: 0, zIndex: 1, background: 'var(--bg-light-primary, #fff)' }}
+      >
         <h1 className="h2 m-0">Settings</h1>
         <div className="d-flex gap-2 align-items-center">
           {pending > 0 && (
@@ -132,13 +135,23 @@ export default function SiteSettings() {
         </Notification>
       )}
 
+      <div className="card mb-4">
+        <div className="card-body d-flex flex-wrap gap-3">
+          {catalogue.sections.map(section => (
+            <a key={section.id} href={`#section-${section.id}`}>
+              {section.label}
+            </a>
+          ))}
+        </div>
+      </div>
+
       {catalogue.sections.map(section => {
         const settings = catalogue.settings.filter(
           setting => setting.section === section.id
         )
         if (settings.length === 0) return null
         return (
-          <div className="card mb-4" key={section.id}>
+          <div className="card mb-4" key={section.id} id={`section-${section.id}`}>
             <div className="card-body">
               <h2 className="h4">{section.label}</h2>
               {section.help && <p className="text-muted">{section.help}</p>}
