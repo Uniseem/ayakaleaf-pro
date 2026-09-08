@@ -164,6 +164,9 @@ func (s *Store) AppendChanges(
 	if len(changes) == 0 {
 		return nil
 	}
+	// Before anything is stored: a file added by hash alone is not known to be
+	// text, and every edit to it afterwards would be refused.
+	s.resolveFiles(ctx, historyID, changes)
 
 	chunk, err := s.readChunk(ctx, historyID, record)
 	if err != nil {
