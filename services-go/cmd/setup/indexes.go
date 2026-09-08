@@ -34,6 +34,8 @@ type indexSpec struct {
 	expireAfter int
 }
 
+// projectHistoryChunks is not here: the history store creates its own, and two
+// different uniqueness rules on one collection is one of them refusing writes.
 var indexes = []indexSpec{
 	{collection: "docSnapshots", name: "project_id_1", keys: bson.D{{Key: "project_id", Value: 1}}},
 	{collection: "docSnapshots", name: "ts_1", keys: bson.D{{Key: "ts", Value: 1}}, expireAfter: 2592000},
@@ -97,8 +99,6 @@ var indexes = []indexSpec{
 	{collection: "users", name: "labsProgramGalileo_1", keys: bson.D{{Key: "labsProgramGalileo", Value: 1}}},
 	{collection: "users", name: "lastActive_1", keys: bson.D{{Key: "lastActive", Value: 1}}},
 	{collection: "users", name: "isAdmin_1", keys: bson.D{{Key: "isAdmin", Value: 1}}, partial: "{\"isAdmin\": true}"},
-	{collection: "projectHistoryChunks", name: "projectId_1_startVersion_1", keys: bson.D{{Key: "projectId", Value: 1}, {Key: "startVersion", Value: 1}}, unique: true, partial: "{\"state\": \"active\"}"},
-	{collection: "projectHistoryChunks", name: "state_1", keys: bson.D{{Key: "state", Value: 1}}, partial: "{\"state\": \"deleted\"}"},
 }
 
 // ensureIndexes creates them all.

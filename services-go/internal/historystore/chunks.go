@@ -187,7 +187,7 @@ func (s *Store) AppendChanges(
 
 	if room > 0 {
 		chunk.History.Changes = append(chunk.History.Changes, changes[:room]...)
-		if err := s.writeChunk(ctx, historyID, chunk, record.ID.Hex()); err != nil {
+		if err := s.extendChunk(ctx, historyID, record, chunk); err != nil {
 			return err
 		}
 		changes = changes[room:]
@@ -263,6 +263,35 @@ func (s *Store) CopyHistory(ctx context.Context, fromHistoryID, toHistoryID stri
 		return err
 	}
 	return s.writeChunk(ctx, toHistoryID, copied, "")
+}
+
+// extendChunk adds to the chunk that is already there.
+//
+// In place, under the same id: a second record for the same starting version
+// would be a second chunk claiming to be the same run of history, which is
+// exactly what the uniqueness rule on this collection refuses. The object is
+// written before the index is moved, so a reader either sees the old extent of
+// the chunk or the new one, and both are readable.
+func (s *Store) extendChunk(ctx context.Context, historyID string, record *chunkRecord, chunk *histmodel.Chunk) error {
+	encoded, err := json.Marshal(chunk.History)
+	if err != nil {
+		return err
+	}
+	key := objectKey(historyID) + "/" + pad(record.ID.Hex())
+	err = s.objects.SendStream(ctx, s.buckets.Chunks, key,
+		newReader(encoded), persistor.GetOptions{UseSubdirectories: true})
+	if err != nil {
+		return err
+	}
+
+	_, err = s.chunks.UpdateOne(ctx,
+		bson.M{"_id": record.ID, "state": bson.M{"$in": bson.A{stateActive, stateClosed}}},
+		bson.M{"$set": bson.M{
+			"endVersion":   chunk.EndVersion(),
+			"endTimestamp": endTimestamp(chunk),
+			"updatedAt":    time.Now().UTC(),
+		}})
+	return err
 }
 
 // --- the two halves of a write ---------------------------------------------
