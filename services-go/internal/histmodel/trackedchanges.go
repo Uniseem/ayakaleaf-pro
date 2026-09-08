@@ -157,6 +157,14 @@ func (l *TrackedChangeList) ApplyInsert(cursor, length int,
 	return l.mergeRanges()
 }
 
+// ApplyRetain marks or unmarks a stretch of text that is being kept.
+func (l *TrackedChangeList) ApplyRetain(cursor, length int,
+	tracking TrackingDirective) error {
+
+	l.applyRetain(cursor, length, tracking)
+	return l.mergeRanges()
+}
+
 // ApplyDelete moves the marks for text taken out.
 func (l *TrackedChangeList) ApplyDelete(cursor, length int) error {
 	l.applyDelete(cursor, length)

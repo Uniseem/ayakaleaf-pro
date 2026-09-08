@@ -252,6 +252,10 @@ func (o *Origin) Raw() (json.RawMessage, error) {
 	return json.Marshal(fields)
 }
 
+// OriginFromRaw reads an origin, for a caller outside this package that has
+// one as JSON.
+func OriginFromRaw(raw json.RawMessage) (*Origin, error) { return originFromRaw(raw) }
+
 // originFromRaw reads an origin.
 func originFromRaw(raw json.RawMessage) (*Origin, error) {
 	if len(raw) == 0 || string(raw) == "null" {

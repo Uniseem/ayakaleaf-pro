@@ -2,6 +2,7 @@ package projecthistory
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -137,6 +138,57 @@ type Label struct {
 	Comment   string         `bson:"comment"`
 	Version   int            `bson:"version"`
 	CreatedAt time.Time      `bson:"created_at"`
+}
+
+// MarshalJSON writes a label the way the editor reads it: the stored field
+// names, with the mongo id under "id".
+func (l Label) MarshalJSON() ([]byte, error) {
+	fields := map[string]any{
+		"id": l.ID.Hex(), "comment": l.Comment, "version": l.Version,
+		"created_at": l.CreatedAt,
+	}
+	if l.UserID != nil {
+		fields["user_id"] = l.UserID.Hex()
+	} else {
+		// Present and null rather than absent, because a label with no user is
+		// one made by the system and the editor tells the two apart.
+		fields["user_id"] = nil
+	}
+	return json.Marshal(fields)
+}
+
+// CloneLabels copies one project's labels onto another, which is what copying
+// a project needs so that the copy keeps the versions somebody marked.
+func (s *Store) CloneLabels(ctx context.Context, fromProjectID, toProjectID string) error {
+	from, err := bson.ObjectIDFromHex(fromProjectID)
+	if err != nil {
+		return err
+	}
+	to, err := bson.ObjectIDFromHex(toProjectID)
+	if err != nil {
+		return err
+	}
+
+	cursor, err := s.labels.Find(ctx, bson.M{"project_id": from},
+		options.Find().SetProjection(bson.M{"_id": 0, "project_id": 0}))
+	if err != nil {
+		return err
+	}
+	var labels []bson.M
+	if err := cursor.All(ctx, &labels); err != nil {
+		return err
+	}
+	if len(labels) == 0 {
+		return nil
+	}
+
+	documents := make([]any, 0, len(labels))
+	for _, label := range labels {
+		label["project_id"] = to
+		documents = append(documents, label)
+	}
+	_, err = s.labels.InsertMany(ctx, documents)
+	return err
 }
 
 // GetLabels returns the labels on a project.
