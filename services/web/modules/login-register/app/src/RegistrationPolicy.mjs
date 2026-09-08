@@ -17,6 +17,12 @@ const ADMIN_CLAIM_ID = 'first-admin-claim'
 // a restart before anybody can use it. That is why the routes are registered
 // unconditionally and refuse here instead of not existing.
 
+// Asked on every sign-in page, and there is no index on isAdmin, so the one
+// answer that cannot change back is remembered. A site that has had an
+// administrator does not become claimable again, which is exactly what the
+// callers want to know.
+let administratorSeen = false
+
 /**
  * Whether the site has an administrator yet.
  *
@@ -25,8 +31,15 @@ const ADMIN_CLAIM_ID = 'first-admin-claim'
  * token in a log file or a shell inside the container.
  */
 async function noAdminExists() {
+  if (administratorSeen) {
+    return false
+  }
   const admin = await db.users.findOne({ isAdmin: true }, { projection: { _id: 1 } })
-  return admin == null
+  if (admin) {
+    administratorSeen = true
+    return false
+  }
+  return true
 }
 
 /** Splits the configured domain list, which may be empty. */
@@ -149,6 +162,7 @@ const RegistrationPolicy = {
       throw error
     }
 
+    administratorSeen = true
     logger.info({ userId }, 'first account on this site, made an administrator')
     return true
   },
