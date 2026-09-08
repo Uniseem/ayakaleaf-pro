@@ -410,6 +410,12 @@ copying a defect. They are listed so the choice is visible rather than silent.
    default of 50.
 5. **Upstream error bodies in the proxy.** A non-2xx upstream response produces
    the same status code but a differently worded `Error: ...` body.
+6. **project-history's health check cannot pass in server-ce.** `HealthChecker`
+   builds an `ObjectId` from `Settings.history.healthCheck.project_id`, which
+   server-ce never sets, so `new ObjectId('')` throws and `/health_check`
+   answers 500 on every deployment. The Go port checks the lock and answers
+   200 when no project has been named to check against, and does the full
+   flush-and-read when one has.
 
 ## Known gaps, carried over unchanged
 
