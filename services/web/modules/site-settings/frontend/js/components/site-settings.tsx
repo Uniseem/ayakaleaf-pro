@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { ReactNode, useCallback, useEffect, useState } from 'react'
 import { getJSON, postJSON, getUserFacingMessage } from '@/infrastructure/fetch-json'
 
 // The page is drawn from the catalogue the server sends, so a setting is added
@@ -36,7 +36,7 @@ export default function SiteSettings() {
       setCatalogue(data)
       setDraft({})
     } catch (error) {
-      setMessage({ type: 'danger', text: getUserFacingMessage(error) ?? 'could not load the settings' })
+      setMessage({ type: 'error', text: getUserFacingMessage(error) ?? 'could not load the settings' })
     }
   }, [])
 
@@ -65,7 +65,7 @@ export default function SiteSettings() {
         text: `Saved ${result.applied.length} setting${result.applied.length === 1 ? '' : 's'}.`,
       })
     } catch (error) {
-      setMessage({ type: 'danger', text: getUserFacingMessage(error) ?? 'could not save' })
+      setMessage({ type: 'error', text: getUserFacingMessage(error) ?? 'could not save' })
     } finally {
       setSaving(false)
     }
@@ -80,7 +80,7 @@ export default function SiteSettings() {
       )
       setMessage({ type: 'success', text: result.message })
     } catch (error) {
-      setMessage({ type: 'danger', text: getUserFacingMessage(error) ?? 'could not send' })
+      setMessage({ type: 'error', text: getUserFacingMessage(error) ?? 'could not send' })
     }
   }
 
@@ -113,14 +113,12 @@ export default function SiteSettings() {
         </div>
       </div>
 
-      {message && (
-        <div className={`alert alert-${message.type}`}>{message.text}</div>
-      )}
+      {message && <Notification type={message.type}>{message.text}</Notification>}
       {needsRestart && (
-        <div className="alert alert-warning">
+        <Notification type="warning">
           One of the changed settings is only read when the site starts. Restart
           the container for it to take effect.
-        </div>
+        </Notification>
       )}
 
       {catalogue.sections.map(section => {
@@ -154,6 +152,28 @@ export default function SiteSettings() {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// The site's own notification, rather than a Bootstrap alert: the alert
+// partial is not in the stylesheet bundle, so one would render as bare text.
+function Notification({
+  type,
+  children,
+}: {
+  type: string
+  children: ReactNode
+}) {
+  return (
+    <div
+      className={`notification notification-type-${type} mb-4`}
+      role="alert"
+      aria-live="polite"
+    >
+      <div className="notification-content-and-cta">
+        <div className="notification-content">{children}</div>
+      </div>
     </div>
   )
 }

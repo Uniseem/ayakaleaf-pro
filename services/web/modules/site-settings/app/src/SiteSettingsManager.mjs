@@ -161,6 +161,11 @@ function apply(values) {
     // the rest of the app treats a missing email block as "email is off".
     delete Settings.email
   }
+
+  // Nobody can confirm an address on a site with no mail server, so the
+  // requirement follows whether one is configured rather than being a separate
+  // switch that can be left contradicting it.
+  Settings.emailConfirmationDisabled = !Settings.email
   current = values
 }
 
