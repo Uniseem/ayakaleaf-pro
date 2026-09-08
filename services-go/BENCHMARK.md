@@ -92,6 +92,41 @@ completed.
 wrapping: the database is doing the work in both runs and it is the same
 database.
 
+## web, which was not ported
+
+The biggest single consumer left, and the one most obviously worth asking
+about. Measured with `scripts/web-timing.sh`.
+
+It runs as two processes:
+
+| | Resident |
+| --- | ---: |
+| `web` app.mjs | 187 MB |
+| `web` app.mjs | 205 MB |
+| **total** | **392 MB** |
+
+And the pages it serves:
+
+| | Status | p50 | p95 | Size |
+| --- | --- | ---: | ---: | ---: |
+| `GET /login` | 200 | 4.9 ms | 6.5 ms | 13 kB |
+| `GET /project` (the project list) | 200 | 21.5 ms | 31.8 ms | 30 kB |
+| `GET /socket.io/socket.io.js` | 200 | 1.3 ms | 2.9 ms | 44 kB |
+| `GET /project/:id` (the editor) | 429 | 4.4 ms | 7.7 ms | — |
+
+The project list is the heaviest thing measured here and it is web doing real
+work: the session, the projects query, the tags, and rendering the page with
+its bootstrap payload. Twenty-one milliseconds.
+
+The editor page could not be measured: hitting it twenty times in a row is
+what its rate limiter exists to stop, and what came back was the 429. That is
+the right behaviour and it left the number unmeasured.
+
+**web's problem is not that it is slow. It is that it is 392 MB.** And 392 MB
+of Node heap is the one thing this whole exercise is not allowed to touch, so
+the only measurable complaint about the largest remaining service has no
+remedy that is in scope.
+
 ## What this does not say
 
 - One machine, one project, warm caches, no other load. A busy server behaves
