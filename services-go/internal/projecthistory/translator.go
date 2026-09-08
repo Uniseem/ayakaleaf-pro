@@ -322,8 +322,10 @@ func (b *operationsBuilder) addOp(op *Op, update *Update) error {
 			ranges = append(ranges, map[string]any{"pos": pos, "length": length})
 		}
 		comment := map[string]any{"commentId": op.Thread, "ranges": ranges}
-		if op.Resolved != nil {
-			comment["resolved"] = *op.Resolved
+		if op.Resolved != nil && *op.Resolved {
+			// An unresolved comment says nothing: the model defaults to it and
+			// leaves the field out again when it writes the operation back.
+			comment["resolved"] = true
 		}
 		encoded, err := json.Marshal(comment)
 		if err != nil {
@@ -545,9 +547,13 @@ func composeOperations(first, second histmodel.Operation) (histmodel.Operation, 
 		return nil, false
 	}
 	if a.TextOperation == nil || b.TextOperation == nil {
-		// One of them is a comment being resolved or deleted, which is not
-		// something a text operation can be composed with.
-		return nil, false
+		// A text operation composes with nothing but another text operation,
+		// but two edits about the same comment may still merge.
+		edit, ok := composeCommentEdits(a.Edit, b.Edit)
+		if !ok {
+			return nil, false
+		}
+		return &histmodel.EditFileOperation{Path: a.Path, Edit: edit}, true
 	}
 	// The second has to start where the first finishes.
 	if a.TextOperation.TargetLength != b.TextOperation.BaseLength {
@@ -573,4 +579,107 @@ func mustJSON(v any) json.RawMessage {
 		panic(err)
 	}
 	return encoded
+}
+
+// An edit is one of five things, and which one is decided by the fields it
+// carries rather than by anything it says about itself. The order matters: an
+// edit with a commentId, ranges and resolved is a comment being added with its
+// state, not a state being set.
+type editKind int
+
+const (
+	editUnknown editKind = iota
+	editText
+	editAddComment
+	editDeleteComment
+	editSetCommentState
+	editNoOp
+)
+
+// classifyEdit says what an edit is, and hands back its fields.
+func classifyEdit(raw json.RawMessage) (editKind, map[string]json.RawMessage) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return editUnknown, nil
+	}
+	_, named := fields["commentId"]
+	switch {
+	case hasKey(fields, "textOperation"):
+		return editText, fields
+	case named && isJSONArray(fields["ranges"]):
+		return editAddComment, fields
+	case hasKey(fields, "deleteComment"):
+		return editDeleteComment, fields
+	case named && isJSONBool(fields["resolved"]):
+		return editSetCommentState, fields
+	case hasKey(fields, "noOp"):
+		return editNoOp, fields
+	}
+	return editUnknown, fields
+}
+
+// composeCommentEdits merges two edits about the same comment into one.
+//
+// Which pairs merge is not symmetric. Adding a comment and then saying
+// anything else about it leaves only what was said last, because the add
+// carries the ranges and the rest only qualifies them -- except a resolve,
+// which keeps the ranges and takes the state. A comment that has been deleted
+// composes with nothing after it.
+func composeCommentEdits(first, second json.RawMessage) (json.RawMessage, bool) {
+	a, aFields := classifyEdit(first)
+	b, bFields := classifyEdit(second)
+
+	id := commentIDOf(a, aFields)
+	if id == "" || id != commentIDOf(b, bFields) {
+		return nil, false
+	}
+
+	switch {
+	case a == editAddComment && b == editAddComment,
+		a == editAddComment && b == editDeleteComment,
+		a == editSetCommentState && b == editSetCommentState,
+		a == editSetCommentState && b == editDeleteComment:
+		return second, true
+
+	case a == editAddComment && b == editSetCommentState:
+		merged := map[string]json.RawMessage{
+			"commentId": aFields["commentId"],
+			"ranges":    aFields["ranges"],
+		}
+		if string(bFields["resolved"]) == "true" {
+			merged["resolved"] = json.RawMessage("true")
+		}
+		encoded, err := json.Marshal(merged)
+		if err != nil {
+			return nil, false
+		}
+		return encoded, true
+	}
+	return nil, false
+}
+
+// commentIDOf is the comment an edit is about, if it is about one.
+func commentIDOf(kind editKind, fields map[string]json.RawMessage) string {
+	switch kind {
+	case editAddComment, editSetCommentState:
+		return rawString(fields["commentId"])
+	case editDeleteComment:
+		return rawString(fields["deleteComment"])
+	}
+	return ""
+}
+
+func hasKey(fields map[string]json.RawMessage, name string) bool {
+	_, ok := fields[name]
+	return ok
+}
+
+func isJSONArray(raw json.RawMessage) bool {
+	trimmed := strings.TrimSpace(string(raw))
+	return strings.HasPrefix(trimmed, "[")
+}
+
+func isJSONBool(raw json.RawMessage) bool {
+	trimmed := strings.TrimSpace(string(raw))
+	return trimmed == "true" || trimmed == "false"
 }
