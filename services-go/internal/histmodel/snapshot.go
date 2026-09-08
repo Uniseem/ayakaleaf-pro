@@ -1,6 +1,7 @@
 package histmodel
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -89,17 +90,36 @@ func (m *FileMap) Length() int { return len(m.files) }
 
 // MarshalJSON writes the map.
 func (m *FileMap) MarshalJSON() ([]byte, error) {
-	if m == nil {
-		return json.Marshal(map[string]*File{})
+	if m == nil || len(m.order) == 0 {
+		return []byte("{}"), nil
 	}
-	// An object, so the order is not preserved by JSON itself; it is preserved
-	// here so that the bytes match what the reference implementation writes for
-	// the same project.
-	fields := make(map[string]*File, len(m.files))
-	for path, file := range m.files {
-		fields[path] = file
+
+	// Written in the order the files were added rather than by sorting them.
+	// JSON says nothing about the order of an object's keys, but the file tree
+	// this becomes is walked in the order it is read, and a project whose
+	// files came out alphabetically would list them in a different order from
+	// the one that wrote them.
+	var out bytes.Buffer
+	out.WriteByte('{')
+	for index, path := range m.order {
+		if index > 0 {
+			out.WriteByte(',')
+		}
+		key, err := json.Marshal(path)
+		if err != nil {
+			return nil, err
+		}
+		out.Write(key)
+		out.WriteByte(':')
+
+		value, err := json.Marshal(m.files[path])
+		if err != nil {
+			return nil, err
+		}
+		out.Write(value)
 	}
-	return json.Marshal(fields)
+	out.WriteByte('}')
+	return out.Bytes(), nil
 }
 
 // UnmarshalJSON reads a map.
@@ -110,15 +130,13 @@ func (m *FileMap) UnmarshalJSON(data []byte) error {
 	}
 
 	*m = *NewFileMap()
-	// The paths are taken in order, so that a map read and written again comes
-	// out the same way round.
-	paths := make([]string, 0, len(fields))
-	for path := range fields {
-		paths = append(paths, path)
-	}
-	sort.Strings(paths)
-
-	for _, path := range paths {
+	// In the order the object was written in, not sorted: that order is the
+	// file tree's order, and the diffs the editor shows are built by walking
+	// it.
+	for _, path := range objectKeysInOrder(data) {
+		if _, ok := fields[path]; !ok {
+			continue
+		}
 		if string(fields[path]) == "null" {
 			m.AddFile(path, nil)
 			continue
@@ -130,6 +148,32 @@ func (m *FileMap) UnmarshalJSON(data []byte) error {
 		m.AddFile(path, &file)
 	}
 	return nil
+}
+
+// objectKeysInOrder is the keys of a JSON object in the order they were
+// written.
+func objectKeysInOrder(data []byte) []string {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	if _, err := decoder.Token(); err != nil {
+		return nil
+	}
+	var keys []string
+	for decoder.More() {
+		token, err := decoder.Token()
+		if err != nil {
+			return keys
+		}
+		key, ok := token.(string)
+		if !ok {
+			return keys
+		}
+		keys = append(keys, key)
+		var skipped json.RawMessage
+		if err := decoder.Decode(&skipped); err != nil {
+			return keys
+		}
+	}
+	return keys
 }
 
 // Snapshot is the project at one moment.
