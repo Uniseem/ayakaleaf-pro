@@ -754,15 +754,65 @@ func historyOTOperation(pathname string, op *Op) (histmodel.Operation, error) {
 		return nil, err
 	}
 
-	operation := &histmodel.EditFileOperation{Path: pathname, Edit: edit}
-	if kind, _ := classifyEdit(edit); kind == editText {
+	normalised, text, err := normaliseHistoryOTEdit(edit)
+	if err != nil {
+		return nil, err
+	}
+	return &histmodel.EditFileOperation{
+		Path: pathname, Edit: normalised, TextOperation: text,
+	}, nil
+}
+
+// normaliseHistoryOTEdit writes an edit the way the history stores it.
+//
+// An operation that has been through the history's model comes out with the
+// fields that model keeps and no others: a comment that is not resolved says
+// nothing about being resolved, because that is the default. An edit written
+// any other way is a different edit as far as anything comparing them goes.
+func normaliseHistoryOTEdit(edit json.RawMessage) (json.RawMessage,
+	*histmodel.TextOperation, error) {
+
+	kind, fields := classifyEdit(edit)
+	switch kind {
+	case editText:
 		var text histmodel.TextOperation
 		if err := json.Unmarshal(edit, &text); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		operation.TextOperation = &text
+		encoded, err := json.Marshal(&text)
+		if err != nil {
+			return nil, nil, err
+		}
+		return encoded, &text, nil
+
+	case editAddComment:
+		comment := map[string]json.RawMessage{
+			"commentId": fields["commentId"], "ranges": fields["ranges"],
+		}
+		if string(fields["resolved"]) == "true" {
+			comment["resolved"] = json.RawMessage("true")
+		}
+		encoded, err := json.Marshal(comment)
+		return encoded, nil, err
+
+	case editSetCommentState:
+		state := map[string]json.RawMessage{
+			"commentId": fields["commentId"], "resolved": fields["resolved"],
+		}
+		encoded, err := json.Marshal(state)
+		return encoded, nil, err
+
+	case editDeleteComment:
+		deletion := map[string]json.RawMessage{
+			"deleteComment": fields["deleteComment"],
+		}
+		encoded, err := json.Marshal(deletion)
+		return encoded, nil, err
+
+	case editNoOp:
+		return json.RawMessage(`{"noOp":true}`), nil, nil
 	}
-	return operation, nil
+	return nil, nil, fmt.Errorf("%w: %s", ErrUnexpectedOp, edit)
 }
 
 // composeHistoryOTOps merges two operations that are already in the history's
