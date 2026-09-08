@@ -15,6 +15,10 @@
 # What is left in this file is the shape of the deployment itself -- which
 # containers there are and where they keep their data -- because that is the
 # one thing a page inside the application cannot describe.
+#
+# Git access needs a second container, so it has a profile:
+#
+#     docker compose --profile git up -d
 
 services:
   ayakaleaf:
@@ -54,6 +58,31 @@ services:
       OVERLEAF_MONGO_URL: mongodb://mongo/sharelatex?directConnection=true
       OVERLEAF_REDIS_HOST: redis
       REDIS_HOST: redis
+
+      # Which addresses may set X-Forwarded-For. The container's own nginx has
+      # to be trusted, so whatever you put here must still include loopback.
+      # Wrong values stop the site starting, which is why this one is here and
+      # not in the admin pages.
+      OVERLEAF_TRUSTED_PROXY_IPS: loopback
+
+      # The other things a page inside the application cannot decide for
+      # itself. Uncomment what you need.
+      #
+      # ## A seccomp profile for the compile containers, by path on the host.
+      # ## Podman needs this; Docker does not.
+      # SECCOMP_PROFILE: /srv/ayakaleaf/seccomp.json
+      #
+      # ## Start even if the Mongo admin checks cannot be run, for a managed
+      # ## Mongo that does not grant them.
+      # ALLOW_MONGO_ADMIN_CHECK_FAILURES: "true"
+      #
+      # ## The secrets are generated on first startup and kept on the data
+      # ## volume. Set them here only to keep the ones an older deployment had.
+      # OVERLEAF_INVITE_TOKEN_SECRET: ...
+      # OVERLEAF_SESSION_SECRET: ...
+      #
+      # ## Where history-v1 is, for the git-bridge container below.
+      # V1_HISTORY_URL: http://localhost:3100/api
 
       # SANDBOXED_COMPILES: "true"
       # ## These two are handed to the docker daemon on the host, so they must
@@ -95,6 +124,33 @@ services:
       retries: 30
       start_period: 10s
 
+  # Git access to projects: clone and push a project over git.
+  #
+  # It is behind a profile, so it is off unless you ask for it:
+  #
+  #     docker compose --profile git up -d
+  #
+  # Then turn Git access on in /admin/settings and restart. Both halves are
+  # needed -- the container has to exist, and the application has to be told to
+  # use it.
+  git-bridge:
+    image: ${AYAKALEAF_GIT_BRIDGE_IMAGE:-quay.io/sharelatex/git-bridge:latest}
+    container_name: ayakaleaf-git-bridge
+    restart: always
+    profiles: ["git"]
+    depends_on:
+      ayakaleaf:
+        condition: service_healthy
+    volumes:
+      - git-bridge-data:/data/git-bridge
+    environment:
+      GIT_BRIDGE_API_BASE_URL: "http://ayakaleaf:3000/api/v0/"
+      GIT_BRIDGE_OAUTH2_SERVER: "http://ayakaleaf"
+      GIT_BRIDGE_POSTBACK_BASE_URL: "http://git-bridge:8000"
+      GIT_BRIDGE_ROOT_DIR: "/data/git-bridge"
+    user: root
+    command: ["/server-pro-start.sh"]
+
   redis:
     image: redis:7.2
     container_name: ayakaleaf-redis
@@ -115,3 +171,5 @@ volumes:
   # Sessions, and document changes that have not been written to Mongo yet, so
   # this is not a cache: losing it loses recent edits.
   redis-data:
+  # The git repositories, when the git profile is running.
+  git-bridge-data:

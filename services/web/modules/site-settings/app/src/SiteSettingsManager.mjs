@@ -1,13 +1,17 @@
 import Settings from '@overleaf/settings'
 import logger from '@overleaf/logger'
 import RedisWrapper from '@overleaf/redis-wrapper'
-import { db } from '../../../../app/src/infrastructure/mongodb.mjs'
+import { db, connectionPromise } from '../../../../app/src/infrastructure/mongodb.mjs'
 import {
   SETTINGS,
   SECTIONS,
   definitionFor,
   isSecret,
 } from './SiteSettingsCatalogue.mjs'
+import {
+  resolveEnvironment,
+  managedNames,
+} from './SiteSettingsEnvironment.mjs'
 
 // The settings an operator can change now live in the database rather than in
 // the environment, and this is what puts them into effect.
@@ -98,6 +102,21 @@ async function loadDocument() {
       seeded[definition.key] = value
     }
   }
+  // OVERLEAF_ALLOW_PUBLIC_REGISTRATION said two things in one variable: 'true'
+  // for open registration, or an '@domain' meaning open but only for that
+  // domain. Read as a boolean, '@example.com' is false -- which would turn
+  // registration off on exactly the deployments that had restricted it, and
+  // say nothing about why.
+  const registration = process.env.OVERLEAF_ALLOW_PUBLIC_REGISTRATION
+  if (registration && registration.trim().startsWith('@')) {
+    seeded.allowPublicRegistration = true
+    seeded.registrationEmailDomains = registration
+      .split(',')
+      .map(entry => entry.trim().replace(/^@/, ''))
+      .filter(Boolean)
+      .join(',')
+  }
+
   await db.siteSettings.updateOne(
     { _id: DOCUMENT_ID },
     {
@@ -115,9 +134,39 @@ async function loadDocument() {
 }
 
 /** Puts the values into the Settings object every module reads. */
+/**
+ * Puts the settings where a module that reads them at import time will look.
+ *
+ * Modules are imported after this runs, so a module that begins `if
+ * (process.env.X === 'true')` sees what the administrator chose. Anything read
+ * earlier than this -- the settings files, and every other service -- is
+ * reached by the startup script instead, which is why those settings say they
+ * need a restart.
+ */
+function applyEnvironment(values) {
+  const environment = resolveEnvironment(values)
+  for (const name of managedNames(values)) {
+    if (name in environment) {
+      process.env[name] = environment[name]
+    } else {
+      // Unset and false are the same thing to most of what reads these, and
+      // several treat the presence of the variable as the answer.
+      delete process.env[name]
+    }
+  }
+}
+
 function apply(values) {
   for (const definition of SETTINGS) {
     const value = coerce(definition, values[definition.key])
+
+    if (!definition.path) {
+      // Nothing in Settings to write: this one reaches what it configures
+      // through the environment, which applyEnvironment does for all of them
+      // together at the end.
+      continue
+    }
+
     if (value === undefined || value === '') {
       // An empty value means "not set": leave whatever the defaults put there
       // rather than writing an empty string over it, so that a blank SMTP host
@@ -181,9 +230,13 @@ function apply(values) {
   }
 
   // Nobody can confirm an address on a site with no mail server, so the
-  // requirement follows whether one is configured rather than being a separate
-  // switch that can be left contradicting it.
-  Settings.emailConfirmationDisabled = !Settings.email
+  // default follows whether one is configured rather than being a switch that
+  // can be left contradicting it. An administrator can still say plainly.
+  const confirmation = Settings.siteSettings?.emailConfirmation || 'auto'
+  Settings.emailConfirmationDisabled =
+    confirmation === 'off' ||
+    (confirmation === 'auto' && !Settings.email)
+  applyEnvironment(values)
   current = values
 }
 
@@ -217,8 +270,19 @@ function watchForChanges() {
 }
 
 const SiteSettingsManager = {
-  /** Called once during startup, after Mongo is reachable. */
+  /**
+   * Called once, before the first module is imported.
+   *
+   * That is early enough that Mongo may still be connecting, so this waits for
+   * it: a module deciding whether it exists must not read a half-loaded
+   * setting. Calling it again does nothing, so the later call in app.mjs is
+   * free for anything that starts without loading modules.
+   */
   async initialize() {
+    if (loaded) {
+      return
+    }
+    await connectionPromise
     await reload()
     watchForChanges()
     loaded = true

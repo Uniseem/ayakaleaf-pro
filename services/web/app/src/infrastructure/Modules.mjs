@@ -41,6 +41,27 @@ async function modules() {
 }
 
 async function loadModulesImpl() {
+  // The settings an operator changed from the admin page are read here, before
+  // the first module is imported.
+  //
+  // It has to be here and not in app.mjs, which runs later: a module decides
+  // whether it exists at all when it is imported -- git-bridge, GitHub sync,
+  // Zotero, sandboxed compiles all begin with `if (process.env.X === 'true')'
+  // -- so anything read after this loop cannot turn a feature on. Putting the
+  // load first is what lets those switches live in the database without
+  // rewriting every module that reads them.
+  const siteSettingsManager = Path.join(
+    MODULE_BASE_PATH,
+    'site-settings',
+    'app',
+    'src',
+    'SiteSettingsManager.mjs'
+  )
+  if (fs.existsSync(siteSettingsManager)) {
+    const { default: SiteSettingsManager } = await import(siteSettingsManager)
+    await SiteSettingsManager.initialize()
+  }
+
   const settingsCheckModule = Path.join(
     MODULE_BASE_PATH,
     'settings-check',
