@@ -193,6 +193,10 @@ const SocialAuthManager = {
       }
     }
 
+    // The audit entry is about this account acting on itself, the same way
+    // linking is. Leaving it to every caller to remember is how the audit log
+    // ends up refusing the entry.
+    auditLog.initiatorId = auditLog.initiatorId || userId
     await ThirdPartyIdentityManager.promises.unlink(userId, providerId, auditLog)
     return { unlinked: true }
   },
