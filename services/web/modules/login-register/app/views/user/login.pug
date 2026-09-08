@@ -15,6 +15,9 @@ block content
 									h1 !{login_support_title}
 								else
 									h1.h3 #{translate("log_in")}
+							if socialAuthError
+								+ciamErrorNotification
+									| #{socialAuthError}
 							.login-register-hr-text-container(style='margin-top: 1px; padding: 5px 0;')
 							form(name='loginForm' data-ol-async-form action='/login' method='POST')
 								input(name='_csrf' type='hidden' value=csrfToken)
@@ -51,7 +54,7 @@ block content
 								if login_support_text
 									hr
 									p.text-center !{login_support_text}
-							if (settings.ldap && settings.ldap.enable) || (settings.saml && settings.saml.enable) || (settings.oidc && settings.oidc.enable)
+							if (settings.ldap && settings.ldap.enable) || (settings.saml && settings.saml.enable) || (settings.oidc && settings.oidc.enable) || Object.keys(settings.oauthProviders || {}).length
 								p.ciam-login-register-or-text-container
 									span.ciam-login-register-or-text #{translate("or")}
 							if settings.ldap && settings.ldap.enable
@@ -72,6 +75,13 @@ block content
 									)
 										span(data-ol-inflight="idle") #{settings.saml.identityServiceName}
 										span(hidden data-ol-inflight="pending") #{translate("logging_in")}…
+							each provider in (settings.oauthProviders || {})
+								.actions(style='margin-top: 15px;')
+									a.button.btn-secondary.btn(
+										href=provider.linkPath,
+										style="width: 100%;"
+									)
+										span Continue with #{provider.name}
 							if settings.oidc && settings.oidc.enable
 								.actions(style='margin-top: 15px;')
 									a.button.btn-secondary.btn(

@@ -24,11 +24,18 @@ export default {
     if (Object.keys(req.query).length !== 0) {
       metadata.robotsNoindexNofollow = true
     }
+    // Why a Google or GitHub sign-in did not go through, shown once. It is
+    // carried in the session rather than the query string so that nobody can
+    // put words on this page with a link.
+    const socialAuthError = req.session.socialAuthError
+    delete req.session.socialAuthError
+
     const __dirname = Path.dirname(new URL(import.meta.url).pathname)
     res.render(Path.resolve(__dirname, '../views/user/login'), {
       title: Settings.nav?.login_support_title || 'login',
       login_support_title: Settings.nav?.login_support_title,
       login_support_text: Settings.nav?.login_support_text,
+      socialAuthError,
       metadata,
     })
   },

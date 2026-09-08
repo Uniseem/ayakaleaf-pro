@@ -38,6 +38,9 @@ export default function AdminMenu({
       {canDisplayAdminMenu ? (
         <>
           <NavDropdownLinkItem href="/admin">Manage Site</NavDropdownLinkItem>
+          <NavDropdownLinkItem href="/admin/settings">
+            Site Settings
+          </NavDropdownLinkItem>
           <NavDropdownLinkItem href="/admin/user">
             Manage Users
           </NavDropdownLinkItem>

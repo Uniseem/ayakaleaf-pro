@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { FetchError } from '../../../../infrastructure/fetch-json'
 import IEEELogo from '../../../../shared/svgs/ieee-logo'
 import GoogleLogo from '../../../../shared/svgs/google-logo'
+import GithubLogo from '../../../../shared/svgs/github-logo'
 import OrcidLogo from '../../../../shared/svgs/orcid-logo'
 import LinkingStatus from './status'
 import OLButton from '@/shared/components/ol/ol-button'
@@ -17,6 +18,7 @@ import {
 const providerLogos: { readonly [p: string]: JSX.Element } = {
   collabratec: <IEEELogo />,
   google: <GoogleLogo />,
+  github: <GithubLogo />,
   orcid: <OrcidLogo />,
 }
 

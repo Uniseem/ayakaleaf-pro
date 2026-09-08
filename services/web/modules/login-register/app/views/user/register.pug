@@ -12,7 +12,43 @@ block content
 					.card
 						.card-body
 							.page-header
-								h1.login-register-header-heading-focus.h3 #{translate("register")}
+								if isFirstUser
+									h1.login-register-header-heading-focus.h3 Set up this site
+								else
+									h1.login-register-header-heading-focus.h3 #{translate("register")}
+							if isFirstUser
+								.notification.notification-ds.notification-type-info(
+									role='alert'
+									aria-live='polite'
+								)
+									.notification-icon
+										ph-info(aria-hidden='true')
+									.notification-content-and-cta
+										.notification-content
+											| Nobody has an account here yet. The account you create now
+											|  becomes the administrator, and you will be signed in and
+											|  taken to the settings.
+							else if !canRegister
+								.notification.notification-ds.notification-type-warning(
+									role='alert'
+									aria-live='polite'
+								)
+									.notification-icon
+										ph-warning-circle(aria-hidden='true')
+									.notification-content-and-cta
+										.notification-content
+											| Sign up is closed on this site. Ask an administrator for an
+											|  account.
+							else if allowedDomains && allowedDomains.length
+								.notification.notification-ds.notification-type-info(
+									role='alert'
+									aria-live='polite'
+								)
+									.notification-icon
+										ph-info(aria-hidden='true')
+									.notification-content-and-cta
+										.notification-content
+											| Sign up is limited to these email domains: #{allowedDomains.join(', ')}
 							.login-register-hr-text-container(style='margin-top: 1px; padding: 5px 0;')
 							form(
 								data-ol-async-form
@@ -58,8 +94,9 @@ block content
 									)
 										span(data-ol-inflight="idle") #{translate("create_account")}
 										span(hidden data-ol-inflight="pending") #{translate("registering")}…
-							p.ciam-login-register-or-text-container
-								span.ciam-login-register-or-text #{translate("or")}
+							if (settings.ldap && settings.ldap.enable) || (settings.saml && settings.saml.enable) || (settings.oidc && settings.oidc.enable) || Object.keys(settings.oauthProviders || {}).length
+								p.ciam-login-register-or-text-container
+									span.ciam-login-register-or-text #{translate("or")}
 							if settings.ldap && settings.ldap.enable
 								.actions(style='margin-top: 15px;')
 									a.button.btn-secondary.btn(
@@ -78,6 +115,13 @@ block content
 									)
 										span(data-ol-inflight="idle") #{settings.saml.identityServiceName}
 										span(hidden data-ol-inflight="pending") #{translate("logging_in")}…
+							each provider in (settings.oauthProviders || {})
+								.actions(style='margin-top: 15px;')
+									a.button.btn-secondary.btn(
+										href=provider.linkPath,
+										style="width: 100%;"
+									)
+										span Continue with #{provider.name}
 							if settings.oidc && settings.oidc.enable
 								.actions(style='margin-top: 15px;')
 									a.button.btn-secondary.btn(

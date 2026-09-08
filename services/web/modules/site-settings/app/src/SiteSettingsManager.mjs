@@ -144,6 +144,9 @@ function apply(values) {
     if (configured?.clientId && configured?.clientSecret) {
       Settings.oauthProviders[id] = {
         name,
+        // What the account settings page needs to draw the linking widget.
+        descriptionKey: 'login_with_service',
+        descriptionOptions: { service: name, appName: Settings.appName },
         linkPath: `/auth/${id}`,
       }
     } else {

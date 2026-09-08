@@ -11,6 +11,9 @@ export OVERLEAF_BASE_TAG ?= sharelatex/sharelatex-base:$(BRANCH_NAME_TAG_SAFE)-$
 export OVERLEAF_BRANCH ?= sharelatex/sharelatex:$(BRANCH_NAME_TAG_SAFE)
 export OVERLEAF_LATEST ?= sharelatex/sharelatex
 export OVERLEAF_TAG ?= sharelatex/sharelatex:$(BRANCH_NAME_TAG_SAFE)-$(MONOREPO_REVISION)
+# The name docker-compose.yml looks for, so that building the image and
+# then bringing the site up needs nothing in between.
+export AYAKALEAF_TAG ?= ayakaleaf/ayakaleaf:latest
 
 all: build-base build-community
 
@@ -52,6 +55,7 @@ build-community:
 	  --file Dockerfile \
 	  --tag $(OVERLEAF_TAG) \
 	  --tag $(OVERLEAF_BRANCH) \
+	  --tag $(AYAKALEAF_TAG) \
 	  $(MONOREPO_ROOT)
 
 push:

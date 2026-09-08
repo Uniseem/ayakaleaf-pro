@@ -21,5 +21,14 @@ export default {
       AuthenticationController.requireLogin(),
       SocialAuthController.unlink
     )
+
+    // What the account settings page posts to. It is shared with the other
+    // authentication modules, so the handler passes on anything that is not a
+    // provider of ours.
+    webRouter.post(
+      '/user/oauth-unlink',
+      AuthenticationController.requireLogin(),
+      SocialAuthController.unlinkFromSettings
+    )
   },
 }

@@ -1243,8 +1243,10 @@ module.exports = {
     'server-ce-scripts',
     'authentication/ldap',
     'authentication/saml',
-    'authentication/oidc',
+    // Before oidc: both answer /user/oauth-unlink, and this one passes on
+    // any provider that is not its own.
     'social-auth',
+    'authentication/oidc',
     'admin-tools',
     'user-activate',
     'sandboxed-compiles',

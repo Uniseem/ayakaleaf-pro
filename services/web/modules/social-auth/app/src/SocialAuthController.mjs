@@ -53,10 +53,11 @@ async function start(req, res, next) {
     return res.status(404).render('general/404', { title: 'Not found' })
   }
 
-  if (req.query.intent === 'link') {
-    if (!SessionManager.isUserLoggedIn(req.session)) {
-      return res.redirect('/login')
-    }
+  // Somebody who is already signed in is attaching a provider to the account
+  // they are signed in as -- there is nothing else the button could mean, and
+  // reading it as a sign-in would hand them somebody else's account if that
+  // identity happened to belong to another one.
+  if (SessionManager.isUserLoggedIn(req.session)) {
     req.session.socialAuthIntent = 'link'
   } else {
     delete req.session.socialAuthIntent
@@ -141,19 +142,16 @@ function _fail(req, res, intent, reason) {
 
 function _finishLink(req, res, linked, reason) {
   if (!linked) {
-    req.session.socialAuthError = reason
+    // The key the account settings page already reads and shows against the
+    // linked accounts section.
+    req.session.ssoErrorMessage = reason
   }
   return res.redirect('/user/settings')
 }
 
 /** Detaches a provider from the account that is signed in. */
-async function unlink(req, res) {
-  const providerId = req.params.provider || req.body?.providerId
+async function _unlink(req, res, providerId) {
   const userId = SessionManager.getLoggedInUserId(req.session)
-  if (!PROVIDERS[providerId]) {
-    return res.status(400).json({ message: 'no such provider' })
-  }
-
   const { unlinked, reason } = await SocialAuthManager.unlinkFromUser(
     userId,
     providerId,
@@ -163,6 +161,28 @@ async function unlink(req, res) {
     return res.status(400).json({ message: reason })
   }
   res.json({ message: `${PROVIDERS[providerId].name} unlinked` })
+}
+
+async function unlink(req, res) {
+  const providerId = req.params.provider || req.body?.providerId
+  if (!PROVIDERS[providerId]) {
+    return res.status(400).json({ message: 'no such provider' })
+  }
+  return await _unlink(req, res, providerId)
+}
+
+/**
+ * The address the account settings page already unlinks through.
+ *
+ * That page is written for every kind of linked identity, not only these two,
+ * so a provider that is not ours is passed on to whichever module owns it.
+ */
+async function unlinkFromSettings(req, res, next) {
+  const providerId = req.body?.providerId
+  if (!PROVIDERS[providerId]) {
+    return next()
+  }
+  return await _unlink(req, res, providerId)
 }
 
 /** Which providers are configured, and which the signed-in account has linked. */
@@ -187,5 +207,6 @@ export default {
   start: expressify(start),
   callback: expressify(callback),
   unlink: expressify(unlink),
+  unlinkFromSettings: expressify(unlinkFromSettings),
   status: expressify(status),
 }
