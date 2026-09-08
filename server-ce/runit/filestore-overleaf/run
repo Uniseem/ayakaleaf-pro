@@ -3,4 +3,15 @@
 source /etc/overleaf/env.sh
 export LISTEN_ADDRESS=127.0.0.1
 
+# Go port of this service (services-go/cmd/filestore), swapped in by setting
+# FILESTORE_IMPL=go. Any other value, including unset, keeps the Node
+# implementation, so rolling back is one environment variable and a restart.
+#
+# The Go port supports the fs and s3 backends, which are the only two
+# server-ce offers. It refuses to start on any other, rather than appearing to
+# work against storage it cannot reach.
+if [ "$FILESTORE_IMPL" == "go" ] && [ -x /overleaf/bin/go/filestore ]; then
+    exec /sbin/setuser www-data /overleaf/bin/go/filestore >> /var/log/overleaf/filestore.log 2>&1
+fi
+
 exec /sbin/setuser www-data /usr/bin/node /overleaf/services/filestore/app.js >> /var/log/overleaf/filestore.log 2>&1

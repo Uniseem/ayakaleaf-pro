@@ -9,6 +9,10 @@ without changing anything else in the stack.
 | notifications | `cmd/notifications` | 3042 | `services/notifications` | 539 |
 | linked-url-proxy | `cmd/linked-url-proxy` | 3066 | `services/linked-url-proxy` | 244 |
 | docstore | `cmd/docstore` | 3016 | `services/docstore` | 1,403 |
+| filestore | `cmd/filestore` | 3009 | `services/filestore` | 861 |
+| real-time | `cmd/real-time` | 3026 | `services/real-time` | 3,193 |
+| document-updater | `cmd/document-updater` | 3003 | `services/document-updater` | 5,834 |
+| project-history | `cmd/project-history` | 3054 | `services/project-history` | 9,982 |
 
 ## Why these three
 
@@ -58,6 +62,32 @@ the last run both do, with the same test counts as the Node implementations:
 | services/chat acceptance | 29 passing | 29 passing |
 | services/notifications acceptance | 18 passing | 18 passing |
 | services/docstore acceptance (black-box files) | 39 passing | 39 passing |
+| services/filestore contract suite | 13 passing | 13 passing |
+| services/real-time acceptance | 484 passing, 1 failing | 484 passing, 1 failing |
+| services/document-updater acceptance | 165 passing | 165 passing |
+| services/project-history acceptance | 119 passing | 119 passing |
+
+## What it bought
+
+Both implementations measured in the same container, minutes apart, with
+`clsi`, `history-v1` and `web` left on Node as a control. Full numbers and
+method in [BENCHMARK.md](BENCHMARK.md).
+
+| | Node | Go |
+| --- | ---: | ---: |
+| memory held by the eight ported services | 802 MB | 152 MB |
+| whole container | 1,386 MB | 743 MB |
+| a document read through document-updater | 3.1 ms | 1.2 ms |
+| the same, 16 clients at once | 262 req/s | 489 req/s |
+
+The memory is the result worth having. The latency is real and compounds under
+load, but two milliseconds is invisible to one person typing.
+
+None of it made compiling faster, and it could not have:
+[COMPILE.md](COMPILE.md) measures where a compile's time actually goes. clsi's
+own work is 4 to 7 ms of a 250 to 1100 ms compile. What is there is something
+else — half of a warm recompile is `latexmk` deciding what to do rather than
+doing it — and reaching it is a change to clsi's logic, not to its language.
 
 ## Conformance is not enough: run it for real
 
@@ -86,7 +116,7 @@ builds, boots and works with it. What was checked on the live deployment:
 | --- | --- |
 | All four binaries present in the image | yes |
 | runit selects Go when `*_IMPL=go` | all four |
-| Runs alongside the Node services (filestore, real-time, project-history) | yes |
+| Runs alongside the Node services (real-time, project-history, clsi) | yes |
 | Register, log in, create a project | yes |
 | Compile LaTeX to PDF | success |
 | Project chat through the Go service | send and read back |
@@ -111,6 +141,31 @@ Two notes on building the image, both of which cost time to work out:
 - The same collision means a `docker run sharelatex/sharelatex:latest` after a
   failed build quietly tests the *upstream* image. Verify what you are looking
   at before concluding anything from it.
+
+### filestore: its own suite cannot run at all, and DELETE was broken
+
+`FilestoreTests.js` never loads outside its docker-compose environment — its
+`TestConfig.js` reads TLS certificates from `/certs/public.crt` at import time.
+It also needs fake-gcs-server, and `FilestoreApp.runServer()` calls
+`FileHandler._TESTONLYSwapPersistorManager()` to replace the persistor inside
+the running service. It parametrises over eight backend shards, five of which
+(`gcs`, `s3SSEC`, and three fallback/migration combinations) are unreachable
+from server-ce's `settings.js`.
+
+Writing a black-box replacement, `FilestoreApiTests.js`, immediately found that
+**every DELETE returned 500**:
+
+```
+FileHandler.deleteFile is not a function
+```
+
+`deleteFile` was exported only under `promises`, while `FileController` calls
+the callback-style top-level entry. The one-line fix is in this change; without
+a suite that could run, nothing had exercised the path.
+
+The Go port covers the `fs` and `s3` backends and refuses to start on any
+other, rather than appearing to work against storage it cannot reach. GCS,
+per-project client-side encryption and cross-backend migration are not ported.
 
 ### docstore: three acceptance files cannot judge an external service
 
@@ -139,6 +194,140 @@ CI runs the Node baseline over the same four for comparison. Making the other
 three usable would mean rewriting them to configure the service over its API or
 environment instead of by assignment, which is a change to the Node test suite
 rather than to the port.
+
+### real-time: the suite needed no adaptation, and it found six defects
+
+`services/real-time` is the opposite case. Its acceptance suite was always
+black-box -- it connects over a real socket with the forked socket.io client,
+seeds sessions straight into Redis, and mocks web and document-updater with
+real HTTP servers -- so all 485 tests run against the Go binary unchanged.
+
+One test cannot pass against any external service, for the same reason as
+docstore's three: it asserts on the test process's own logger stub.
+
+```js
+// services/real-time/test/acceptance/js/LeaveDocTests.js:168
+sinon.assert.calledWith(logger.debug, sinon.match.any,
+  'ignoring request from client to leave room it is not in')
+```
+
+Run externally, Node fails exactly that test and nothing else, and so does Go:
+
+| How the suite is run | Result |
+| --- | --- |
+| Node in-process (the default) | 485 passing |
+| Node as its own process | 484 passing, 1 failing |
+| Go as its own process | 484 passing, 1 failing |
+
+Getting there took six fixes that the Go unit tests had not caught, four of
+them in the socket.io layer:
+
+1. **Rooms were cleared before the disconnect handler ran**, so the handler saw
+   an empty room list and never unsubscribed the Redis channels behind them.
+   Every project leaked an `editor-events:<id>` subscription for the life of
+   the process.
+2. **Closing a connection did not send a disconnect packet.** socket.io only
+   suppresses its automatic reconnect when it is told the disconnect was
+   deliberate; without the packet every boot -- a revoked project, a rejected
+   session -- became a reconnect loop, and a booted client went on to rejoin
+   the project it had just been removed from.
+3. **The websocket read limit was 32KB**, the default of the websocket library.
+   The service is supposed to answer an oversized update with an error the
+   client understands, and it can only do that if the update reaches it.
+4. **Frames queued just before a close were dropped**, which is exactly the
+   frame that says why the connection is closing.
+5. `userRemovedFromProject` carries one user id per event argument, not a list
+   inside the first one.
+6. A malformed rpc has to be answered. A client waiting on a callback that
+   never comes waits forever.
+
+### real-time: four more defects that only a browser could find
+
+The suite above passes at parity, and the service still did not work. Opening
+the editor against it found four defects in a row, none of which any test could
+have reached:
+
+1. **The session cookie never verified.** express writes it with
+   `encodeURIComponent`, so a browser sends `s%3A<id>.<sig>`; `cookie-parser`
+   decodes it first, and Go's `Request.Cookie` does not. Every connection was
+   rejected as an invalid session. Both acceptance suites set the `Cookie`
+   header themselves, unencoded, so neither could see it.
+2. **The server never sent heartbeats.** The direction is easy to get
+   backwards: in socket.io 0.9 the *server* sends one every 25 seconds and the
+   client answers. A client that hears nothing for its timeout closes the
+   connection itself, so every session dropped about 30 seconds in. The suite's
+   longest wait is 500ms.
+3. **The Redis key schema was the wrong one.** server-ce replaces it wholesale
+   in `/etc/overleaf/settings.js`, dropping the hash-tag braces:
+   `PendingUpdates:<id>` where the services' own defaults say
+   `PendingUpdates:{<id>}`. Edits were queued under a name document-updater was
+   not reading. Nothing failed and nothing was logged -- the editor showed the
+   typing, then declared the document out of sync. Both suites assert the
+   upstream names, so both agreed with the wrong answer.
+4. **One editor event has a payload that is not an argument list.**
+   document-updater's canary probe publishes a bare object, which Node accepts
+   because it has no types to disagree with. A strict envelope rejected it --
+   and that decode is the one every editor event goes through.
+
+The first three are configuration and protocol: things a service only meets
+once it is wired into a real deployment with a real client. That is now three
+services in a row where the conformance suite passed and the deployment did
+not, which is the argument for doing both.
+
+### document-updater: the suite did not say what the deployment needed
+
+document-updater passed its inherited suite with 165 tests and none failing,
+and then could not create a project. web asks it to record the new document,
+and it answered 501.
+
+The port had been treating `historyRangesSupport` as a mode it could decline.
+It is not a mode. Every project created by this version of web has
+`overleaf.history.rangesSupportEnabled` set, so it is the ordinary path, and
+declining it means the service cannot be deployed at all. The suite never said
+so: only two of its tests turn the flag on, and both of those assert on a spy
+inside the service, so they cannot judge an external one either way.
+
+What the flag asks for is that a document be recorded twice over. The editor
+shows the text with tracked deletions taken out; the history keeps them in. So
+every position the editor works in is short by the length of the tracked
+deletions before it, and everything sent to the history carries a second
+position measured in the longer text -- and a second length, where a comment
+spans a deletion. It is what makes a restored version come back with its
+comments attached to the same words. That is now ported and compared against
+the real `RangesManager` and `HistoryConversions` over 300,000 random documents
+each.
+
+The lesson is the same as the three above, one step further on: an inherited
+suite says what the service must not get wrong, not what a deployment will ask
+of it. `scripts/verify-live-editing.sh` is the answer to that -- it drives the
+live stack through the path a person editing a document goes through, and it is
+run against the Node service first so that its 22 checks mean something.
+
+### What document-updater does not port
+
+**history-ot.** A second OT type, with its own storage format, its own
+operation shape and its own conversion to history. A document using it is
+refused with a 422 rather than read as though its content were lines. server-ce
+does not enable it; the acceptance tests for it are the one category
+`scripts/conformance.sh` skips.
+
+**The diff library.** `diffAsShareJsOp` turns a whole-document write into an
+edit, and the answer is not unique: several correct diffs rebuild the same
+text, and which one is chosen is what the other editors are shown and what goes
+into the history. The Go port of diff-match-patch on offer works in characters
+and in bytes where the original works in UTF-16 code units, scores one side of
+a boundary with the wrong pattern, and leaves emptied components in its result.
+So `internal/textdiff` is a port of the algorithm itself, compared against the
+real `DiffCodec` over a million random document pairs.
+
+### real-time is stateful, so the switch is visible
+
+The four services before it are stateless: swapping one is invisible because
+nothing is holding a connection. real-time holds every open editor session, so
+restarting it under a different implementation disconnects everyone currently
+typing and they reconnect a moment later. No work is lost -- edits already live
+in document-updater -- but unlike the others, this cut-over is something users
+see.
 
 **Data formats are untouched.** Same collections, same field names, same BSON
 types — including the detail that `Date.now()` is stored as a BSON *double*,
@@ -182,6 +371,9 @@ Each runit script in `server-ce/runit/` picks its implementation at startup:
 | chat | `CHAT_IMPL=go` |
 | notifications | `NOTIFICATIONS_IMPL=go` |
 | linked-url-proxy | `LINKED_URL_PROXY_IMPL=go` |
+| docstore | `DOCSTORE_IMPL=go` |
+| filestore | `FILESTORE_IMPL=go` |
+| real-time | `REALTIME_IMPL=go` |
 
 Any other value, including unset, runs the Node service exactly as before. Both
 implementations ship in the image, so **rollback is one environment variable
@@ -240,6 +432,12 @@ copying a defect. They are listed so the choice is visible rather than silent.
    default of 50.
 5. **Upstream error bodies in the proxy.** A non-2xx upstream response produces
    the same status code but a differently worded `Error: ...` body.
+6. **project-history's health check cannot pass in server-ce.** `HealthChecker`
+   builds an `ObjectId` from `Settings.history.healthCheck.project_id`, which
+   server-ce never sets, so `new ObjectId('')` throws and `/health_check`
+   answers 500 on every deployment. The Go port checks the lock and answers
+   200 when no project has been named to check against, and does the full
+   flush-and-read when one has.
 
 ## Known gaps, carried over unchanged
 
@@ -263,13 +461,26 @@ internal/
   obsv/                    Prometheus metrics compatible with @overleaf/metrics
   oid/                     ObjectId parsing with Node's exact semantics
   proxy/                   SSRF address policy and the proxying handler
+  histmodel/               the history's data model: changes, snapshots, the
+                           scan-based text operation, tracked changes, comments
+  projecthistory/          the queue, the resync, the translation between the
+                           editor's operations and the history's, and the read
+                           path the editor's history view uses
+  textdiff/                diff-match-patch's diff half, in UTF-16 code units
+  textot/                  the ShareJS text type the editor speaks
 scripts/conformance.sh     runs the Node acceptance suites against these binaries
 ```
 
 ## What is deliberately not here
 
-`web`, `clsi`, `document-updater`, `real-time`, `history-v1`, `project-history`
-and `filestore` are untouched. `web` alone is roughly 350k lines and holds every
-Pro feature; the rest either have their bottleneck outside Node (`clsi` waits on
-TeX Live) or carry subtle state that a rewrite should not take on until this
-mechanism has proven itself on something small.
+`web`, `clsi` and `history-v1` are untouched. `web` alone is roughly 350k lines
+and holds every Pro feature; `clsi` has its bottleneck outside Node, waiting on
+TeX Live; and `history-v1` is the store the history is actually kept in, which
+is the last thing to move rather than the next.
+
+One thing inside `project-history` is deliberately partial: a project whose
+editor speaks the history's own operation type sends operations already in the
+history's form. Those are passed through and composed by the history's own
+rules, which is what the inherited suite exercises, but the port does not
+implement that operation type end to end -- `document-updater` does not either,
+and neither does server-ce use it.

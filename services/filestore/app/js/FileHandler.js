@@ -16,6 +16,9 @@ const FileHandler = {
   getFile: callbackify(getFile),
   getRedirectUrl: callbackify(getRedirectUrl),
   getFileSize: callbackify(getFileSize),
+  // FileController.deleteFile calls this callback-style; without it every
+  // DELETE fails with "FileHandler.deleteFile is not a function" and a 500.
+  deleteFile: callbackify(deleteFile),
   promises: {
     getFile,
     getRedirectUrl,

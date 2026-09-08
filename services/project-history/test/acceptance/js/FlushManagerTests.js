@@ -1,4 +1,4 @@
-import nock from 'nock'
+import nock from './helpers/nock.js'
 import { expect } from 'chai'
 import { fetchNothing, fetchJsonWithResponse } from '@overleaf/fetch-utils'
 import assert from 'node:assert'

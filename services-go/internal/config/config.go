@@ -73,3 +73,59 @@ func MongoDatabase(uri string) string {
 func ListenAddress() string {
 	return Env("LISTEN_ADDRESS", "127.0.0.1")
 }
+
+// RedisAddr resolves the host:port of a Redis instance for one purpose, such
+// as "PUBSUB" or "REAL_TIME".
+//
+// The precedence follows the services' own settings.defaults -- a
+// purpose-specific variable, then the shared REDIS_HOST -- and then adds the
+// server-ce layer, which sets OVERLEAF_REDIS_HOST and nothing else. Missing
+// that last fallback is not a quiet misconfiguration: the service starts, all
+// pub/sub silently goes nowhere, and every collaborator sees a document that
+// never updates.
+func RedisAddr(purpose string) string {
+	host := Env(purpose+"_REDIS_HOST", Env("REDIS_HOST", Env("OVERLEAF_REDIS_HOST", "127.0.0.1")))
+	port := Env(purpose+"_REDIS_PORT", Env("REDIS_PORT", Env("OVERLEAF_REDIS_PORT", "6379")))
+	if strings.Contains(host, ":") {
+		return "[" + host + "]:" + port
+	}
+	return host + ":" + port
+}
+
+// RedisPassword resolves the password for one purpose, with the same
+// precedence as RedisAddr.
+func RedisPassword(purpose string) string {
+	return Env(purpose+"_REDIS_PASSWORD", Env("REDIS_PASSWORD", os.Getenv("OVERLEAF_REDIS_PASS")))
+}
+
+// RedisTLS reports whether to connect over TLS, which only the server-ce
+// settings expose.
+func RedisTLS() bool { return os.Getenv("OVERLEAF_REDIS_TLS") == "true" }
+
+// SessionSecrets lists the cookie signing secrets in the order cookie-parser
+// is given them, so a cookie signed with any of them still verifies while a
+// rotation is in progress.
+//
+// server-ce sets neither SESSION_SECRET nor its rotation partners: it puts
+// OVERLEAF_SESSION_SECRET in the settings file, falling back to the
+// CRYPTO_RANDOM the container generates on first boot. Without that fallback
+// no session cookie verifies and nobody can open a project.
+func SessionSecrets() []string {
+	var secrets []string
+	for _, key := range []string{
+		"SESSION_SECRET", "SESSION_SECRET_UPCOMING", "SESSION_SECRET_FALLBACK",
+	} {
+		if v := os.Getenv(key); v != "" {
+			secrets = append(secrets, v)
+		}
+	}
+	if len(secrets) > 0 {
+		return secrets
+	}
+	for _, key := range []string{"OVERLEAF_SESSION_SECRET", "CRYPTO_RANDOM"} {
+		if v := os.Getenv(key); v != "" {
+			return []string{v}
+		}
+	}
+	return nil
+}

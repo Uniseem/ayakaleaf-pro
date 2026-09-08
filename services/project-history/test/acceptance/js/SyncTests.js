@@ -1,4 +1,4 @@
-import nock from 'nock'
+import nock from './helpers/nock.js'
 import { expect } from 'chai'
 import assert from 'node:assert'
 import logger from '@overleaf/logger'
