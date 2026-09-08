@@ -87,6 +87,9 @@ type HistoryStoreConfig struct {
 
 	FilestoreURL     string
 	FilestoreEnabled bool
+	// MaxFileSize is the largest file the history will hold. Anything larger
+	// is replaced by a note saying what it was.
+	MaxFileSize int64
 	// UploadFolder is where a file is buffered while its hash is computed.
 	UploadFolder string
 }
@@ -104,6 +107,9 @@ func NewHistoryStore(config HistoryStoreConfig) *HistoryStore {
 	}
 	if config.UploadFolder == "" {
 		config.UploadFolder = os.TempDir()
+	}
+	if config.MaxFileSize <= 0 {
+		config.MaxFileSize = defaultMaxFileSize
 	}
 	return &HistoryStore{
 		config: config,
@@ -593,7 +599,8 @@ func (s *HistoryStore) createDocBlobs(ctx context.Context, projectID,
 	}
 
 	docLines := rawString(update.Rest["docLines"])
-	fileHash, err := s.createBlobFromBytes(ctx, historyID, []byte(docLines))
+	fileHash, err := s.createBlobFromBytes(ctx, historyID,
+		fmt.Sprintf("project-%s-doc-%s", projectID, update.Doc), []byte(docLines))
 	if err != nil {
 		return nil, err
 	}
@@ -605,7 +612,8 @@ func (s *HistoryStore) createDocBlobs(ctx context.Context, projectID,
 	if err != nil {
 		return nil, err
 	}
-	rangesHash, err := s.createBlobFromBytes(ctx, historyID, encoded)
+	rangesHash, err := s.createBlobFromBytes(ctx, historyID,
+		fmt.Sprintf("project-%s-doc-%s-ranges", projectID, update.Doc), encoded)
 	if err != nil {
 		return nil, err
 	}
@@ -618,7 +626,7 @@ func (s *HistoryStore) createFileBlob(ctx context.Context, projectID,
 	historyID string, update *Update) (*BlobHashes, error) {
 
 	hash := rawString(update.Rest["hash"])
-	filestoreURL, _, err := s.rewriteFilestoreURL(
+	filestoreURL, fileID, err := s.rewriteFilestoreURL(
 		rawString(update.Rest["url"]), projectID)
 	if err != nil {
 		return nil, err
@@ -645,7 +653,9 @@ func (s *HistoryStore) createFileBlob(ctx context.Context, projectID,
 	}
 	// A file filestore has lost is stored as an empty one rather than left to
 	// fail: the project still has to be able to move forward.
-	fileHash, err := s.createBlobFromReader(ctx, historyID, content.reader, content.length)
+	fileHash, err := s.createBlobFromReader(ctx, historyID,
+		fmt.Sprintf("project-%s-file-%s", projectID, fileID),
+		content.reader, content.length)
 	content.close()
 	if err != nil {
 		return nil, err
@@ -698,9 +708,15 @@ func (s *HistoryStore) fetchFilestore(ctx context.Context,
 }
 
 // createBlobFromBytes stores content that is already in memory.
-func (s *HistoryStore) createBlobFromBytes(ctx context.Context, historyID string,
-	content []byte) (string, error) {
+func (s *HistoryStore) createBlobFromBytes(ctx context.Context, historyID,
+	fileID string, content []byte) (string, error) {
 
+	if int64(len(content)) > s.config.MaxFileSize {
+		// Too large to keep. What is stored instead says what it was, so that
+		// the history has an entry for the file rather than a gap, and so that
+		// somebody looking at it later can see why.
+		content = stubFor(fileID, int64(len(content)), BlobHash(content))
+	}
 	hash := BlobHash(content)
 	err := s.putBlob(ctx, historyID, hash, bytes.NewReader(content), int64(len(content)))
 	if err != nil {
@@ -716,15 +732,15 @@ func (s *HistoryStore) createBlobFromBytes(ctx context.Context, historyID string
 // enough is held in memory; anything larger is spooled to disk rather than
 // kept there, because a file can be a hundred megabytes and several can be
 // going at once.
-func (s *HistoryStore) createBlobFromReader(ctx context.Context, historyID string,
-	content io.Reader, length int64) (string, error) {
+func (s *HistoryStore) createBlobFromReader(ctx context.Context, historyID,
+	fileID string, content io.Reader, length int64) (string, error) {
 
 	buffered, err := io.ReadAll(io.LimitReader(content, maxInMemoryBlob+1))
 	if err != nil {
 		return "", err
 	}
 	if int64(len(buffered)) <= maxInMemoryBlob {
-		return s.createBlobFromBytes(ctx, historyID, buffered)
+		return s.createBlobFromBytes(ctx, historyID, fileID, buffered)
 	}
 
 	file, err := os.CreateTemp(s.config.UploadFolder, "project-history-blob-")
@@ -752,10 +768,34 @@ func (s *HistoryStore) createBlobFromReader(ctx context.Context, historyID strin
 	}
 
 	hash := hex.EncodeToString(hasher.Sum(nil))
+	if written > s.config.MaxFileSize {
+		// Too large to keep: what goes in its place is small enough to hold in
+		// memory, so the spooled copy is not needed.
+		return s.createBlobFromBytes(ctx, historyID, fileID,
+			stubFor(fileID, written, hash))
+	}
 	if err := s.putBlob(ctx, historyID, hash, file, written); err != nil {
 		return "", err
 	}
 	return hash, nil
+}
+
+// defaultMaxFileSize is the largest file the history will hold.
+const defaultMaxFileSize = 100 * 1024 * 1024
+
+// stubFor is what is stored in place of a file too large to keep.
+//
+// It ends with a null byte so that whatever reads it back treats it as a
+// binary file rather than showing it to somebody as the contents of theirs.
+func stubFor(fileID string, size int64, hash string) []byte {
+	return []byte(strings.Join([]string{
+		"FileTooLargeError v1",
+		"File too large to be stored in history service",
+		fmt.Sprintf("id %s", fileID),
+		fmt.Sprintf("size %d bytes", size),
+		fmt.Sprintf("hash %s", hash),
+		"\x00",
+	}, "\n"))
 }
 
 // maxInMemoryBlob is how much content is hashed without going to disk first.

@@ -68,6 +68,7 @@ func main() {
 		FilestoreURL:     filestoreURL(),
 		FilestoreEnabled: os.Getenv("FILESTORE_ENABLED") != "false",
 		UploadFolder:     config.Env("UPLOAD_FOLDER", os.TempDir()),
+		MaxFileSize:      int64(config.EnvInt("MAX_FILE_SIZE_IN_BYTES", 100*1024*1024)),
 	})
 
 	metrics := obsv.New(config.Env("METRICS_APP_NAME", "project-history"))
