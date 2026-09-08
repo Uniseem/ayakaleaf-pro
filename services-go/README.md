@@ -11,6 +11,7 @@ without changing anything else in the stack.
 | docstore | `cmd/docstore` | 3016 | `services/docstore` | 1,403 |
 | filestore | `cmd/filestore` | 3009 | `services/filestore` | 861 |
 | real-time | `cmd/real-time` | 3026 | `services/real-time` | 3,193 |
+| document-updater | `cmd/document-updater` | 3003 | `services/document-updater` | 5,834 |
 
 ## Why these three
 
@@ -62,6 +63,7 @@ the last run both do, with the same test counts as the Node implementations:
 | services/docstore acceptance (black-box files) | 39 passing | 39 passing |
 | services/filestore contract suite | 13 passing | 13 passing |
 | services/real-time acceptance | 484 passing, 1 failing | 484 passing, 1 failing |
+| services/document-updater acceptance | 165 passing | 165 passing |
 
 ## Conformance is not enough: run it for real
 
@@ -247,6 +249,52 @@ The first three are configuration and protocol: things a service only meets
 once it is wired into a real deployment with a real client. That is now three
 services in a row where the conformance suite passed and the deployment did
 not, which is the argument for doing both.
+
+### document-updater: the suite did not say what the deployment needed
+
+document-updater passed its inherited suite with 165 tests and none failing,
+and then could not create a project. web asks it to record the new document,
+and it answered 501.
+
+The port had been treating `historyRangesSupport` as a mode it could decline.
+It is not a mode. Every project created by this version of web has
+`overleaf.history.rangesSupportEnabled` set, so it is the ordinary path, and
+declining it means the service cannot be deployed at all. The suite never said
+so: only two of its tests turn the flag on, and both of those assert on a spy
+inside the service, so they cannot judge an external one either way.
+
+What the flag asks for is that a document be recorded twice over. The editor
+shows the text with tracked deletions taken out; the history keeps them in. So
+every position the editor works in is short by the length of the tracked
+deletions before it, and everything sent to the history carries a second
+position measured in the longer text -- and a second length, where a comment
+spans a deletion. It is what makes a restored version come back with its
+comments attached to the same words. That is now ported and compared against
+the real `RangesManager` and `HistoryConversions` over 300,000 random documents
+each.
+
+The lesson is the same as the three above, one step further on: an inherited
+suite says what the service must not get wrong, not what a deployment will ask
+of it. `scripts/verify-live-editing.sh` is the answer to that -- it drives the
+live stack through the path a person editing a document goes through, and it is
+run against the Node service first so that its 22 checks mean something.
+
+### What document-updater does not port
+
+**history-ot.** A second OT type, with its own storage format, its own
+operation shape and its own conversion to history. A document using it is
+refused with a 422 rather than read as though its content were lines. server-ce
+does not enable it; the acceptance tests for it are the one category
+`scripts/conformance.sh` skips.
+
+**The diff library.** `diffAsShareJsOp` turns a whole-document write into an
+edit, and the answer is not unique: several correct diffs rebuild the same
+text, and which one is chosen is what the other editors are shown and what goes
+into the history. The Go port of diff-match-patch on offer works in characters
+and in bytes where the original works in UTF-16 code units, scores one side of
+a boundary with the wrong pattern, and leaves emptied components in its result.
+So `internal/textdiff` is a port of the algorithm itself, compared against the
+real `DiffCodec` over a million random document pairs.
 
 ### real-time is stateful, so the switch is visible
 

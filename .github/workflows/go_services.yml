@@ -130,6 +130,19 @@ jobs:
             npm --prefix "$GITHUB_WORKSPACE" install --no-save --no-audit               --no-fund diff-match-patch
           go test -count=1 -run DiffDifferential ./internal/docupdater/ -v
 
+      # With history ranges support on -- which every project created by this
+      # version of web has -- an edit is recorded twice over: once in the
+      # positions the editor works in, once in the positions of the text that
+      # still holds the tracked deletions. Getting the second wrong is
+      # invisible until somebody restores a version.
+      - name: 'Differential: the history ranges against RangesManager'
+        working-directory: services-go
+        env:
+          DOCUPDATER_NODE_DIR: ${{ github.workspace }}/services/document-updater
+          HISTORY_OPS_CASES: '20000'
+          HISTORY_RANGES_CASES: '20000'
+        run: go test -count=1 -run 'History(Ops|Ranges)Differential' ./internal/docupdater/ -v
+
   build:
     name: Build (linux/${{ matrix.goarch }})
     runs-on: ubuntu-latest
