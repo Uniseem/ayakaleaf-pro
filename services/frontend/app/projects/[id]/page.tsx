@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import { currentUser } from '@/lib/auth'
 import { getProject } from '@/lib/editor'
 import { ApiError } from '@/lib/api'
+import { projectGitHub } from '@/lib/github'
 import { forwardedHeaders } from '@/lib/server'
 import { site } from '@/lib/site'
 import { Editor } from './editor'
@@ -37,5 +38,19 @@ export default async function ProjectPage({ params }: { params: { id: string } }
     throw error
   }
 
-  return <Editor user={user} view={view} git={where.git?.enabled ?? false} />
+  // Whether this project has a repository is asked here so the editor opens
+  // with the answer rather than with a button that does not know yet.
+  const github = await projectGitHub(params.id, headers).catch(() => ({
+    enabled: false,
+    linked: false,
+  }))
+
+  return (
+    <Editor
+      user={user}
+      view={view}
+      git={where.git?.enabled ?? false}
+      github={github}
+    />
+  )
 }

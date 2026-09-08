@@ -19,6 +19,7 @@ import (
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/compile"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/documents"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/githubsync"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/history"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projects"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/settings"
@@ -89,6 +90,11 @@ func main() {
 	// built, and getting it wrong is a file that cannot be fetched.
 	if err := histories.LoadGlobalBlobs(ctx, db); err != nil {
 		log.Warn("could not read the list of shared blobs", logx.Err(err))
+	}
+
+	githubStore := githubsync.NewStore(db, gitSecret())
+	if err := githubStore.EnsureIndexes(ctx); err != nil {
+		log.Warn("could not ensure the github sync indexes", logx.Err(err))
 	}
 
 	siteSettings := settings.NewStore(db, rdb, log)

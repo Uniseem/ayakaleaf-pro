@@ -4,3 +4,6 @@
 # user defined files
 .env
 docker-compose.override.yml
+
+# Next.js build output, if a build is ever run from the repository root.
+.next/

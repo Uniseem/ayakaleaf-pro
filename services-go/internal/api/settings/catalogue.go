@@ -62,7 +62,7 @@ var Sections = []Section{
 	{ID: "oauth", Label: "Google and GitHub", Help: "Leave a client id blank to hide that button."},
 	{ID: "email", Label: "Email", Help: "Used for invitations, password resets and notifications."},
 	{ID: "compile", Label: "Compiling", Help: "Limits applied to every compile."},
-	{ID: "git", Label: "Git", Help: "Cloning and pushing a project over git."},
+	{ID: "git", Label: "Git and GitHub", Help: "Cloning a project over git, and keeping one in step with a repository."},
 	{ID: "security", Label: "Security", Help: "Session and password rules."},
 	{ID: "advanced", Label: "Advanced", Help: "Anything without a field of its own."},
 }
@@ -166,6 +166,23 @@ var Settings = []Definition{
 		Env:     "GIT_BRIDGE_PORT",
 		Default: 8000,
 		Restart: true,
+	},
+
+	{
+		Key: "githubSyncEnabled", Section: "git", Kind: KindBool,
+		Label: "Keep projects in step with GitHub repositories",
+		Help: "Needs a GitHub OAuth application of its own, below. Not the same " +
+			"one as GitHub sign-in: this one asks for access to repositories.",
+	},
+	{
+		Key: "githubSyncClientId", Section: "git", Kind: KindString,
+		Label: "GitHub sync client ID",
+		Help: "Register an OAuth application at github.com/settings/developers " +
+			"with the callback URL <site URL>/api/github/callback.",
+	},
+	{
+		Key: "githubSyncClientSecret", Section: "git", Kind: KindPassword, Secret: true,
+		Label: "GitHub sync client secret",
 	},
 
 	{

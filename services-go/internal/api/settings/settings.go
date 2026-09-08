@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/auth"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/githubsync"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/oauth"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -50,6 +51,10 @@ type Values struct {
 	TexLiveImages  string `json:"texLiveImages,omitempty"`
 
 	GitBridgeEnabled *bool `json:"gitBridgeEnabled,omitempty"`
+
+	GitHubSyncEnabled      *bool  `json:"githubSyncEnabled,omitempty"`
+	GitHubSyncClientID     string `json:"githubSyncClientId,omitempty"`
+	GitHubSyncClientSecret string `json:"githubSyncClientSecret,omitempty"`
 
 	GoogleClientID     string `json:"googleClientId,omitempty"`
 	GoogleClientSecret string `json:"googleClientSecret,omitempty"`
@@ -280,6 +285,41 @@ func (s *Store) DefaultImageName() string {
 func (s *Store) GitEnabled() bool {
 	enabled := s.Values().GitBridgeEnabled
 	return enabled != nil && *enabled
+}
+
+// --- the githubsync.Settings this store satisfies ---------------------------
+
+// GitHubSyncEnabled says whether projects can be kept in step with GitHub
+// repositories.
+func (s *Store) GitHubSyncEnabled() bool {
+	enabled := s.Values().GitHubSyncEnabled
+	return enabled != nil && *enabled
+}
+
+// GitHubSyncCredentials is the application an administrator registered with
+// GitHub for this, and whether there is one.
+//
+// A different application from the one that signs people in: this one asks for
+// access to repositories, which is not something to ask of somebody who only
+// wants to sign in.
+func (s *Store) GitHubSyncCredentials() (githubsync.Credentials, bool) {
+	values := s.Values()
+	if values.GitHubSyncClientID == "" || values.GitHubSyncClientSecret == "" {
+		return githubsync.Credentials{}, false
+	}
+	site := strings.TrimRight(values.SiteURL, "/")
+	if site == "" {
+		// Nowhere for GitHub to send anybody back to. Better to be off than to
+		// send people to a page that cannot exist.
+		return githubsync.Credentials{}, false
+	}
+	return githubsync.Credentials{
+		ClientID:     values.GitHubSyncClientID,
+		ClientSecret: values.GitHubSyncClientSecret,
+		// Built from the site URL rather than from the request, because it has
+		// to match what was registered at GitHub exactly.
+		CallbackURL: site + "/api/github/callback",
+	}, true
 }
 
 // --- the oauth.Settings this store satisfies --------------------------------

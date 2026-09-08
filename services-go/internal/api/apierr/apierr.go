@@ -44,6 +44,14 @@ func (e *Error) WithCause(err error) *Error {
 	return &clone
 }
 
+// WithCode names this error differently, for a client that branches on
+// something more specific than the status.
+func (e *Error) WithCode(code string) *Error {
+	copied := *e
+	copied.Code = code
+	return &copied
+}
+
 // WithField names the input at fault.
 func (e *Error) WithField(field string) *Error {
 	clone := *e

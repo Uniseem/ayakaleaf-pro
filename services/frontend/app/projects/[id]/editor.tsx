@@ -29,8 +29,10 @@ import {
   type FileEntry,
   type ProjectView,
 } from '@/lib/editor'
+import type { ProjectGitHub } from '@/lib/github'
 import { canWrite } from '@/lib/projects'
 import { FileTree } from './file-tree'
+import { GitHubPanel } from './github-panel'
 import { PdfPane } from './pdf-pane'
 
 // CodeMirror measures the DOM as it mounts, so it is loaded in the browser
@@ -56,10 +58,12 @@ export function Editor({
   user,
   view,
   git,
+  github,
 }: {
   user: PublicUser
   view: ProjectView
   git: boolean
+  github: ProjectGitHub
 }) {
   const projectId = view.project.id
   const writable = canWrite(view.access)
@@ -79,6 +83,7 @@ export function Editor({
   const [prompt, setPrompt] = useState<Prompt | null>(null)
   const [working, setWorking] = useState(false)
   const [showClone, setShowClone] = useState(false)
+  const [showGitHub, setShowGitHub] = useState(false)
 
   // What has been typed but not written back yet. A ref rather than state
   // because saving must see the latest text, not the text as it was when a
@@ -297,6 +302,11 @@ export function Editor({
               Git
             </Button>
           ) : null}
+          {github.enabled && writable ? (
+            <Button size="sm" variant="light" onPress={() => setShowGitHub(true)}>
+              GitHub{github.linked ? ' ✓' : ''}
+            </Button>
+          ) : null}
           <Button size="sm" variant="flat" onPress={() => setShowPdf(value => !value)}>
             {showPdf ? 'Hide PDF' : 'Show PDF'}
           </Button>
@@ -362,6 +372,14 @@ export function Editor({
           </section>
         ) : null}
       </div>
+
+      <GitHubPanel
+        projectId={projectId}
+        projectName={view.project.name}
+        initial={github}
+        open={showGitHub}
+        onClose={() => setShowGitHub(false)}
+      />
 
       <Modal isOpen={showClone} onClose={() => setShowClone(false)} size="lg">
         <ModalContent>

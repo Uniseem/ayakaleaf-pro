@@ -20,6 +20,7 @@ import (
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/compile"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/documents"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/gitbridge"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/githubsync"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/history"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/httpapi"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/oauth"
@@ -43,6 +44,7 @@ type Server struct {
 	compile   *compile.Service
 	tokens    *tokens.Service
 	git       *gitbridge.Service
+	github    *githubsync.Service
 	origins   []string
 }
 
@@ -67,6 +69,8 @@ type Options struct {
 	History *history.Client
 	// Tokens are the personal access tokens git authenticates with.
 	Tokens *tokens.Store
+	// GitHub is where a project's link to a repository is kept.
+	GitHub *githubsync.Store
 	// GitBaseURL is the address the git container reaches this service at, and
 	// GitSecret signs the download links handed to it.
 	GitBaseURL string
@@ -94,6 +98,17 @@ func New(opts Options) *Server {
 	server.compile = compile.NewService(
 		opts.Projects, opts.Documents, opts.Compiler, opts.Settings, opts.History)
 	server.tokens = tokens.NewService(opts.Tokens)
+	server.github = githubsync.NewService(githubsync.Options{
+		Log:        opts.Log,
+		Store:      opts.GitHub,
+		Projects:   opts.Projects,
+		Users:      opts.Users,
+		Documents:  server.documents,
+		Docupdater: opts.Documents,
+		History:    opts.History,
+		Sessions:   opts.Sessions,
+		Settings:   opts.Settings,
+	})
 	server.git = gitbridge.NewService(gitbridge.Options{
 		Log:       opts.Log,
 		Projects:  opts.Projects,
@@ -176,6 +191,21 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v0/docs/{projectId}/snapshots/{version}", h(s.git.GetSnapshot))
 	mux.HandleFunc("POST /api/v0/docs/{projectId}/snapshots", h(s.git.PostSnapshot))
 	mux.HandleFunc("GET /api/v0/blobs/{historyId}/{hash}", h(s.git.Blob))
+
+	// GitHub: connecting an account, and keeping one project in step with one
+	// repository.
+	mux.HandleFunc("GET /api/github/status", h(s.github.Status))
+	mux.HandleFunc("GET /api/github/start", h(s.github.Start))
+	mux.HandleFunc("GET /api/github/callback", h(s.github.Callback))
+	mux.HandleFunc("DELETE /api/github/link", h(s.github.Unlink))
+	mux.HandleFunc("GET /api/github/repos", h(s.github.Repos))
+	mux.HandleFunc("GET /api/github/owners", h(s.github.Owners))
+	mux.HandleFunc("POST /api/github/import", h(s.github.ImportRepo))
+	mux.HandleFunc("GET /api/projects/{id}/github", h(s.github.ProjectStatus))
+	mux.HandleFunc("GET /api/projects/{id}/github/overview", h(s.github.Overview))
+	mux.HandleFunc("POST /api/projects/{id}/github/sync", h(s.github.Merge))
+	mux.HandleFunc("POST /api/projects/{id}/github/export", h(s.github.ExportProject))
+	mux.HandleFunc("DELETE /api/projects/{id}/github", h(s.github.UnlinkProject))
 
 	// The admin pages.
 	mux.HandleFunc("GET /api/admin/settings", h(s.getSettings))

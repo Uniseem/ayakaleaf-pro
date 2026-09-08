@@ -46,6 +46,24 @@ const starter = "\\documentclass{article}\n" +
 // needs a file, because an empty project has nothing to open and nothing to
 // compile.
 func (s *Service) SeedNewProject(ctx context.Context, project *projects.Project, ownerID bson.ObjectID) error {
+	if err := s.PrepareNewProject(ctx, project); err != nil {
+		return err
+	}
+	folderID, ok := project.RootFolderID()
+	if !ok {
+		return errors.New("the project has no root folder")
+	}
+	lines := strings.Split(strings.Replace(starter, "%s", project.Name, 1), "\n")
+	_, err := s.addDoc(ctx, project, folderID, "main.tex", lines, ownerID, "create")
+	return err
+}
+
+// PrepareNewProject gives a project a history and nothing else.
+//
+// What a project needs before anything can be written to it. Used on its own
+// by anything that brings its own files -- an import, a copy -- where the
+// first file this would otherwise make would only have to be deleted again.
+func (s *Service) PrepareNewProject(ctx context.Context, project *projects.Project) error {
 	historyID, err := s.history.InitialiseProject(ctx, project.ID.Hex())
 	if err != nil {
 		return err
@@ -54,14 +72,7 @@ func (s *Service) SeedNewProject(ctx context.Context, project *projects.Project,
 		return err
 	}
 	project.Overleaf = &projects.Overleaf{History: projects.History{ID: historyID}}
-
-	folderID, ok := project.RootFolderID()
-	if !ok {
-		return errors.New("the project has no root folder")
-	}
-	lines := strings.Split(strings.Replace(starter, "%s", project.Name, 1), "\n")
-	_, err = s.addDoc(ctx, project, folderID, "main.tex", lines, ownerID, "create")
-	return err
+	return nil
 }
 
 // Create makes a document.

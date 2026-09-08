@@ -5,8 +5,10 @@ import { linkedProviders } from '@/lib/account'
 import { currentUser, displayName } from '@/lib/auth'
 import { forwardedHeaders } from '@/lib/server'
 import { siteName } from '@/lib/site'
+import { githubStatus } from '@/lib/github'
 import { listTokens } from '@/lib/tokens'
 import { GitAccess } from './git-access'
+import { GitHubAccount } from './github'
 import { LinkedAccounts } from './linked-accounts'
 
 export const metadata = { title: 'Account' }
@@ -22,10 +24,11 @@ export default async function AccountPage({
     redirect('/login')
   }
 
-  const [providers, name, tokens] = await Promise.all([
+  const [providers, name, tokens, github] = await Promise.all([
     linkedProviders(headers).catch(() => []),
     siteName(headers),
     listTokens(headers).catch(() => []),
+    githubStatus(headers).catch(() => ({ enabled: false, connected: false })),
   ])
 
   return (
@@ -63,6 +66,7 @@ export default async function AccountPage({
 
         <LinkedAccounts providers={providers} />
         <GitAccess tokens={tokens} />
+        <GitHubAccount status={github} />
       </main>
     </>
   )
