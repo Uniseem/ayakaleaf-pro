@@ -15,6 +15,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -277,14 +278,27 @@ func SameOrigin(allowedOrigins []string) Middleware {
 				apierr.Write(w, nil, apierr.Forbidden.WithMessage("That request came from another site."))
 				return
 			}
-			// No Sec-Fetch-Site: an older browser, or a client that is not a
-			// browser at all. Fall back to Origin.
+			// No Sec-Fetch-Site. An older browser, a client that is not a
+			// browser -- or, and this is the common one, a browser on a
+			// plain-HTTP address, which does not send these headers outside a
+			// secure context. Fall back to Origin.
 			origin := r.Header.Get("Origin")
 			if origin == "" {
 				// No Origin on a same-origin form post from an old browser.
 				next.ServeHTTP(w, r)
 				return
 			}
+			// Against the address this request actually arrived on, first.
+			// A request whose Origin is the host it was sent to is same-origin
+			// by definition, and needs nobody to have configured anything --
+			// which matters most on a site nobody has set up yet, where the
+			// first thing anybody does is a state-changing request.
+			if sameHost(origin, r) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			// And then against anything an operator added, for a deployment
+			// whose public address is not the one requests arrive on.
 			for _, allowed := range allowedOrigins {
 				if allowed != "" && strings.EqualFold(origin, allowed) {
 					next.ServeHTTP(w, r)
@@ -294,6 +308,25 @@ func SameOrigin(allowedOrigins []string) Middleware {
 			apierr.Write(w, nil, apierr.Forbidden.WithMessage("That request came from another site."))
 		})
 	}
+}
+
+// sameHost says whether an Origin names the address this request arrived on.
+//
+// The host is what is compared, not the scheme: what a cross-site request
+// cannot do is claim this host, and a deployment behind a proxy that terminates
+// TLS sees http on this side and https on the browser's.
+func sameHost(origin string, r *http.Request) bool {
+	parsed, err := url.Parse(origin)
+	if err != nil || parsed.Host == "" {
+		return false
+	}
+	host := r.Host
+	// Behind the deployment's own proxy, which is where every request comes
+	// from, this is the address the browser used.
+	if forwarded := r.Header.Get("X-Forwarded-Host"); forwarded != "" {
+		host = forwarded
+	}
+	return strings.EqualFold(parsed.Host, host)
 }
 
 // NoStore marks a response as one a cache must not keep. Every API response
