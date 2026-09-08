@@ -130,7 +130,7 @@ services:
       # second one that only server-rendering uses.
       API_INTERNAL_URL: http://ayakaleaf
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://localhost:3200/ || exit 1"]
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3200/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 6
