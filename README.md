@@ -56,16 +56,18 @@ If you just want to try Ayakaleaf Pro without setting up a server, you can use o
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/ayaka-notes/ayakaleaf-pro-playground)
 
 > [!IMPORTANT]
-> The client is being rewritten. The pages are now a separate Next.js
-> application (`services/frontend`) talking to a Go API, and the Node service
-> that served the old ones has been removed from the image. What works today is
-> signing in and registering, Google and GitHub sign-in and account linking,
-> projects, the editor with compiling, Git access, GitHub sync, and the admin
-> settings. What the old client did and this one does not do yet:
-> collaborating in real time, track changes and comments, browsing project
-> history, uploads, sharing and invites, the template gallery, Zotero and
-> Mendeley, LDAP, SAML and OIDC. The feature list above describes where this
-> is going, not what a deployment of the current `server-pro` branch will do.
+> This is a rewrite in progress. The server is Go (`services-go`) and the
+> pages are a separate Next.js application (`services/frontend`); no Node
+> service runs in the image any more.
+>
+> What works today: signing in and registering, Google and GitHub sign-in and
+> account linking, projects, the editor with compiling, Git access, GitHub
+> sync, and the admin settings. What the client this replaces did and this one
+> does not do yet: collaborating in real time, track changes and comments,
+> browsing project history, uploads, sharing and invites, emails, the template
+> gallery, Zotero and Mendeley, LDAP, SAML and OIDC. The feature list above
+> describes where this is going, not what a deployment of the current
+> `server-pro` branch will do.
 
 To run it on your own server, take the `docker-compose.yml` from this repository and start it:
 
