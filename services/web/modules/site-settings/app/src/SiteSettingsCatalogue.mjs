@@ -17,7 +17,7 @@
  * @property {string} path      dot path into the Settings object
  * @property {string} [env]     the variable this used to be read from
  * @property {string} section
- * @property {'string'|'text'|'boolean'|'number'|'password'|'select'} type
+ * @property {'string'|'text'|'boolean'|'number'|'password'|'select'|'json'} type
  * @property {string} label
  * @property {string} [help]
  * @property {any} [default]
@@ -252,7 +252,7 @@ export const SETTINGS = [
   },
   {
     key: 'emailCustomFooter',
-    path: 'email.customFooter',
+    path: 'email.template.customFooter',
     env: 'OVERLEAF_CUSTOM_EMAIL_FOOTER',
     section: 'email',
     type: 'text',
@@ -272,7 +272,7 @@ export const SETTINGS = [
   },
   {
     key: 'headerImageUrl',
-    path: 'nav.header_image_url',
+    path: 'nav.custom_logo',
     env: 'OVERLEAF_HEADER_IMAGE_URL',
     section: 'appearance',
     type: 'string',
@@ -284,7 +284,7 @@ export const SETTINGS = [
     path: 'nav.left_footer',
     env: 'OVERLEAF_LEFT_FOOTER',
     section: 'appearance',
-    type: 'text',
+    type: 'json',
     label: 'Left footer',
     help: 'A JSON array of {"text": "...", "url": "..."} entries.',
     default: '[]',
@@ -294,8 +294,9 @@ export const SETTINGS = [
     path: 'nav.right_footer',
     env: 'OVERLEAF_RIGHT_FOOTER',
     section: 'appearance',
-    type: 'text',
+    type: 'json',
     label: 'Right footer',
+    help: 'A JSON array of {"text": "...", "url": "..."} entries.',
     default: '[]',
   },
   {
@@ -312,11 +313,12 @@ export const SETTINGS = [
   // -- compile -------------------------------------------------------------
   {
     key: 'compileTimeout',
-    path: 'compileTimeout',
+    path: 'defaultFeatures.compileTimeout',
     env: 'COMPILE_TIMEOUT',
     section: 'compile',
     type: 'number',
     label: 'Compile timeout, seconds',
+    help: 'One of the features an account is given when it is created, so changing it applies to accounts made after the change. Existing accounts keep the timeout they were given.',
     default: 180,
   },
   {

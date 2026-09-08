@@ -127,6 +127,21 @@ function apply(values) {
         continue
       }
     }
+    if (definition.type === 'json') {
+      // Stored and edited as the text somebody typed, but what reads it walks
+      // a list. Text that is not JSON is left out rather than written as a
+      // string, which would make the footer render as characters.
+      try {
+        writePath(Settings, definition.path, JSON.parse(String(value || '[]')))
+      } catch (err) {
+        logger.warn(
+          { key: definition.key },
+          'site setting is not valid JSON, leaving it as it was'
+        )
+      }
+      continue
+    }
+
     writePath(Settings, definition.path, value)
   }
 

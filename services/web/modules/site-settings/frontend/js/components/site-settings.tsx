@@ -10,7 +10,7 @@ type Section = { id: string; label: string; help?: string }
 type Setting = {
   key: string
   section: string
-  type: 'string' | 'text' | 'boolean' | 'number' | 'password' | 'select'
+  type: 'string' | 'text' | 'boolean' | 'number' | 'password' | 'select' | 'json'
   label: string
   help?: string
   options?: Array<{ value: string; label: string }>
@@ -245,7 +245,7 @@ function Field({
   return (
     <div className="mb-3">
       {label}
-      {setting.type === 'text' ? (
+      {setting.type === 'text' || setting.type === 'json' ? (
         <textarea
           className="form-control"
           id={id}
