@@ -1,2 +1,15 @@
 /bin/
 /logs/
+
+# Built binaries. Two of these were committed by accident once; the build
+# writes them here and nothing should carry them.
+*.exe
+/api
+/chat
+/docstore
+/document-updater
+/filestore
+/linked-url-proxy
+/notifications
+/project-history
+/real-time
