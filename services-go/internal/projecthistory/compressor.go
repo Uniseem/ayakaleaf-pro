@@ -55,8 +55,8 @@ func ConvertToSingleOpUpdates(updates []*Update) ([]*Update, error) {
 	var split []*Update
 
 	for _, update := range updates {
-		if !update.IsTextUpdate() {
-			// Not an edit: a file added, renamed, or a resync.
+		if len(update.Op) == 0 {
+			// Not an edit: a file added, renamed, or a resync of the tree.
 			split = append(split, update)
 			continue
 		}
@@ -222,8 +222,14 @@ func CompressUpdates(updates []*Update) ([]*Update, error) {
 // two updates would apply the same but be recorded differently, and the history
 // records what happened rather than only the result.
 func concatTwoUpdates(first, second *Update) ([]*Update, error) {
-	if !first.IsTextUpdate() || !second.IsTextUpdate() {
+	if len(first.Op) == 0 || len(second.Op) == 0 {
 		// One of them is a change to the project rather than to a document.
+		return []*Update{first, second}, nil
+	}
+	if isHistoryOTOp(&first.Op[0]) != isHistoryOTOp(&second.Op[0]) {
+		// One speaks the history's operation type and the other the editor's.
+		// Nothing should be producing both at once, and there is no sensible
+		// way to merge them.
 		return []*Update{first, second}, nil
 	}
 	if first.Doc != second.Doc || first.Pathname != second.Pathname {
@@ -264,6 +270,20 @@ func concatTwoUpdates(first, second *Update) ([]*Update, error) {
 		// the history as the rejection of a tracked insert.
 		return []*Update{first, second}, nil
 	}
+	if isHistoryOTOp(firstOp) && isHistoryOTOp(secondOp) {
+		// Two operations already in the history's form: the history's own
+		// composition rules say whether they merge.
+		composed, ok := composeHistoryOTOps(firstOp, secondOp)
+		if !ok {
+			return []*Update{first, second}, nil
+		}
+		var merged Op
+		if err := json.Unmarshal(composed, &merged); err != nil {
+			return nil, err
+		}
+		return []*Update{mergeUpdatesWithOp(first, second, merged)}, nil
+	}
+
 	if firstOp.TrackedDeleteRejection || secondOp.TrackedDeleteRejection {
 		// Each rejection is its own operation.
 		return []*Update{first, second}, nil

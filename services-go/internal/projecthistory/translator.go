@@ -147,6 +147,24 @@ func operationsForUpdate(withBlob UpdateWithBlob) ([]histmodel.Operation, string
 			Path: ConvertPathname(update.Pathname), File: &parsed,
 		}}, projectVersionOf(update), nil, nil
 
+	case isHistoryOTEditUpdate(update):
+		// A project whose editor speaks the history's own operation type sends
+		// operations that are already in the history's form; they need only
+		// the path they apply to.
+		pathname := ConvertPathname(update.Meta.Pathname)
+		operations := make([]histmodel.Operation, 0, len(update.Op))
+		for i := range update.Op {
+			operation, err := historyOTOperation(pathname, &update.Op[i])
+			if err != nil {
+				return nil, "", nil, err
+			}
+			operations = append(operations, operation)
+		}
+		if update.V != nil {
+			docVersions[update.Doc] = docVersion{Pathname: pathname, V: *update.V}
+		}
+		return operations, "", docVersions, nil
+
 	case update.IsTextUpdate():
 		pathname := ConvertPathname(update.Meta.Pathname)
 		docLength := 0
@@ -685,4 +703,80 @@ func isJSONArray(raw json.RawMessage) bool {
 func isJSONBool(raw json.RawMessage) bool {
 	trimmed := strings.TrimSpace(string(raw))
 	return trimmed == "true" || trimmed == "false"
+}
+
+// isHistoryOTEditUpdate reports whether an update carries operations that are
+// already in the history's form.
+func isHistoryOTEditUpdate(update *Update) bool {
+	if update.Doc == "" || update.Op == nil || update.Meta.Pathname == "" {
+		return false
+	}
+	if len(update.Op) == 0 {
+		return false
+	}
+	return isHistoryOTOp(&update.Op[0])
+}
+
+// isHistoryOTOp reports whether one operation is in the history's form.
+func isHistoryOTOp(op *Op) bool {
+	raw := op.Raw()
+	if len(raw) == 0 {
+		return false
+	}
+	kind, _ := classifyEdit(raw)
+	return kind != editUnknown
+}
+
+// historyOTOperation turns an operation that is already in the history's form
+// into one against a file.
+func historyOTOperation(pathname string, op *Op) (histmodel.Operation, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(op.Raw(), &fields); err != nil {
+		return nil, err
+	}
+	delete(fields, "pathname")
+
+	edit, err := json.Marshal(fields)
+	if err != nil {
+		return nil, err
+	}
+
+	operation := &histmodel.EditFileOperation{Path: pathname, Edit: edit}
+	if kind, _ := classifyEdit(edit); kind == editText {
+		var text histmodel.TextOperation
+		if err := json.Unmarshal(edit, &text); err != nil {
+			return nil, err
+		}
+		operation.TextOperation = &text
+	}
+	return operation, nil
+}
+
+// composeHistoryOTOps merges two operations that are already in the history's
+// form, when the history's rules say they can be.
+func composeHistoryOTOps(first, second *Op) (json.RawMessage, bool) {
+	a, b := first.Raw(), second.Raw()
+	kindA, _ := classifyEdit(a)
+	kindB, _ := classifyEdit(b)
+
+	if kindA == editText && kindB == editText {
+		var left, right histmodel.TextOperation
+		if json.Unmarshal(a, &left) != nil || json.Unmarshal(b, &right) != nil {
+			return nil, false
+		}
+		// The second has to start where the first finishes.
+		if left.TargetLength != right.BaseLength {
+			return nil, false
+		}
+		composed, err := left.Compose(&right)
+		if err != nil {
+			return nil, false
+		}
+		encoded, err := json.Marshal(composed)
+		if err != nil {
+			return nil, false
+		}
+		return encoded, true
+	}
+	return composeCommentEdits(a, b)
 }

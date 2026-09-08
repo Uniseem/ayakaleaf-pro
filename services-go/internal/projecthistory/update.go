@@ -56,6 +56,12 @@ type Op struct {
 	// Resolved is carried by a comment operation whose thread is resolved.
 	Resolved *bool `json:"resolved,omitempty"`
 
+	// raw is the operation as it arrived. A project using the history's own
+	// operation type sends operations already in the history's form, and those
+	// have shapes this struct does not model; keeping the original is what
+	// lets them through unchanged.
+	raw json.RawMessage
+
 	// CommentID, Ranges and DeleteComment are the operations a project using
 	// the history's own operation type sends about a comment. They name a
 	// thread directly rather than describing the text it covers.
@@ -104,6 +110,51 @@ func (m Millis) MarshalJSON() ([]byte, error) {
 		return m.raw, nil
 	}
 	return json.Marshal(m.Value)
+}
+
+// Raw is the operation as it arrived, or nothing for one this service built.
+func (o *Op) Raw() json.RawMessage { return o.raw }
+
+// UnmarshalJSON reads an operation, keeping the original.
+func (o *Op) UnmarshalJSON(data []byte) error {
+	type fields Op
+	var decoded fields
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*o = Op(decoded)
+	o.raw = append(json.RawMessage(nil), data...)
+	return nil
+}
+
+// MarshalJSON writes an operation, putting back whatever it carried that this
+// struct does not model.
+//
+// What the struct does model wins: an operation whose fields have been changed
+// is written as it now is, not as it arrived.
+func (o Op) MarshalJSON() ([]byte, error) {
+	type fields Op
+	encoded, err := json.Marshal(fields(o))
+	if err != nil {
+		return nil, err
+	}
+	if len(o.raw) == 0 {
+		return encoded, nil
+	}
+
+	var all, original map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &all); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(o.raw, &original); err != nil {
+		return encoded, nil
+	}
+	for key, value := range original {
+		if _, modelled := all[key]; !modelled {
+			all[key] = value
+		}
+	}
+	return json.Marshal(all)
 }
 
 // TrackedChangeInOp is one mark caught inside a delete.
