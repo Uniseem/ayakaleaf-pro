@@ -172,10 +172,18 @@ func boolQuery(r *http.Request, name string) bool {
 }
 
 // writeJSON sends a value as JSON.
+//
+// Written rather than streamed, because a stream ends with a newline and the
+// body is compared byte for byte by things that read it.
 func writeJSON(w http.ResponseWriter, status int, value any) {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
+	_, _ = w.Write(encoded)
 }
 
 // writeText sends a plain body.
