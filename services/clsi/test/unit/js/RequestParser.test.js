@@ -159,6 +159,42 @@ describe('RequestParser', () => {
         ctx.data.imageName.should.equal('repo/name:tag1')
       })
     })
+
+    describe('with an imageName this deployment now pulls from elsewhere', () => {
+      beforeEach(ctx => {
+        const request = ctx.validRequest
+        // What a project made before the deployment moved registries asks for.
+        request.compile.options.imageName =
+          'old-registry.example.com/repo/name:tag1'
+        ctx.RequestParser.parse(request, (error, data) => {
+          ctx.error = error
+          ctx.data = data
+        })
+      })
+
+      it('should resolve it to the image this server has', ctx => {
+        expect(ctx.error).to.not.exist
+        ctx.data.imageName.should.equal('repo/name:tag1')
+      })
+    })
+
+    describe('with an imageName that is a different tag', () => {
+      beforeEach(ctx => {
+        const request = ctx.validRequest
+        request.compile.options.imageName =
+          'old-registry.example.com/repo/name:tag9'
+        ctx.RequestParser.parse(request, (error, data) => {
+          ctx.error = error
+          ctx.data = data
+        })
+      })
+
+      it('should throw rather than compile against another TeX Live', ctx => {
+        expect(String(ctx.error)).to.include(
+          'imageName attribute should be one of'
+        )
+      })
+    })
   })
 
   describe('with flags set', () => {

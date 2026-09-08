@@ -1,6 +1,7 @@
 import { promisify } from 'node:util'
 import settings from '@overleaf/settings'
 import OutputCacheManager from './OutputCacheManager.js'
+import { resolveImage } from './TexLiveImages.js'
 
 const VALID_COMPILERS = ['pdflatex', 'latex', 'xelatex', 'lualatex']
 const MAX_TIMEOUT = 600
@@ -69,15 +70,16 @@ function parse(body, callback) {
       default: MAX_TIMEOUT,
       type: 'number',
     })
+    const allowedImages =
+      settings.clsi && settings.clsi.docker && settings.clsi.docker.allowedImages
     response.imageName = _parseAttribute(
       'imageName',
-      compile.options.imageName,
+      // A project made before this deployment moved registries names the image
+      // it was made with. It is the same TeX Live; only the address changed.
+      resolveImage(compile.options.imageName, allowedImages),
       {
         type: 'string',
-        validValues:
-          settings.clsi &&
-          settings.clsi.docker &&
-          settings.clsi.docker.allowedImages,
+        validValues: allowedImages,
       }
     )
     response.draft = _parseAttribute('draft', compile.options.draft, {

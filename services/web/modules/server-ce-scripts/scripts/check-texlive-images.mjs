@@ -1,5 +1,14 @@
 import { db } from '../../../app/src/infrastructure/mongodb.mjs'
 
+// Which TeX Live an image reference names, apart from where it is pulled from.
+// A deployment that moves to a different registry keeps the same TeX Live
+// under a different address, and every project made before the move still
+// names the old one. Those are not dangling images, and refusing to start over
+// them turns a change of registry into an outage.
+function imageIdentity(image) {
+  return String(image).split('/').pop()
+}
+
 async function readImagesInUse() {
   const projectCount = await db.projects.countDocuments()
   if (projectCount === 0) {
@@ -66,18 +75,34 @@ async function main() {
   }
 
   const currentImages = await readImagesInUse()
+  const available = new Map(
+    allTexLiveImages.map(image => [imageIdentity(image), image])
+  )
 
   const danglingImages = []
   for (const image of currentImages) {
-    if (!allTexLiveImages.includes(image)) {
-      danglingImages.push(image)
+    if (allTexLiveImages.includes(image)) {
+      continue
     }
+    const moved = available.get(imageIdentity(image))
+    if (moved) {
+      // The same TeX Live at a different address. The compile resolves it by
+      // name, so these projects work as they are and nothing has to be
+      // rewritten; it is worth saying out loud, because it is the one moment
+      // an operator can tell whether the move was the one they meant.
+      console.log(`${image} is now pulled from ${moved}`)
+      continue
+    }
+    danglingImages.push(image)
   }
   if (danglingImages.length > 0) {
     danglingImages.forEach(image =>
       console.error(
         `${image} is currently in use but it's not included in ALL_TEX_LIVE_DOCKER_IMAGES`
       )
+    )
+    console.error(
+      `These name a TeX Live this instance does not have -- a different image or a different tag, not the same one at a different address.`
     )
     console.error(
       `Set SKIP_TEX_LIVE_CHECK=true in config/variables.env, restart the instance and run 'bin/run-script scripts/update_project_image_name.js <dangling_image> <new_image>' to update projects to a new image.`

@@ -7,6 +7,8 @@ import async from 'async'
 import LockManager from './DockerLockManager.js'
 import Path from 'node:path'
 import _ from 'lodash'
+import { imageIdentity, resolveImage } from './TexLiveImages.js'
+import OError from '@overleaf/o-error'
 
 const dockerode = new Docker()
 
@@ -35,6 +37,10 @@ const DockerRunner = {
       image = Settings.clsi.docker.image
     }
 
+    // Not every caller comes through RequestParser, so the same reading of
+    // what an image reference means is applied here, where it is enforced.
+    image = resolveImage(image, Settings.clsi.docker.allowedImages)
+
     if (
       Settings.clsi.docker.allowedImages &&
       !Settings.clsi.docker.allowedImages.includes(image)
@@ -43,8 +49,11 @@ const DockerRunner = {
     }
 
     if (Settings.texliveImageNameOveride != null) {
-      const img = image.split('/')
-      image = `${Settings.texliveImageNameOveride}/${img[2]}`
+      // Everything before the last segment is the address; that is what this
+      // replaces. Splitting on '/' and taking the third part assumed a name of
+      // exactly host/org/name, and produced 'override/undefined' for anything
+      // else.
+      image = `${Settings.texliveImageNameOveride}/${imageIdentity(image)}`
     }
 
     if (compileGroup === 'synctex-output') {
@@ -347,6 +356,22 @@ const DockerRunner = {
     function createAndStartContainer() {
       dockerode.createContainer(options, (error, container) => {
         if (error != null) {
+          // Nothing here pulls images: the host is expected to already have
+          // the TeX Live an operator listed. Saying which image is missing
+          // turns a compile that fails for no visible reason -- the usual
+          // shape of a deployment that has been moved to a new host -- into
+          // one line telling the operator what to pull.
+          if (error.statusCode === 404) {
+            logger.err(
+              { image: options.Image, containerName: name },
+              'TeX Live image is not present on this host'
+            )
+            return callback(
+              new OError('TeX Live image is not present on this host', {
+                image: options.Image,
+              })
+            )
+          }
           return callback(error)
         }
         startExistingContainer()
