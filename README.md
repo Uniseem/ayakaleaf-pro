@@ -63,12 +63,21 @@ docker compose up -d
 
 That is the whole installation. There is no `.env` file to write and no
 variable to set first: the secrets are generated on first startup and kept on
-the data volume, and everything else -- the site name and address, who may
-register, Google and GitHub sign-in, SMTP -- is set from the admin pages once
-it is running.
+the data volume, and everything else is set from the admin pages once it is
+running -- the site name and address, who may register, Google and GitHub
+sign-in, SMTP, Zotero and Mendeley, the template gallery, which TeX Live
+images exist, S3 for files and history, LDAP, SAML and OIDC.
 
 Then open the site. The first person to register becomes the administrator,
 and the settings are under Admin -> Site Settings.
+
+Git access needs a second container, so it has a profile of its own:
+
+```bash
+docker compose --profile git up -d
+```
+
+Then turn it on in the settings and restart.
 
 There are longer installation instructions on the [Documents](https://ayakaleaf-pro.ayaka.space/) page, and the [ayaka-notes/Toolkit](https://github.com/ayaka-notes/toolkit/) if you would rather manage the deployment with that.
 
