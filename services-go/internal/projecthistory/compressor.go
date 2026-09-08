@@ -56,8 +56,10 @@ func ConvertToSingleOpUpdates(updates []*Update) ([]*Update, error) {
 	var split []*Update
 
 	for _, update := range updates {
-		if len(update.Op) == 0 {
-			// Not an edit: a file added, renamed, or a resync of the tree.
+		if update.Op == nil {
+			// Not an edit at all: a file added, renamed, or a resync of the
+			// tree. An update that carries an empty list of operations is an
+			// edit that changed nothing, and it disappears here.
 			split = append(split, update)
 			continue
 		}
