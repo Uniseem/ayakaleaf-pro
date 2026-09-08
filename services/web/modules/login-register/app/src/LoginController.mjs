@@ -1,9 +1,16 @@
 import AuthenticationController from "../../../../app/src/Features/Authentication/AuthenticationController.mjs"
 import Settings from "@overleaf/settings"
 import Path from 'path'
+import RegistrationPolicy from './RegistrationPolicy.mjs'
 
 export default {
   async loginPage(req, res, next) {
+    // A site nobody has set up yet has nothing to sign in to. Sending the
+    // first visitor to the sign-up form is what makes a fresh deployment
+    // claimable by reaching it, rather than by finding a token in a log.
+    if (await RegistrationPolicy.noAdminExists()) {
+      return res.redirect('/register')
+    }
     // return res.json({ message: 'Login successful' })
     // if user is being sent to /login with explicit redirect (redir=/foo),
     // such as being sent from the editor to /login, then set the redirect explicitly
