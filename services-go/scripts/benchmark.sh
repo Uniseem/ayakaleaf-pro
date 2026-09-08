@@ -101,7 +101,10 @@ time_op() {
   done
   : > "$TIMES_DIR/$name"
   for ((i = 0; i < ITERATIONS; i++)); do
+    # curl writes the duration with no newline after it, so one is added
+    # here rather than escaping one into the format string.
     incontainer "$command" 2>/dev/null >> "$TIMES_DIR/$name"
+    echo >> "$TIMES_DIR/$name"
   done
 }
 
