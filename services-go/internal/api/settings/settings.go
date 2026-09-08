@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"os"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -44,6 +45,9 @@ type Values struct {
 
 	PasswordMinLength any `json:"passwordMinLength,omitempty"`
 	PasswordMaxLength any `json:"passwordMaxLength,omitempty"`
+
+	CompileTimeout any    `json:"compileTimeout,omitempty"`
+	TexLiveImages  string `json:"texLiveImages,omitempty"`
 
 	GoogleClientID     string `json:"googleClientId,omitempty"`
 	GoogleClientSecret string `json:"googleClientSecret,omitempty"`
@@ -234,6 +238,34 @@ func intOr(value any, fallback int) int {
 		}
 	}
 	return fallback
+}
+
+// --- the compile.Limits this store satisfies --------------------------------
+
+// CompileTimeout is how long one compile may run, in seconds.
+func (s *Store) CompileTimeout() int {
+	timeout := intOr(s.Values().CompileTimeout, 180)
+	if timeout <= 0 {
+		return 180
+	}
+	return timeout
+}
+
+// DefaultImageName is the TeX Live image a project compiles in when it has not
+// chosen one.
+//
+// The first of the images the administrator listed, because that list is
+// written newest first and a project that has never been told otherwise should
+// get the current TeX Live rather than whichever one happens to sort first. An
+// empty answer is fine: it leaves the choice to the compiler's own default,
+// which is what a deployment that never touched this setting wants.
+func (s *Store) DefaultImageName() string {
+	for _, image := range strings.Split(s.Values().TexLiveImages, ",") {
+		if image = strings.TrimSpace(image); image != "" {
+			return image
+		}
+	}
+	return os.Getenv("TEX_LIVE_DOCKER_IMAGE")
 }
 
 // --- the oauth.Settings this store satisfies --------------------------------

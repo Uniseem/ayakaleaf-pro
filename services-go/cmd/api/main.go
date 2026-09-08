@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/compile"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/documents"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projects"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/settings"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/users"
@@ -77,16 +79,25 @@ func main() {
 		Secure:     config.Env("OVERLEAF_SECURE_COOKIE", "") != "",
 	})
 
+	// The two services this one does not own. Their addresses come from the
+	// same variables every other service in the deployment reads, so there is
+	// nothing new to set: a container that can already run the editor can run
+	// this.
+	filestoreURL := serviceURL("FILESTORE", "3009")
 	server := api.New(api.Options{
 		Log:            log,
 		Users:          userStore,
 		Sessions:       sessions,
 		Settings:       siteSettings,
 		Projects:       projectStore,
+		Documents:      documents.NewClient(serviceURL("DOCUPDATER", "3003")),
+		Storage:        documents.NewStorage(serviceURL("DOCSTORE", "3016")),
+		Compiler:       compile.NewClient(serviceURL("CLSI", "3013")),
+		FilestoreURL:   filestoreURL,
 		AllowedOrigins: allowedOrigins(siteSettings),
 	})
 
-	addr := fmt.Sprintf("%s:%d", config.ListenAddress(), config.EnvInt("API_PORT", 3100))
+	addr := fmt.Sprintf("%s:%d", config.ListenAddress(), config.EnvInt("API_PORT", 3400))
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           server.Handler(),
@@ -97,6 +108,16 @@ func main() {
 		log.Error("api HTTP server stopped", logx.Err(err), slog.String("addr", addr))
 		os.Exit(1)
 	}
+}
+
+// serviceURL is where one of the other services in this deployment listens.
+//
+// The names are the ones the Node services agreed on years ago and that the
+// container still exports, so this reads the deployment as it is rather than
+// asking an operator to describe it again.
+func serviceURL(name, defaultPort string) string {
+	return "http://" + config.Env(name+"_HOST", "127.0.0.1") +
+		":" + config.Env(name+"_PORT", defaultPort)
 }
 
 // allowedOrigins is where a browser may send a state-changing request from:

@@ -89,8 +89,8 @@ func (c *Client) Get(ctx context.Context, projectID, docID bson.ObjectID) (*Doc,
 // which sends operations over the socket instead.
 func (c *Client) SetContent(ctx context.Context, projectID, docID, userID bson.ObjectID, lines []string, source string) error {
 	payload, err := json.Marshal(map[string]any{
-		"lines":  lines,
-		"source": source,
+		"lines":   lines,
+		"source":  source,
 		"user_id": userID.Hex(),
 	})
 	if err != nil {

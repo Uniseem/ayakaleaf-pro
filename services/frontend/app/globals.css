@@ -1,8 +1,16 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
 
-:root {
+/* Where the utilities come from. Tailwind v4 finds the sources itself, but
+   HeroUI's classes live in a dependency, which it does not scan by default. */
+@source '../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
+
+@plugin '../hero.ts';
+
+/* Dark is a class on the tree, not a media query: the person's own choice
+   wins over the operating system's. */
+@custom-variant dark (&:is(.dark *));
+
+@theme {
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 }
@@ -18,5 +26,6 @@ body {
 
 /* A focus ring that is visible on both themes and only for keyboards. */
 :focus-visible {
-  @apply outline-none ring-2 ring-focus ring-offset-2 ring-offset-background;
+  outline: none;
+  @apply ring-2 ring-focus;
 }

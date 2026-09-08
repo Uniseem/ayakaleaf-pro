@@ -1,10 +1,10 @@
 'use client'
 
-import { Button, Input, Link } from '@heroui/react'
-import { useRouter } from 'next/navigation'
+import { Button, Input } from '@heroui/react'
 import { useState, type FormEvent } from 'react'
-import { fieldFor, messageFor } from '@/lib/api'
+import { fieldFor } from '@/lib/api'
 import { login } from '@/lib/auth'
+import { localPath } from '@/lib/paths'
 import { FormError } from '@/components/form-error'
 
 /**
@@ -14,8 +14,7 @@ import { FormError } from '@/components/form-error'
  * the API answers with one: telling them apart is how an account list is
  * enumerated.
  */
-export function LoginForm() {
-  const router = useRouter()
+export function LoginForm({ next }: { next?: string }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<unknown>(null)
@@ -30,7 +29,7 @@ export function LoginForm() {
       // A full navigation rather than a push: signing in changed who the
       // server thinks we are, and every cached render is now about somebody
       // else.
-      window.location.assign(answer.redirect)
+      window.location.assign(localPath(next, answer.redirect))
     } catch (thrown) {
       setError(thrown)
       setBusy(false)
@@ -63,11 +62,6 @@ export function LoginForm() {
         isInvalid={badField === 'password'}
         variant="bordered"
       />
-      <div className="flex items-center justify-between">
-        <Link href="/password/reset" size="sm">
-          Forgot your password?
-        </Link>
-      </div>
       <Button type="submit" color="primary" isLoading={busy} fullWidth>
         {busy ? 'Signing in' : 'Sign in'}
       </Button>

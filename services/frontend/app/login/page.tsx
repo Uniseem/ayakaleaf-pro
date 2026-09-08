@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { AuthCard } from '@/components/auth-card'
 import { ProviderButtons } from '@/components/provider-buttons'
 import { authStatus, currentUser } from '@/lib/auth'
+import { localPath } from '@/lib/paths'
 import { forwardedHeaders } from '@/lib/server'
 import { LoginForm } from './login-form'
 
@@ -11,7 +12,7 @@ export const metadata = { title: 'Sign in' }
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: { error?: string }
+  searchParams: { error?: string; next?: string }
 }) {
   const headers = forwardedHeaders()
   const [user, status] = await Promise.all([
@@ -20,7 +21,7 @@ export default async function LoginPage({
   ])
 
   if (user) {
-    redirect('/projects')
+    redirect(localPath(searchParams.next, '/projects'))
   }
   // A site nobody has claimed has nothing to sign in to. Sending the first
   // visitor to the sign-up form is what makes a fresh install claimable by
@@ -50,7 +51,7 @@ export default async function LoginPage({
           {searchParams.error}
         </div>
       ) : null}
-      <LoginForm />
+      <LoginForm next={searchParams.next} />
       <ProviderButtons providers={status.providers} />
     </AuthCard>
   )

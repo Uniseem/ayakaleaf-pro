@@ -53,7 +53,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   const { method = 'GET', body, signal, headers = {} } = options
 
   const base = typeof window === 'undefined'
-    ? process.env.API_INTERNAL_URL || 'http://127.0.0.1:3100'
+    ? process.env.API_INTERNAL_URL || 'http://127.0.0.1:3400'
     : ''
 
   const response = await fetch(`${base}${path}`, {

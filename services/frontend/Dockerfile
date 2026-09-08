@@ -7,10 +7,11 @@
 
 FROM node:22-alpine AS deps
 WORKDIR /app
-COPY package.json yarn.lock* package-lock.json* ./
+COPY package.json package-lock.json ./
 # npm rather than the monorepo's yarn: this package is built alone, and its
-# lockfile is its own.
-RUN npm install --omit=optional --no-audit --no-fund
+# lockfile is its own. `ci` rather than `install` so a build installs the
+# versions that were tested, and fails rather than resolving new ones.
+RUN npm ci --omit=optional --no-audit --no-fund
 
 FROM node:22-alpine AS build
 WORKDIR /app

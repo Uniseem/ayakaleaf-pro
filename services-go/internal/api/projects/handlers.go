@@ -10,13 +10,26 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
+// Seeder gives a new project its first file.
+//
+// An empty project is a dead end: there is nothing to open and nothing to
+// compile, and the first thing anybody would have to do is work out how to
+// make a file. What does the seeding is the service that owns document text,
+// which is why this is an interface here rather than a call.
+type Seeder interface {
+	SeedNewProject(ctx context.Context, project *Project, ownerID bson.ObjectID) error
+}
+
 // Service is the projects API.
 type Service struct {
-	store *Store
+	store  *Store
+	seeder Seeder
 }
 
 // NewService builds it.
-func NewService(store *Store) *Service { return &Service{store: store} }
+func NewService(store *Store, seeder Seeder) *Service {
+	return &Service{store: store, seeder: seeder}
+}
 
 // List answers with every project somebody can see.
 func (s *Service) List(w http.ResponseWriter, r *http.Request) error {
@@ -47,6 +60,17 @@ func (s *Service) Create(w http.ResponseWriter, r *http.Request) error {
 	project, err := s.store.Create(r.Context(), user.ID, in.Name, in.Compiler)
 	if err != nil {
 		return apierr.Internal.WithCause(err)
+	}
+	if s.seeder != nil {
+		if err := s.seeder.SeedNewProject(r.Context(), project, user.ID); err != nil {
+			// A project that could not be given its first file is not the
+			// project that was asked for, and leaving it in somebody's list
+			// would leave them with something they cannot use and did not
+			// choose to make.
+			_ = s.store.Delete(r.Context(), project.ID)
+			return apierr.Internal.WithCause(err).
+				WithMessage("The project could not be created. Try again.")
+		}
 	}
 	return httpapi.JSON(w, http.StatusCreated, map[string]any{
 		"project": Summary{
@@ -79,6 +103,10 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request) error {
 	return httpapi.JSON(w, http.StatusOK, map[string]any{
 		"project": project,
 		"access":  access,
+		// The tree flattened, each entry with its path. The nested form is in
+		// the project itself; this is what an editor actually wants, and
+		// working it out here means every client does not do it differently.
+		"files": project.Entries(),
 	})
 }
 

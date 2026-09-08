@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -154,13 +155,38 @@ func (c *Client) Run(
 		return nil, err
 	}
 
-	return &Result{
+	result := &Result{
 		Status:      answer.Compile.Status,
 		Error:       answer.Compile.Error,
 		OutputFiles: answer.Compile.OutputFiles,
 		Stats:       answer.Compile.Stats,
 		Timings:     answer.Compile.Timings,
-	}, nil
+	}
+	for i := range result.OutputFiles {
+		result.OutputFiles[i].URL = sitePath(result.OutputFiles[i].URL)
+	}
+	return result, nil
+}
+
+// sitePath turns an address clsi gave for one of its files into one the
+// browser can use.
+//
+// clsi answers with its own host, which is inside the container and means
+// nothing to anybody outside it. The path is the part that matters: nginx has
+// a route for exactly these, so a browser asking the site for the same path
+// gets the file, and the PDF never travels through this process at all.
+func sitePath(raw string) string {
+	if raw == "" {
+		return raw
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Path == "" {
+		return raw
+	}
+	if parsed.RawQuery != "" {
+		return parsed.Path + "?" + parsed.RawQuery
+	}
+	return parsed.Path
 }
 
 // Stop cancels a compile that is still running.

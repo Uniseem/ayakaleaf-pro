@@ -17,6 +17,8 @@ import (
 
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/apierr"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/auth"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/compile"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/documents"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/httpapi"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/oauth"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projects"
@@ -27,14 +29,16 @@ import (
 
 // Server holds everything the routes are served from.
 type Server struct {
-	log      *slog.Logger
-	users    *users.Store
-	sessions *session.Store
-	settings *settings.Store
-	auth     *auth.Service
-	projects *projects.Service
-	oauth    *oauth.Service
-	origins  []string
+	log       *slog.Logger
+	users     *users.Store
+	sessions  *session.Store
+	settings  *settings.Store
+	auth      *auth.Service
+	projects  *projects.Service
+	oauth     *oauth.Service
+	documents *documents.Service
+	compile   *compile.Service
+	origins   []string
 }
 
 // Options is what a Server needs.
@@ -44,6 +48,19 @@ type Options struct {
 	Sessions *session.Store
 	Settings *settings.Store
 	Projects *projects.Store
+	// Documents and Compiler are the two services this one does not own: the
+	// text of a file while somebody has it open, and the compiler. Both are
+	// passed in as clients so that what they are is a deployment decision and
+	// not something the routes know.
+	Documents *documents.Client
+	// Storage is where a document's text goes when it is made and when it is
+	// deleted, which are the only two moments there is no editing session to
+	// go through instead.
+	Storage  *documents.Storage
+	Compiler *compile.Client
+	// FilestoreURL is the address the compiler fetches a project's binary
+	// files from. It is the compiler's view of it, not this process's.
+	FilestoreURL string
 	// AllowedOrigins are the addresses a browser may send a state-changing
 	// request from. The site's own is enough unless something else embeds it.
 	AllowedOrigins []string
@@ -57,9 +74,14 @@ func New(opts Options) *Server {
 		sessions: opts.Sessions,
 		settings: opts.Settings,
 		auth:     auth.New(opts.Users, opts.Sessions, opts.Settings),
-		projects: projects.NewService(opts.Projects),
 		origins:  opts.AllowedOrigins,
 	}
+	server.documents = documents.NewService(opts.Projects, opts.Documents, opts.Storage)
+	// A new project is given its first file by the documents service, so the
+	// two are wired together here rather than knowing about each other.
+	server.projects = projects.NewService(opts.Projects, server.documents)
+	server.compile = compile.NewService(
+		opts.Projects, opts.Documents, opts.Compiler, opts.Settings, opts.FilestoreURL)
 	// The OAuth handlers start a session for somebody they identified, which
 	// is the auth service's job: passing it in rather than repeating it keeps
 	// one place where a session begins.
@@ -72,8 +94,10 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	h := func(fn httpapi.Handler) http.HandlerFunc { return httpapi.Wrap(s.log, fn) }
 
-	// Liveness. Outside the session middleware so that a broken Redis does not
-	// make the service look dead to whatever is watching it.
+	// Liveness. It asks for no session and reads nothing, and the session
+	// middleware treats a Redis it cannot reach as an anonymous visitor rather
+	// than as a failure, so a broken Redis does not make this service look
+	// dead to whatever is watching it.
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		_ = httpapi.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
@@ -104,6 +128,17 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/projects/{id}/archive", h(s.projects.Archive))
 	mux.HandleFunc("POST /api/projects/{id}/trash", h(s.projects.Trash))
 	mux.HandleFunc("DELETE /api/projects/{id}", h(s.projects.Delete))
+
+	// The files inside a project, and turning them into a PDF.
+	mux.HandleFunc("POST /api/projects/{id}/documents", h(s.documents.Create))
+	mux.HandleFunc("GET /api/projects/{id}/documents/{docId}", h(s.documents.Get))
+	mux.HandleFunc("POST /api/projects/{id}/documents/{docId}", h(s.documents.SetContent))
+	mux.HandleFunc("POST /api/projects/{id}/folders", h(s.documents.CreateFolder))
+	mux.HandleFunc("POST /api/projects/{id}/entries/{entryId}/rename", h(s.documents.Rename))
+	mux.HandleFunc("DELETE /api/projects/{id}/entries/{entryId}", h(s.documents.Delete))
+	mux.HandleFunc("POST /api/projects/{id}/root-doc", h(s.documents.SetRootDoc))
+	mux.HandleFunc("POST /api/projects/{id}/compile", h(s.compile.Compile))
+	mux.HandleFunc("POST /api/projects/{id}/compile/stop", h(s.compile.Stop))
 
 	// The admin pages.
 	mux.HandleFunc("GET /api/admin/settings", h(s.getSettings))
