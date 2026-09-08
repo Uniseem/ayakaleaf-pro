@@ -237,3 +237,11 @@ func utf16Len(text string) int {
 	}
 	return length
 }
+
+// minInt is the smaller of two numbers.
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}

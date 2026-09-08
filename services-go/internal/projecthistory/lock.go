@@ -75,6 +75,19 @@ func NewLockManager(client *redis.Client) *LockManager {
 	}
 }
 
+// HealthCheck takes and releases a lock of its own, which is what says Redis
+// is reachable and that the scripts the locking relies on still work.
+//
+// It uses a key of its own rather than a project's, so that a health check
+// never waits behind a flush or holds one up.
+func (m *LockManager) HealthCheck(ctx context.Context) error {
+	key := fmt.Sprintf("HistoryLock:HealthCheck:host=%s:pid=%d:random=%s",
+		m.hostname, m.pid, m.random)
+	return m.RunWithLock(ctx, key, func(ctx context.Context, lock *Lock) error {
+		return nil
+	})
+}
+
 // randomLock builds a value nobody else will write.
 func (m *LockManager) randomLock() string {
 	return fmt.Sprintf("locked:host=%s:pid=%d:random=%s:time=%d:count=%d",

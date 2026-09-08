@@ -256,13 +256,6 @@ func randomText(random *rand.Rand, length int) string {
 	return string(out)
 }
 
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func mustMarshal(v any) json.RawMessage {
 	encoded, err := json.Marshal(v)
 	if err != nil {
