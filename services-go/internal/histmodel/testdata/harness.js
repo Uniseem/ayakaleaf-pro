@@ -13,7 +13,7 @@ if (!libraryDir) {
   process.stderr.write('usage: harness.js <overleaf-editor-core dir>\n')
   process.exit(2)
 }
-const { TextOperation, TrackedChangeList } = require(libraryDir)
+const { TextOperation, TrackedChangeList, CommentList, Range } = require(libraryDir)
 
 const out = []
 readline
@@ -47,6 +47,30 @@ readline
           answer.trackedChanges = list.toRaw()
         } catch (err) {
           answer.trackedChangesError = String(err && err.message)
+        }
+      }
+
+      // The comments have to move with the operation as well, and an insert
+      // belongs to a comment only when the operation says so.
+      if (Array.isArray(scenario.comments)) {
+        try {
+          const list = CommentList.fromRaw(scenario.comments)
+          let cursor = 0
+          for (const op of first.ops) {
+            if (op.constructor.name === 'RetainOp') {
+              cursor += op.length
+            } else if (op.constructor.name === 'InsertOp') {
+              list.applyInsert(new Range(cursor, op.insertion.length), {
+                commentIds: op.commentIds,
+              })
+              cursor += op.insertion.length
+            } else if (op.constructor.name === 'RemoveOp') {
+              list.applyDelete(new Range(cursor, op.length))
+            }
+          }
+          answer.comments = list.toRaw()
+        } catch (err) {
+          answer.commentsError = String(err && err.message)
         }
       }
 

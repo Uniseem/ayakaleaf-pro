@@ -48,6 +48,8 @@ type scenario struct {
 	Length *int              `json:"length,omitempty"`
 	// TrackedChanges are the marks on the document the operation applies to.
 	TrackedChanges []json.RawMessage `json:"trackedChanges"`
+	// Comments are the threads on it.
+	Comments []json.RawMessage `json:"comments"`
 }
 
 type result struct {
@@ -61,7 +63,10 @@ type result struct {
 
 	TrackedChanges      json.RawMessage `json:"trackedChanges"`
 	TrackedChangesError string          `json:"trackedChangesError"`
-	Error               string          `json:"error"`
+
+	Comments      json.RawMessage `json:"comments"`
+	CommentsError string          `json:"commentsError"`
+	Error         string          `json:"error"`
 }
 
 func TestDifferentialAgainstCore(t *testing.T) {
@@ -159,6 +164,29 @@ func TestDifferentialAgainstCore(t *testing.T) {
 			}
 		}
 
+		if s.Comments != nil {
+			var comments []*Comment
+			if err := json.Unmarshal(mustMarshal(s.Comments), &comments); err == nil {
+				list := NewCommentList(comments)
+				err := applyOperationToComments(list, first)
+				switch {
+				case want.CommentsError != "":
+					if err == nil {
+						t.Fatalf("case %d: comments: core refused it (%s), the port did not: %s",
+							i, want.CommentsError, encoded)
+					}
+				case err != nil:
+					t.Fatalf("case %d: comments: the port refused it: %v: %s", i, err, encoded)
+				default:
+					got, _ := json.Marshal(list)
+					if !sameJSON(string(want.Comments), string(got)) {
+						t.Fatalf("case %d: comments: %s: core %s, go %s",
+							i, encoded, want.Comments, got)
+					}
+				}
+			}
+		}
+
 		if s.Second != nil {
 			second := NewTextOperation()
 			if err := json.Unmarshal(wrap(s.Second), second); err != nil {
@@ -224,6 +252,9 @@ func generateScenarios(count int) []scenario {
 		}
 		if random.IntN(2) == 0 {
 			s.TrackedChanges = randomTrackedChanges(random, base)
+		}
+		if random.IntN(2) == 0 {
+			s.Comments = randomComments(random, base)
 		}
 		scenarios = append(scenarios, s)
 	}
@@ -451,4 +482,57 @@ func randomTrackingProps(random *rand.Rand) map[string]any {
 		"type": kind, "userId": fmt.Sprintf("u%d", random.IntN(2)),
 		"ts": timestamps[random.IntN(len(timestamps))],
 	}
+}
+
+// applyOperationToComments walks an operation over a comment list the way the
+// file does when the operation is applied to it.
+func applyOperationToComments(list *CommentList, operation *TextOperation) error {
+	var cursor int
+	for _, op := range operation.Ops {
+		switch typed := op.(type) {
+		case *RetainOp:
+			cursor += typed.Length
+		case *InsertOp:
+			err := list.ApplyInsert(
+				Range{Pos: cursor, Length: typed.Len()}, typed.CommentIDs)
+			if err != nil {
+				return err
+			}
+			cursor += typed.Len()
+		case *RemoveOp:
+			if err := list.ApplyDelete(Range{Pos: cursor, Length: typed.Length}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// randomComments places threads over a document of the given length.
+//
+// A thread can cover more than one stretch, which is what happens once an edit
+// has split it, so some of them are generated that way to begin with.
+func randomComments(random *rand.Rand, base int) []json.RawMessage {
+	comments := []json.RawMessage{}
+	for c := random.IntN(3); c > 0; c-- {
+		ranges := []map[string]any{}
+		position := random.IntN(maxInt(1, base))
+		for r := 1 + random.IntN(2); r > 0 && position < base; r-- {
+			length := 1 + random.IntN(minInt(5, maxInt(1, base-position)))
+			ranges = append(ranges, map[string]any{"pos": position, "length": length})
+			// A gap, so the two stretches do not merge back into one.
+			position += length + 1 + random.IntN(3)
+		}
+		if len(ranges) == 0 {
+			continue
+		}
+		comment := map[string]any{
+			"id": fmt.Sprintf("thread-%d", len(comments)), "ranges": ranges,
+		}
+		if random.IntN(3) == 0 {
+			comment["resolved"] = true
+		}
+		comments = append(comments, mustMarshal(comment))
+	}
+	return comments
 }
