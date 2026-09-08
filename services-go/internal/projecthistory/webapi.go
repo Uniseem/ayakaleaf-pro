@@ -65,7 +65,7 @@ func (w *WebAPI) GetHistoryID(ctx context.Context, projectID string) (string, er
 		return "", err
 	}
 
-	historyID := details.Overleaf.History.ID.String()
+	historyID := jsonScalarString(details.Overleaf.History.ID)
 	if historyID != "" {
 		// Best effort: a history id that could not be cached is one more
 		// request to web next time, not a failure.
@@ -80,8 +80,9 @@ type projectDetailsResponse struct {
 	Overleaf struct {
 		History struct {
 			// The id is a string for a project whose history is in
-			// history-v1 and a number for one still in the old store.
-			ID json.Number `json:"id"`
+			// history-v1 and a number for one still in the old store, so it is
+			// read as neither and turned into text afterwards.
+			ID json.RawMessage `json:"id"`
 		} `json:"history"`
 	} `json:"overleaf"`
 }
