@@ -40,7 +40,7 @@ export default function SiteSettings() {
       setCatalogue(data)
       setDraft({})
     } catch (error) {
-      setMessage({ type: 'error', text: getUserFacingMessage(error) ?? 'could not load the settings' })
+      setMessage({ type: 'error', text: getUserFacingMessage(error as Error) ?? 'could not load the settings' })
     }
   }, [])
 
@@ -69,7 +69,7 @@ export default function SiteSettings() {
         text: `Saved ${result.applied.length} setting${result.applied.length === 1 ? '' : 's'}.`,
       })
     } catch (error) {
-      setMessage({ type: 'error', text: getUserFacingMessage(error) ?? 'could not save' })
+      setMessage({ type: 'error', text: getUserFacingMessage(error as Error) ?? 'could not save' })
     } finally {
       setSaving(false)
     }
@@ -84,7 +84,7 @@ export default function SiteSettings() {
       )
       setMessage({ type: 'success', text: result.message })
     } catch (error) {
-      setMessage({ type: 'error', text: getUserFacingMessage(error) ?? 'could not send' })
+      setMessage({ type: 'error', text: getUserFacingMessage(error as Error) ?? 'could not send' })
     }
   }
 
