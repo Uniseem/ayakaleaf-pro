@@ -130,6 +130,29 @@ function apply(values) {
   // A few settings are read from more than one place; keep those in step here
   // rather than making every reader know about this module.
   Settings.siteUrl = (Settings.siteUrl || '').replace(/\/+$/, '')
+
+  // The identity manager refuses to link a provider it has not been told
+  // about, so the social providers an administrator has configured are
+  // published here. A provider with no client id is left out, which is what
+  // hides its button.
+  Settings.oauthProviders = Settings.oauthProviders || {}
+  for (const [id, name] of [
+    ['google', 'Google'],
+    ['github', 'GitHub'],
+  ]) {
+    const configured = Settings.siteSettings?.oauth?.[id]
+    if (configured?.clientId && configured?.clientSecret) {
+      Settings.oauthProviders[id] = {
+        name,
+        linkPath: `/auth/${id}`,
+      }
+    } else {
+      delete Settings.oauthProviders[id]
+    }
+  }
+  Settings.siteSettings.enabledOAuthProviders = Object.keys(
+    Settings.oauthProviders
+  ).filter(id => id === 'google' || id === 'github')
   if (Settings.email && !Settings.email.parameters?.host) {
     // Nodemailer treats a transport with no host as a configuration error, and
     // the rest of the app treats a missing email block as "email is off".

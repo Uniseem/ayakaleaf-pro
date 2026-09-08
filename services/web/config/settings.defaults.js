@@ -1244,6 +1244,7 @@ module.exports = {
     'authentication/ldap',
     'authentication/saml',
     'authentication/oidc',
+    'social-auth',
     'admin-tools',
     'user-activate',
     'sandboxed-compiles',
@@ -1303,6 +1304,20 @@ module.exports.splitTestOverrides = {
   'export-docx': 'enabled',
   'export-markdown': 'enabled',
   'export-html': 'enabled'
+}
+
+// Filled in from the database by modules/site-settings at startup. It is
+// declared here so that anything reading it before then sees an object rather
+// than undefined.
+module.exports.siteSettings = {
+  allowPublicRegistration: true,
+  registrationEmailDomains: '',
+  enabledOAuthProviders: [],
+  oauth: {
+    createsAccounts: true,
+    google: {},
+    github: {},
+  },
 }
 
 module.exports.oauthProviders = {
