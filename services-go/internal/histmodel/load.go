@@ -252,3 +252,17 @@ func isJSONList(raw json.RawMessage) bool {
 func isJSONBoolean(raw json.RawMessage) bool {
 	return string(raw) == "true" || string(raw) == "false"
 }
+
+// Editability reports whether a file is text, or nil when that is not known.
+//
+// A file named only by the blob it is stored in could be either: the hash says
+// nothing about what is in it, and the history does not record it separately.
+// The distinction matters where the answer is passed on rather than acted on,
+// because "not text" and "not known" are different things to say.
+func Editability(data FileData) *bool {
+	if _, unknown := data.(*HashFileData); unknown {
+		return nil
+	}
+	editable := data.IsEditable()
+	return &editable
+}

@@ -338,8 +338,11 @@ type FileTreeDiffEntry struct {
 	// for a file nothing happened to.
 	Operation string `json:"operation,omitempty"`
 	// Editable says whether the file is text, which the editor needs to know
-	// to offer a diff of its contents.
-	Editable *bool `json:"editable,omitempty"`
+	// to offer a diff of its contents. It has three states and they are all
+	// different to the caller: true, false, and null for a file named only by
+	// the blob it is stored in, where the history does not say. An entry that
+	// came from an edit rather than from the file tree carries none of them.
+	Editable json.RawMessage `json:"editable,omitempty"`
 	// DeletedAtV is the version a removal happened at, which is what a restore
 	// has to name.
 	DeletedAtV *int `json:"deletedAtV,omitempty"`
@@ -359,8 +362,10 @@ func BuildFileTreeDiff(chunk *ChunkResponse, fromVersion,
 	// Starting from the file tree as it was, with nothing marked as changed.
 	tree := &fileTreeDiff{entries: map[string]*FileTreeDiffEntry{}}
 	for _, path := range snapshot.Files.Paths() {
-		editable := snapshot.Files.GetFile(path).Data.IsEditable()
-		tree.set(path, &FileTreeDiffEntry{Pathname: path, Editable: &editable})
+		tree.set(path, &FileTreeDiffEntry{
+			Pathname: path,
+			Editable: editableJSON(snapshot.Files.GetFile(path).Data),
+		})
 	}
 
 	changes := chunk.Chunk.History.Changes
@@ -401,9 +406,9 @@ func (t *fileTreeDiff) set(path string, entry *FileTreeDiffEntry) {
 func (t *fileTreeDiff) apply(op histmodel.Operation, atVersion int) error {
 	switch typed := op.(type) {
 	case *histmodel.AddFileOperation:
-		editable := typed.File.Data.IsEditable()
 		t.set(typed.Path, &FileTreeDiffEntry{
-			Pathname: typed.Path, Operation: "added", Editable: &editable,
+			Pathname: typed.Path, Operation: "added",
+			Editable: editableJSON(typed.File.Data),
 		})
 
 	case *histmodel.EditFileOperation:
@@ -448,15 +453,22 @@ func (t *fileTreeDiff) rename(from, to string) error {
 		entry.Operation = "renamed"
 	}
 
+	// The entry moves to the new path, keeping that path's place if it had one
+	// and taking a new one at the end if it did not. The old path goes.
+	_, existed := t.entries[to]
 	delete(t.entries, from)
 	t.entries[to] = entry
-	for i, path := range t.order {
-		if path == from {
-			t.order[i] = to
-			return nil
+
+	kept := t.order[:0]
+	for _, path := range t.order {
+		if path != from {
+			kept = append(kept, path)
 		}
 	}
-	t.order = append(t.order, to)
+	t.order = kept
+	if !existed {
+		t.order = append(t.order, to)
+	}
 	return nil
 }
 
@@ -493,4 +505,17 @@ func clampIndex(index, length int) int {
 		return length
 	}
 	return index
+}
+
+// editableJSON is whether a file is text, as the three values the caller can
+// be told: true, false, or null when the history does not say.
+func editableJSON(data histmodel.FileData) json.RawMessage {
+	editable := histmodel.Editability(data)
+	if editable == nil {
+		return json.RawMessage("null")
+	}
+	if *editable {
+		return json.RawMessage("true")
+	}
+	return json.RawMessage("false")
 }
