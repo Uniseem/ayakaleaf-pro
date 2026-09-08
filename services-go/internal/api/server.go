@@ -123,12 +123,12 @@ func (s *Server) site(w http.ResponseWriter, r *http.Request) error {
 	})
 }
 
-// getSettings answers with every stored setting.
+// getSettings answers with everything the admin page needs to draw itself.
 func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) error {
 	if _, err := httpapi.RequireAdmin(r.Context()); err != nil {
 		return err
 	}
-	return httpapi.JSON(w, http.StatusOK, map[string]any{"values": s.settings.Raw()})
+	return httpapi.JSON(w, http.StatusOK, s.settings.Describe())
 }
 
 // putSettings changes settings.
@@ -146,8 +146,14 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) error {
 	if len(in.Values) == 0 {
 		return apierr.BadRequest.WithMessage("Nothing to change.")
 	}
-	if err := s.settings.Set(r.Context(), in.Values, admin.ID.Hex()); err != nil {
+	// Anything the catalogue does not name is dropped rather than stored: a
+	// settings document is not a place to put arbitrary keys.
+	applied := s.settings.Apply(in.Values)
+	if len(applied) == 0 {
+		return apierr.BadRequest.WithMessage("None of those are settings.")
+	}
+	if err := s.settings.Set(r.Context(), applied, admin.ID.Hex()); err != nil {
 		return apierr.Internal.WithCause(err)
 	}
-	return httpapi.JSON(w, http.StatusOK, map[string]any{"values": s.settings.Raw()})
+	return httpapi.JSON(w, http.StatusOK, s.settings.Describe())
 }
