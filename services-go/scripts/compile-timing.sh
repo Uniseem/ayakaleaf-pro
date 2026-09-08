@@ -16,7 +16,8 @@ set -uo pipefail
 CONTAINER=${OVERLEAF_CONTAINER:-overleaf-pro}
 RUNS=${RUNS:-5}
 SIZES=${SIZES:-"1 20 100"}
-STAMP=$$
+# clsi will not take a project id with punctuation in it.
+STAMP=$(printf %x $$)
 
 # writeBody <sections> <path>
 #
@@ -99,7 +100,7 @@ for sections in $SIZES; do
   # A project id of its own per size, so the first run is a cold compile and
   # the rest reuse the compile directory -- which is what a person editing
   # gets after their first compile.
-  project="bench-$STAMP-$sections"
+  project="bench${STAMP}x${sections}"
   for run in $(seq 1 "$RUNS"); do
     docker exec "$CONTAINER" sh -c "
       curl -s -X POST -H 'Content-Type: application/json' \
