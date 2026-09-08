@@ -83,6 +83,12 @@ method in [BENCHMARK.md](BENCHMARK.md).
 The memory is the result worth having. The latency is real and compounds under
 load, but two milliseconds is invisible to one person typing.
 
+None of it made compiling faster, and it could not have:
+[COMPILE.md](COMPILE.md) measures where a compile's time actually goes. clsi's
+own work is 4 to 7 ms of a 250 to 1100 ms compile. What is there is something
+else — half of a warm recompile is `latexmk` deciding what to do rather than
+doing it — and reaching it is a change to clsi's logic, not to its language.
+
 ## Conformance is not enough: run it for real
 
 The acceptance suites check the HTTP contract. They do not check that a service
