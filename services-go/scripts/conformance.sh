@@ -51,12 +51,13 @@ export CI="${CI:-true}"
 # service shares that process -- Node started externally fails it too. Skipping
 # it is what makes a red run mean something.
 #
-# document-updater has two categories rather than one test. Its suite covers
-# history-ot, a second OT type this port does not implement, and one case that
-# turns on historyRangesSupport, which records the tracked changes in the
-# history as well and needs a form of them this port does not produce. Both are
-# refused outright by the Go service rather than half-handled, and both are
-# named in services-go/README.md as what is not ported.
+# document-updater excludes two things. history-ot is a second OT type with its
+# own storage format that this port does not implement; it is refused outright
+# by the Go service rather than half-handled, and is named in
+# services-go/README.md as what is not ported. The two "accepting multiple
+# changes" tests spy on a function inside the service and read its return
+# values, so they can only pass when the service shares the test process --
+# Node started externally fails them the same way.
 SERVICES=(
   "chat:3010:services/chat:CHAT_EXTERNAL:"
   "notifications:3042:services/notifications:NOTIFICATIONS_EXTERNAL:"

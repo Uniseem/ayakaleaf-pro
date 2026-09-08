@@ -41,10 +41,6 @@ func (m *DocumentManager) AcceptChanges(ctx context.Context, projectID, docID st
 	if loaded.Type() != TypeShareJSTextOT {
 		return nil, &OTTypeMismatchError{Got: loaded.Type(), Want: TypeShareJSTextOT}
 	}
-	if loaded.HistoryRangesSupport {
-		return nil, ErrHistoryRangesNotSupported
-	}
-
 	changes, comments, err := decodeRanges(loaded.Ranges)
 	if err != nil {
 		return nil, err
@@ -62,6 +58,22 @@ func (m *DocumentManager) AcceptChanges(ctx context.Context, projectID, docID st
 	if err := m.redis.UpdateDocument(ctx, projectID, docID, loaded.Lines,
 		loaded.Version, nil, newRanges, ""); err != nil {
 		return nil, err
+	}
+
+	// With history ranges support the history holds the tracked deletions, and
+	// accepting one is what takes it out there. Without it the history never
+	// had them and there is nothing to record.
+	if loaded.HistoryRangesSupport {
+		entries, err := historyUpdatesForAcceptedChanges(docID, changeIDs, changes,
+			loaded.Lines, loaded.Pathname, loaded.ProjectHistoryID)
+		if err != nil {
+			return nil, err
+		}
+		if len(entries) > 0 {
+			if _, err := m.history.QueueOps(ctx, projectID, entries...); err != nil {
+				return nil, err
+			}
+		}
 	}
 	return authors, nil
 }
@@ -211,7 +223,7 @@ func (m *DocumentManager) GetCommentWithLock(ctx context.Context, projectID, doc
 // DeleteComment removes a comment thread marker from a document.
 //
 // The text it was attached to stays; only the marker goes.
-func (m *DocumentManager) DeleteComment(ctx context.Context, projectID, docID, commentID string) error {
+func (m *DocumentManager) DeleteComment(ctx context.Context, projectID, docID, commentID, userID string) error {
 	loaded, err := m.GetDoc(ctx, projectID, docID)
 	if err != nil {
 		return err
@@ -222,10 +234,6 @@ func (m *DocumentManager) DeleteComment(ctx context.Context, projectID, docID, c
 	if loaded.Type() != TypeShareJSTextOT {
 		return &OTTypeMismatchError{Got: loaded.Type(), Want: TypeShareJSTextOT}
 	}
-	if loaded.HistoryRangesSupport {
-		return ErrHistoryRangesNotSupported
-	}
-
 	changes, comments, err := decodeRanges(loaded.Ranges)
 	if err != nil {
 		return err
@@ -237,24 +245,46 @@ func (m *DocumentManager) DeleteComment(ctx context.Context, projectID, docID, c
 		return err
 	}
 
-	return m.redis.UpdateDocument(ctx, projectID, docID, loaded.Lines,
-		loaded.Version, nil, newRanges, "")
+	if err := m.redis.UpdateDocument(ctx, projectID, docID, loaded.Lines,
+		loaded.Version, nil, newRanges, ""); err != nil {
+		return err
+	}
+
+	if !loaded.HistoryRangesSupport {
+		return nil
+	}
+	// The history keeps its own record of which threads are resolved, so a
+	// deleted one has to be taken off that list as well as out of the markers.
+	if err := m.redis.UpdateCommentState(ctx, docID, commentID, false); err != nil {
+		return err
+	}
+	entry, err := json.Marshal(map[string]any{
+		"pathname":      loaded.Pathname,
+		"deleteComment": commentID,
+		"meta":          map[string]any{"ts": nowISO(), "user_id": nullIfEmpty(userID)},
+	})
+	if err != nil {
+		return err
+	}
+	_, err = m.history.QueueOps(ctx, projectID, entry)
+	return err
 }
 
 // DeleteCommentWithLock takes the document lock first.
-func (m *DocumentManager) DeleteCommentWithLock(ctx context.Context, projectID, docID, commentID string) error {
+func (m *DocumentManager) DeleteCommentWithLock(ctx context.Context, projectID, docID, commentID, userID string) error {
 	return m.locker.WithLock(ctx, docID, func(ctx context.Context) error {
-		return m.DeleteComment(ctx, projectID, docID, commentID)
+		return m.DeleteComment(ctx, projectID, docID, commentID, userID)
 	})
 }
 
 // UpdateCommentState records a comment thread as resolved or reopened.
 //
-// Without history ranges support there is nothing to do here: the resolved flag
-// lives with the thread in the chat service, and this service is only told so
-// that it can pass the fact to the history. The call is still checked, so a
-// document that has gone missing is reported as such rather than silently
-// accepted.
+// The flag itself lives with the thread in the chat service. This service is
+// told so that the history can be told: a version restored later has to come
+// back with its comments in the state they were in.
+//
+// Without history ranges support there is nothing to record, and the call only
+// checks that the document is there.
 func (m *DocumentManager) UpdateCommentState(ctx context.Context, projectID, docID,
 	commentID, userID string, resolved bool) error {
 	loaded, err := m.GetDoc(ctx, projectID, docID)
@@ -264,10 +294,24 @@ func (m *DocumentManager) UpdateCommentState(ctx context.Context, projectID, doc
 	if !loaded.Loaded() {
 		return fmt.Errorf("%w: document %s", ErrNotFound, docID)
 	}
-	if loaded.HistoryRangesSupport {
-		return ErrHistoryRangesNotSupported
+	if !loaded.HistoryRangesSupport {
+		return nil
 	}
-	return nil
+
+	if err := m.redis.UpdateCommentState(ctx, docID, commentID, resolved); err != nil {
+		return err
+	}
+	entry, err := json.Marshal(map[string]any{
+		"pathname":  loaded.Pathname,
+		"commentId": commentID,
+		"resolved":  resolved,
+		"meta":      map[string]any{"ts": nowISO(), "user_id": nullIfEmpty(userID)},
+	})
+	if err != nil {
+		return err
+	}
+	_, err = m.history.QueueOps(ctx, projectID, entry)
+	return err
 }
 
 // UpdateCommentStateWithLock takes the document lock first.

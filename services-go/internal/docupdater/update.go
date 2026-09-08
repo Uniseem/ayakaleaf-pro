@@ -149,7 +149,8 @@ func (m *UpdateManager) applyUpdateInner(ctx context.Context, projectID, docID s
 		return err
 	}
 	ranges, err := applyUpdateToRanges(loaded.Ranges, appliedOp, applied.Lines,
-		metaString(update.Meta, "user_id"), metaString(update.Meta, "tc"))
+		metaString(update.Meta, "user_id"), metaString(update.Meta, "tc"),
+		loaded.HistoryRangesSupport)
 	if err != nil {
 		return err
 	}
@@ -261,7 +262,7 @@ func changeAuthors(ranges json.RawMessage, removedIDs []string) []string {
 }
 
 // historyUpdate builds the copy of an update that goes to project-history.
-func (m *UpdateManager) historyUpdate(applied *Update, historyOps textot.Op, doc *LoadedDoc, projectID string) (json.RawMessage, error) {
+func (m *UpdateManager) historyUpdate(applied *Update, historyOps []historyOp, doc *LoadedDoc, projectID string) (json.RawMessage, error) {
 	// Rendered through a map so the fields this service does not model are
 	// carried across untouched.
 	encoded, err := json.Marshal(applied)

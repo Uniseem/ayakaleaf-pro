@@ -30,8 +30,9 @@ type rangesResult struct {
 	// Collapsed reports that markers were emptied or lost, which is when a
 	// snapshot of the previous content is worth taking.
 	Collapsed bool
-	// HistoryOps are the operations to send to project-history.
-	HistoryOps textot.Op
+	// HistoryOps are the operations to send to project-history, restated in
+	// the positions that system stores.
+	HistoryOps []historyOp
 	// RemovedChangeIDs are the tracked changes this update did away with. An
 	// edit that removes one is a rejection, and the author is told.
 	RemovedChangeIDs []string
@@ -44,7 +45,7 @@ type rangesResult struct {
 // ranges support is off, which is every document in a server-ce deployment.
 func applyUpdateToRanges(
 	ranges json.RawMessage, ops textot.Op, newDocLines []string,
-	userID, trackChangesSeed string,
+	userID, trackChangesSeed string, historyRangesSupport bool,
 ) (*rangesResult, error) {
 	changes, comments, err := decodeRanges(ranges)
 	if err != nil {
@@ -72,15 +73,40 @@ func applyUpdateToRanges(
 		return metadata
 	}
 
-	historyOps := textot.Op{}
+	trackingChanges := trackChangesSeed != ""
+	var historyOps []historyOp
 	for _, op := range ops {
-		// Without history ranges support, only real edits reach history: a
-		// comment changes no text and history has nothing to record.
-		if op.Kind == textot.Insert || op.Kind == textot.Delete {
-			historyOps = append(historyOps, op)
+		var cropped []textot.Component
+		switch {
+		case historyRangesSupport:
+			// The history is told about every op, in the positions of the text
+			// that still holds the tracked deletions.
+			converted, err := toHistoryOp(op, tracker.Comments, tracker.Changes)
+			if err != nil {
+				return nil, err
+			}
+			historyOps = append(historyOps, converted)
+
+			if op.Kind == textot.Delete && trackingChanges {
+				// A tracked delete over a comment shortens the comment in the
+				// editor but not in the history. How much has to be worked out
+				// before the delete is applied, and sent after it.
+				cropped = croppedCommentOps(op, tracker.Comments)
+			}
+
+		case op.Kind == textot.Insert || op.Kind == textot.Delete:
+			// Without history ranges support only real edits reach history: a
+			// comment changes no text and there is nothing to record.
+			historyOps = append(historyOps, historyOp{Op: op})
 		}
+
 		if err := tracker.ApplyOp(op, newMetadata()); err != nil {
 			return nil, err
+		}
+
+		for _, croppedOp := range cropped {
+			historyOps = append(historyOps,
+				historyOpForComment(croppedOp, tracker.Changes))
 		}
 	}
 

@@ -39,14 +39,6 @@ func (q *HistoryQueue) QueueAddEntity(ctx context.Context, projectID, projectHis
 	entityType, entityID, userID string, update ProjectStructureUpdate,
 	originOrSource json.RawMessage) (int64, error) {
 
-	if update.HistoryRangesSupport && len(update.Ranges) > 0 {
-		// That mode stores the content with tracked deletions put back in and
-		// the markers converted to the history form, neither of which this port
-		// produces. Queueing the plain content instead would leave the history
-		// quietly missing them.
-		return 0, ErrHistoryRangesNotSupported
-	}
-
 	entry := map[string]any{
 		"meta":             historyMeta(userID, originOrSource),
 		"version":          update.Version,
@@ -59,6 +51,31 @@ func (q *HistoryQueue) QueueAddEntity(ctx context.Context, projectID, projectHis
 		"pathname": "pathname", "docLines": "docLines", "url": "url",
 		"hash": "hash", "metadata": "metadata",
 	})
+
+	// With history ranges support the document is recorded as the history sees
+	// it: the tracked deletions put back into the text, and the markers in the
+	// positions that text gives them.
+	if update.HistoryRangesSupport && update.Raw["ranges"] != nil {
+		changes, comments, err := decodeRanges(update.Ranges)
+		if err != nil {
+			return 0, err
+		}
+		if len(update.DocLines) > 0 {
+			var lines []string
+			if err := json.Unmarshal(update.DocLines, &lines); err == nil {
+				withDeletes := addTrackedDeletesToContent(textot.JoinLines(lines), changes)
+				entry["docLines"], err = json.Marshal(withDeletes.String())
+				if err != nil {
+					return 0, err
+				}
+			}
+		}
+		historyRanges, err := json.Marshal(toHistoryRanges(changes, comments))
+		if err != nil {
+			return 0, err
+		}
+		entry["ranges"] = json.RawMessage(historyRanges)
+	}
 	encoded, err := json.Marshal(entry)
 	if err != nil {
 		return 0, err
@@ -93,14 +110,34 @@ func (q *HistoryQueue) QueueResyncProjectStructure(ctx context.Context, projectI
 
 // QueueResyncDocContent records what one document contains now.
 func (q *HistoryQueue) QueueResyncDocContent(ctx context.Context, projectID,
-	projectHistoryID, docID string, lines []string, version int64,
-	pathname string, maxDocLength int) (int64, error) {
+	projectHistoryID, docID string, lines []string, ranges json.RawMessage,
+	resolvedCommentIDs []string, version int64, pathname string,
+	historyRangesSupport bool, maxDocLength int) (int64, error) {
+
+	content := map[string]any{
+		"version": version,
+		"content": textot.JoinLines(lines).String(),
+	}
+
+	// With history ranges support the history is sent the document as it holds
+	// it -- the tracked deletions back in the text, the markers in the
+	// positions that text gives them -- and which threads are resolved.
+	if historyRangesSupport {
+		changes, comments, err := decodeRanges(ranges)
+		if err != nil {
+			return 0, err
+		}
+		content["content"] = addTrackedDeletesToContent(
+			textot.JoinLines(lines), changes).String()
+		content["ranges"] = toHistoryRanges(changes, comments)
+		if resolvedCommentIDs == nil {
+			resolvedCommentIDs = []string{}
+		}
+		content["resolvedCommentIds"] = resolvedCommentIDs
+	}
 
 	entry := map[string]any{
-		"resyncDocContent": map[string]any{
-			"version": version,
-			"content": textot.JoinLines(lines).String(),
-		},
+		"resyncDocContent": content,
 		"projectHistoryId": projectHistoryID,
 		"path":             pathname,
 		"doc":              docID,

@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/textot"
 )
 
 // Server is the HTTP surface of document-updater.
@@ -140,21 +142,32 @@ func (s *Server) getDoc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	lines, ranges := result.Lines, result.Ranges
 	if r.URL.Query().Get("historyRanges") == "true" {
-		// The history view needs the document as history stores it, with
-		// tracked deletions put back in. That conversion belongs to
-		// RangesManager and is not ported yet.
-		http.Error(w, "historyRanges is not supported by this implementation",
-			http.StatusNotImplemented)
-		return
+		// The history view wants the document as the history holds it: the
+		// tracked deletions still in the text, and the markers in the
+		// positions that text gives them.
+		changes, comments, err := decodeRanges(result.Ranges)
+		if err != nil {
+			s.writeError(w, r, err, "getDoc")
+			return
+		}
+		lines = textot.SplitLines(addTrackedDeletesToContent(
+			textot.JoinLines(result.Lines), changes))
+		encoded, err := json.Marshal(toHistoryRanges(changes, comments))
+		if err != nil {
+			s.writeError(w, r, err, "getDoc")
+			return
+		}
+		ranges = encoded
 	}
 
 	writeJSON(w, docResponse{
 		ID:       docID,
-		Lines:    result.Lines,
+		Lines:    lines,
 		Version:  result.Version,
 		Ops:      result.Ops,
-		Ranges:   result.Ranges,
+		Ranges:   ranges,
 		Pathname: result.Pathname,
 		TTLInS:   int(docOpsTTL / time.Second),
 		Type:     result.Type(),
@@ -400,11 +413,12 @@ func (s *Server) updateCommentState(w http.ResponseWriter, r *http.Request, reso
 }
 
 func (s *Server) deleteComment(w http.ResponseWriter, r *http.Request) {
-	if _, ok := readChangesBody(w, r); !ok {
+	body, ok := readChangesBody(w, r)
+	if !ok {
 		return
 	}
 	err := s.docs.DeleteCommentWithLock(r.Context(), r.PathValue("project_id"),
-		r.PathValue("doc_id"), r.PathValue("comment_id"))
+		r.PathValue("doc_id"), r.PathValue("comment_id"), body.UserID)
 	if err != nil {
 		s.writeError(w, r, err, "deleteComment")
 		return

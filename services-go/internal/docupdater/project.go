@@ -200,6 +200,8 @@ func (m *DocumentManager) ResyncDocContents(ctx context.Context, projectID,
 	}
 
 	lines, version := doc.Lines, doc.Version
+	ranges, resolved := doc.Ranges, doc.ResolvedCommentIDs
+	historyRangesSupport := doc.HistoryRangesSupport
 	historyID := doc.ProjectHistoryID
 	if !doc.Loaded() {
 		// Not in Redis, so the database has the current copy. Peeking asks web
@@ -212,6 +214,8 @@ func (m *DocumentManager) ResyncDocContents(ctx context.Context, projectID,
 			return &OTTypeMismatchError{Got: TypeHistoryOT, Want: TypeShareJSTextOT}
 		}
 		lines, version = persisted.Lines, persisted.Version
+		ranges, resolved = persisted.Ranges, persisted.ResolvedCommentIDs
+		historyRangesSupport = persisted.HistoryRangesSupport
 		historyID = persisted.ProjectHistoryID
 	} else if doc.Type() != TypeShareJSTextOT {
 		return &OTTypeMismatchError{Got: doc.Type(), Want: TypeShareJSTextOT}
@@ -220,10 +224,8 @@ func (m *DocumentManager) ResyncDocContents(ctx context.Context, projectID,
 		historyID = projectHistoryID
 	}
 
-	// The markers are not sent: without history ranges support the history
-	// records the text alone.
 	_, err = m.history.QueueResyncDocContent(ctx, projectID, historyID, docID,
-		lines, version, path, m.maxDocLength)
+		lines, ranges, resolved, version, path, historyRangesSupport, m.maxDocLength)
 	return err
 }
 
