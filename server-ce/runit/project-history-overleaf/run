@@ -9,16 +9,11 @@ fi
 source /etc/overleaf/env.sh
 export LISTEN_ADDRESS=127.0.0.1
 
-# Go port of this service (services-go/cmd/project-history), swapped in by
-# setting PROJECTHISTORY_IMPL=go. Any other value, including unset, keeps the
-# Node implementation, so rolling back is one environment variable and a
-# restart.
+# The Go implementation is what this service is: services-go/cmd/project-history.
 #
-# Nothing waits on this service: it drains a Redis queue that document-updater
-# and web write to, so a restart makes the history lag rather than interrupting
-# anybody's editing. What it does do is write to history-v1, which is
-# permanent, so it stops by letting the flush it is in the middle of finish.
-if [ "$PROJECTHISTORY_IMPL" == "go" ] && [ -x /overleaf/bin/go/project-history ]; then
+# The Node one is still in the image, and PROJECTHISTORY_IMPL=node puts it back, so a
+# rollback is one environment variable and a restart rather than a rebuild.
+if [ "$PROJECTHISTORY_IMPL" != "node" ] && [ -x /overleaf/bin/go/project-history ]; then
     # /etc/overleaf/settings.js replaces the Redis key schema of every service
     # with an unbraced one, but not the three keys this service shares with
     # document-updater: those keep their hash-tag braces even here. The Go port

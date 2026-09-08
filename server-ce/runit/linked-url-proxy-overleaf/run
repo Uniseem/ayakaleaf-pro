@@ -3,11 +3,11 @@
 source /etc/overleaf/env.sh
 export LISTEN_ADDRESS=127.0.0.1
 
-# Go port of this service (services-go/cmd/linked-url-proxy), swapped in by
-# setting LINKED_URL_PROXY_IMPL=go. Any other value, including unset, keeps the
-# Node implementation, so rolling back is one environment variable and a
-# restart.
-if [ "$LINKED_URL_PROXY_IMPL" == "go" ] && [ -x /overleaf/bin/go/linked-url-proxy ]; then
+# The Go implementation is what this service is: services-go/cmd/linked-url-proxy.
+#
+# The Node one is still in the image, and LINKED_URL_PROXY_IMPL=node puts it back, so a
+# rollback is one environment variable and a restart rather than a rebuild.
+if [ "$LINKED_URL_PROXY_IMPL" != "node" ] && [ -x /overleaf/bin/go/linked-url-proxy ]; then
     exec /sbin/setuser www-data /overleaf/bin/go/linked-url-proxy >> /var/log/overleaf/linked-url-proxy.log 2>&1
 fi
 

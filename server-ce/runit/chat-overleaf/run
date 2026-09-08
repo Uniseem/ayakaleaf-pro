@@ -3,10 +3,11 @@
 source /etc/overleaf/env.sh
 export LISTEN_ADDRESS=127.0.0.1
 
-# Go port of this service (services-go/cmd/chat), swapped in by setting
-# CHAT_IMPL=go. Any other value, including unset, keeps the Node
-# implementation, so rolling back is one environment variable and a restart.
-if [ "$CHAT_IMPL" == "go" ] && [ -x /overleaf/bin/go/chat ]; then
+# The Go implementation is what this service is: services-go/cmd/chat.
+#
+# The Node one is still in the image, and CHAT_IMPL=node puts it back, so a
+# rollback is one environment variable and a restart rather than a rebuild.
+if [ "$CHAT_IMPL" != "node" ] && [ -x /overleaf/bin/go/chat ]; then
     exec /sbin/setuser www-data /overleaf/bin/go/chat >> /var/log/overleaf/chat.log 2>&1
 fi
 

@@ -62,6 +62,7 @@ var Sections = []Section{
 	{ID: "oauth", Label: "Google and GitHub", Help: "Leave a client id blank to hide that button."},
 	{ID: "email", Label: "Email", Help: "Used for invitations, password resets and notifications."},
 	{ID: "compile", Label: "Compiling", Help: "Limits applied to every compile."},
+	{ID: "services", Label: "Services", Help: "Which implementation each service runs. Change one only to work around a problem with it."},
 	{ID: "git", Label: "Git and GitHub", Help: "Cloning a project over git, and keeping one in step with a repository."},
 	{ID: "security", Label: "Security", Help: "Session and password rules."},
 	{ID: "advanced", Label: "Advanced", Help: "Anything without a field of its own."},
@@ -144,6 +145,76 @@ var Settings = []Definition{
 		Restart: true,
 	},
 
+	// Which implementation each service runs.
+	//
+	// Both are in the image. Go is what these services are now; the Node one
+	// is kept so that a problem found in production is a setting away from
+	// being worked around, rather than a rebuild away.
+	{
+		Key: "implChat", Section: "services", Kind: KindSelect,
+		Label:   "Chat",
+		Options: implementations,
+		Env:     "CHAT_IMPL",
+		Default: "go",
+		Restart: true,
+	},
+	{
+		Key: "implDocstore", Section: "services", Kind: KindSelect,
+		Label:   "Docstore",
+		Options: implementations,
+		Env:     "DOCSTORE_IMPL",
+		Default: "go",
+		Restart: true,
+	},
+	{
+		Key: "implDocupdater", Section: "services", Kind: KindSelect,
+		Label:   "Document updater",
+		Options: implementations,
+		Env:     "DOCUPDATER_IMPL",
+		Default: "go",
+		Restart: true,
+	},
+	{
+		Key: "implFilestore", Section: "services", Kind: KindSelect,
+		Label:   "Filestore",
+		Options: implementations,
+		Env:     "FILESTORE_IMPL",
+		Default: "go",
+		Restart: true,
+	},
+	{
+		Key: "implLinkedUrlProxy", Section: "services", Kind: KindSelect,
+		Label:   "Linked URL proxy",
+		Options: implementations,
+		Env:     "LINKED_URL_PROXY_IMPL",
+		Default: "go",
+		Restart: true,
+	},
+	{
+		Key: "implNotifications", Section: "services", Kind: KindSelect,
+		Label:   "Notifications",
+		Options: implementations,
+		Env:     "NOTIFICATIONS_IMPL",
+		Default: "go",
+		Restart: true,
+	},
+	{
+		Key: "implProjectHistory", Section: "services", Kind: KindSelect,
+		Label:   "Project history",
+		Options: implementations,
+		Env:     "PROJECTHISTORY_IMPL",
+		Default: "go",
+		Restart: true,
+	},
+	{
+		Key: "implRealtime", Section: "services", Kind: KindSelect,
+		Label:   "Real time",
+		Options: implementations,
+		Env:     "REALTIME_IMPL",
+		Default: "go",
+		Restart: true,
+	},
+
 	{
 		Key: "gitBridgeEnabled", Section: "git", Kind: KindBool,
 		Label: "Allow projects to be cloned and pushed over git",
@@ -214,6 +285,12 @@ var Settings = []Definition{
 		Help:    "One per line, put into the environment before anything reads it. Unlike the password fields above, what you type here is shown back to anybody who can open this page.",
 		Restart: true,
 	},
+}
+
+// implementations is the choice every service in the Services section offers.
+var implementations = []Option{
+	{Value: "go", Label: "Go"},
+	{Value: "node", Label: "Node"},
 }
 
 // definitionsByKey is how a save finds out what it is saving.

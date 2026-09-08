@@ -3,11 +3,11 @@
 source /etc/overleaf/env.sh
 export LISTEN_ADDRESS=127.0.0.1
 
-# Go port of this service (services-go/cmd/notifications), swapped in by
-# setting NOTIFICATIONS_IMPL=go. Any other value, including unset, keeps the
-# Node implementation, so rolling back is one environment variable and a
-# restart.
-if [ "$NOTIFICATIONS_IMPL" == "go" ] && [ -x /overleaf/bin/go/notifications ]; then
+# The Go implementation is what this service is: services-go/cmd/notifications.
+#
+# The Node one is still in the image, and NOTIFICATIONS_IMPL=node puts it back, so a
+# rollback is one environment variable and a restart rather than a rebuild.
+if [ "$NOTIFICATIONS_IMPL" != "node" ] && [ -x /overleaf/bin/go/notifications ]; then
     exec /sbin/setuser www-data /overleaf/bin/go/notifications >> /var/log/overleaf/notifications.log 2>&1
 fi
 
