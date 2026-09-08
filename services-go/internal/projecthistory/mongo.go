@@ -44,7 +44,7 @@ func NewStore(database *mongo.Database) *Store {
 // one of those into an object id built from the number as a timestamp, so this
 // does too: a project's labels have to be looked for where they were put.
 func objectIDFor(projectID string) (bson.ObjectID, error) {
-	if id, err := objectIDFor(projectID); err == nil {
+	if id, err := bson.ObjectIDFromHex(projectID); err == nil {
 		return id, nil
 	}
 	number, err := strconv.ParseUint(projectID, 10, 32)
