@@ -1235,11 +1235,17 @@ module.exports = {
 
   moduleImportSequence: [
     'history-v1',
+    // First: the settings an operator changed from the admin page have to be
+    // in place before any module reads them to decide what to register.
+    'site-settings',
     'launchpad',
     'learn',
     'server-ce-scripts',
     'authentication/ldap',
     'authentication/saml',
+    // Before oidc: both answer /user/oauth-unlink, and this one passes on
+    // any provider that is not its own.
+    'social-auth',
     'authentication/oidc',
     'admin-tools',
     'user-activate',
@@ -1300,6 +1306,20 @@ module.exports.splitTestOverrides = {
   'export-docx': 'enabled',
   'export-markdown': 'enabled',
   'export-html': 'enabled'
+}
+
+// Filled in from the database by modules/site-settings at startup. It is
+// declared here so that anything reading it before then sees an object rather
+// than undefined.
+module.exports.siteSettings = {
+  allowPublicRegistration: true,
+  registrationEmailDomains: '',
+  enabledOAuthProviders: [],
+  oauth: {
+    createsAccounts: true,
+    google: {},
+    github: {},
+  },
 }
 
 module.exports.oauthProviders = {

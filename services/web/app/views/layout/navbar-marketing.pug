@@ -64,6 +64,7 @@ nav.navbar.navbar-default.navbar-main.navbar-expand-lg(
 							+dropdown-menu.dropdown-menu-end
 								if canDisplayAdminMenu
 									+dropdown-menu-link-item(href='/admin') Manage Site
+									+dropdown-menu-link-item(href='/admin/settings') Site Settings
 									+dropdown-menu-link-item(href='/admin/user') Manage Users
 								if canDisplayProjectUrlLookup
 									+dropdown-menu-link-item(href='/admin/project') Project URL Lookup

@@ -85,6 +85,20 @@ try {
   logger.fatal({ err }, 'Cannot connect to mongo. Exiting.')
   process.exit(1)
 }
+
+// The settings an operator changed from the admin page live in the database,
+// so they are read once Mongo is reachable and before anything serves a
+// request: a page rendered with the defaults and then corrected a moment
+// later is worse than one that waits.
+try {
+  const siteSettings = await import(
+    './modules/site-settings/app/src/SiteSettingsManager.mjs'
+  )
+  await siteSettings.default.initialize()
+} catch (err) {
+  logger.fatal({ err }, 'Cannot read the site settings. Exiting.')
+  process.exit(1)
+}
 metrics.gauge(
   'web_startup',
   performance.now() - beforeWaitForMongoAndGlobalBlobs,

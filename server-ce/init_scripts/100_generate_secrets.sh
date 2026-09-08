@@ -1,38 +1,60 @@
 #!/bin/bash
 set -e -o pipefail
 
-# generate secrets and defines them as environment variables
+# Generates the secrets the site needs, so that installing it takes no
+# configuration at all.
 # https://github.com/phusion/baseimage-docker#centrally-defining-your-own-environment-variables
+#
+# A secret that changes invalidates whatever was signed with it -- sessions,
+# invite tokens -- so these are kept on the data volume rather than only inside
+# the container: recreating the container to upgrade it must not sign everybody
+# out. A value supplied in the environment still wins, which is what keeps an
+# existing deployment on exactly the secrets it already had.
 
-WEB_API_PASSWORD_FILE=/etc/container_environment/WEB_API_PASSWORD
-STAGING_PASSWORD_FILE=/etc/container_environment/STAGING_PASSWORD # HTTP auth for history-v1
-V1_HISTORY_PASSWORD_FILE=/etc/container_environment/V1_HISTORY_PASSWORD
-CRYPTO_RANDOM_FILE=/etc/container_environment/CRYPTO_RANDOM
-OT_JWT_AUTH_KEY_FILE=/etc/container_environment/OT_JWT_AUTH_KEY
+ENVIRONMENT_DIR=/etc/container_environment
+SECRETS_DIR=/var/lib/overleaf/data/secrets
+
+SECRETS="
+WEB_API_PASSWORD
+CRYPTO_RANDOM
+OT_JWT_AUTH_KEY
+OVERLEAF_SESSION_SECRET
+OVERLEAF_INVITE_TOKEN_SECRET
+"
 
 generate_secret () {
   dd if=/dev/urandom bs=1 count=32 2>/dev/null | base64 -w 0 | rev | cut -b 2- | rev | tr -d '\n+/'
 }
 
-if [ ! -f "$WEB_API_PASSWORD_FILE" ] ||
-  [ ! -f "$STAGING_PASSWORD_FILE" ] ||
-  [ ! -f "$V1_HISTORY_PASSWORD_FILE" ] ||
-  [ ! -f "$CRYPTO_RANDOM_FILE" ] ||
-  [ ! -f "$OT_JWT_AUTH_KEY_FILE" ]
-then
-    echo "generating random secrets"
+# Holds a secret if we do not already have one, and puts it in the environment
+# the services are started with.
+ensure_secret () {
+  local name=$1
 
-    SECRET=$(generate_secret)
-    echo "${SECRET}" > ${WEB_API_PASSWORD_FILE}
+  if [ -s "${ENVIRONMENT_DIR}/${name}" ]; then
+    # Supplied in the environment. That is the value, and it is not ours to keep.
+    return
+  fi
 
-    SECRET=$(generate_secret)
-    echo "${SECRET}" > ${STAGING_PASSWORD_FILE}
-    echo "${SECRET}" > ${V1_HISTORY_PASSWORD_FILE}
+  if [ ! -s "${SECRETS_DIR}/${name}" ]; then
+    generate_secret > "${SECRETS_DIR}/${name}"
+    chmod 600 "${SECRETS_DIR}/${name}"
+    echo "generated ${name}"
+  fi
 
-    SECRET=$(generate_secret)
-    echo "${SECRET}" > ${CRYPTO_RANDOM_FILE}
+  cp "${SECRETS_DIR}/${name}" "${ENVIRONMENT_DIR}/${name}"
+}
 
-    SECRET=$(generate_secret)
-    echo "${SECRET}" > ${OT_JWT_AUTH_KEY_FILE}
+mkdir -p "${SECRETS_DIR}"
+chmod 700 "${SECRETS_DIR}"
+
+for name in ${SECRETS}; do
+  ensure_secret "${name}"
+done
+
+# history-v1 checks the password it is handed against the one it was told to
+# expect, so these two names are one secret.
+ensure_secret STAGING_PASSWORD
+if [ ! -s "${ENVIRONMENT_DIR}/V1_HISTORY_PASSWORD" ]; then
+  cp "${ENVIRONMENT_DIR}/STAGING_PASSWORD" "${ENVIRONMENT_DIR}/V1_HISTORY_PASSWORD"
 fi
-

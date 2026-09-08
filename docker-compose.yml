@@ -1,152 +1,175 @@
+# Ayakaleaf Pro
+#
+#     docker compose up -d
+#
+# That is the whole installation. There is no .env file to write and no
+# variable to set first: the secrets are generated on first startup and kept on
+# the data volume, and everything an operator would otherwise configure here --
+# the site name and URL, who may register, Google and GitHub sign-in, SMTP --
+# is set in the admin pages instead, at /admin/settings.
+#
+# The first person to register becomes the administrator. Open the site and
+# sign up; the registration page turns itself into an admin sign-up until
+# somebody has taken it.
+#
+# What is left in this file is the shape of the deployment itself -- which
+# containers there are and where they keep their data -- because that is the
+# one thing a page inside the application cannot describe.
+#
+# Git access needs a second container, so it has a profile:
+#
+#     docker compose --profile git up -d
+
 services:
-  sharelatex:
+  ayakaleaf:
+    image: ${AYAKALEAF_IMAGE:-ayakaleaf/ayakaleaf:latest}
+    container_name: ayakaleaf
     restart: always
-    # Server Pro users:
-    # image: quay.io/sharelatex/sharelatex-pro
-    image: sharelatex/sharelatex
-    container_name: sharelatex
+    stop_grace_period: 60s
     depends_on:
       mongo:
         condition: service_healthy
       redis:
         condition: service_started
     ports:
-      - 80:80
-    stop_grace_period: 60s
+      # Change the left-hand number to serve on a different port. Put a
+      # reverse proxy in front of this for HTTPS, and set the site URL in
+      # /admin/settings to the address people actually use.
+      - "${AYAKALEAF_PORT:-80}:80"
     volumes:
-      - ~/sharelatex_data:/var/lib/overleaf
-      ########################################################################
-      ####  Server Pro: Uncomment the following line to mount the docker  ####
-      ####             socket, required for Sibling Containers to work    ####
-      ########################################################################
+      - ayakaleaf-data:/var/lib/overleaf
+      ####################################################################
+      ####  Sandboxed compiles: each project compiles in its own       ####
+      ####  container. Needs the docker socket, and needs the two      ####
+      ####  directories below to be bind mounts, because the paths     ####
+      ####  are handed to the docker daemon on the host rather than    ####
+      ####  used from inside this container.                           ####
+      ####                                                             ####
+      ####  Uncomment all three lines here, and the four SANDBOXED_    ####
+      ####  variables below.                                           ####
+      ####################################################################
       # - /var/run/docker.sock:/var/run/docker.sock
+      # - /srv/ayakaleaf/compiles:/var/lib/overleaf/data/compiles
+      # - /srv/ayakaleaf/output:/var/lib/overleaf/data/output
     environment:
-      OVERLEAF_APP_NAME: Overleaf Community Edition
-
-      OVERLEAF_MONGO_URL: mongodb://mongo/sharelatex
-
-      # Same property, unfortunately with different names in
-      # different locations
+      # Where the databases are. These describe this compose file, so they
+      # stay here; everything else lives in the database and is set in the
+      # admin pages.
+      OVERLEAF_MONGO_URL: mongodb://mongo/sharelatex?directConnection=true
       OVERLEAF_REDIS_HOST: redis
       REDIS_HOST: redis
 
-      # IMPORTANT: Required for invite token generation
-      # OVERLEAF_INVITE_TOKEN_SECRET: generate with `openssl rand -base64 32`
+      # Which addresses may set X-Forwarded-For. The container's own nginx has
+      # to be trusted, so whatever you put here must still include loopback.
+      # Wrong values stop the site starting, which is why this one is here and
+      # not in the admin pages.
+      OVERLEAF_TRUSTED_PROXY_IPS: loopback
 
-      ENABLED_LINKED_FILE_TYPES: "project_file,project_output_file"
+      # The other things a page inside the application cannot decide for
+      # itself. Uncomment what you need.
+      #
+      # ## A seccomp profile for the compile containers, by path on the host.
+      # ## Podman needs this; Docker does not.
+      # SECCOMP_PROFILE: /srv/ayakaleaf/seccomp.json
+      #
+      # ## Start even if the Mongo admin checks cannot be run, for a managed
+      # ## Mongo that does not grant them.
+      # ALLOW_MONGO_ADMIN_CHECK_FAILURES: "true"
+      #
+      # ## The secrets are generated on first startup and kept on the data
+      # ## volume. Set them here only to keep the ones an older deployment had.
+      # OVERLEAF_INVITE_TOKEN_SECRET: ...
+      # OVERLEAF_SESSION_SECRET: ...
+      #
+      # ## Where history-v1 is, for the git-bridge container below.
+      # V1_HISTORY_URL: http://localhost:3100/api
 
-      # Enables Thumbnail generation using ImageMagick
-      ENABLE_CONVERSIONS: "true"
-
-      # Disables email confirmation requirement
-      EMAIL_CONFIRMATION_DISABLED: "true"
-
-      ## Set for SSL via nginx-proxy
-      #VIRTUAL_HOST: 103.112.212.22
-
-      # OVERLEAF_SITE_URL: http://overleaf.example.com
-      # OVERLEAF_NAV_TITLE: Overleaf Community Edition
-      # OVERLEAF_HEADER_IMAGE_URL: http://example.com/mylogo.png
-      # OVERLEAF_ADMIN_EMAIL: support@it.com
-
-      # OVERLEAF_LEFT_FOOTER: '[{"text": "Another page I want to link to can be found <a href=\"here\">here</a>"} ]'
-      # OVERLEAF_RIGHT_FOOTER: '[{"text": "Hello I am on the Right"} ]'
-
-      # OVERLEAF_EMAIL_FROM_ADDRESS: "hello@example.com"
-
-      # OVERLEAF_EMAIL_AWS_SES_ACCESS_KEY_ID:
-      # OVERLEAF_EMAIL_AWS_SES_SECRET_KEY:
-
-      # OVERLEAF_EMAIL_SMTP_HOST: smtp.example.com
-      # OVERLEAF_EMAIL_SMTP_PORT: 587
-      # OVERLEAF_EMAIL_SMTP_SECURE: false
-      # OVERLEAF_EMAIL_SMTP_USER:
-      # OVERLEAF_EMAIL_SMTP_PASS:
-      # OVERLEAF_EMAIL_SMTP_TLS_REJECT_UNAUTH: true
-      # OVERLEAF_EMAIL_SMTP_IGNORE_TLS: false
-      # OVERLEAF_EMAIL_SMTP_NAME: '127.0.0.1'
-      # OVERLEAF_EMAIL_SMTP_LOGGER: true
-      # OVERLEAF_CUSTOM_EMAIL_FOOTER: "This system is run by department x"
-
-      # ENABLE_CRON_RESOURCE_DELETION: true
-
-      ################
-      ## Server Pro ##
-      ################
-
-      ## The Community Edition is intended for use in environments where all users are trusted and is not appropriate for
-      ## scenarios where isolation of users is required. Sandboxed Compiles are not available in the Community Edition,
-      ## so the following environment variables must be commented out to avoid compile issues.
-      ##
-      ## Sandboxed Compiles: https://docs.overleaf.com/on-premises/configuration/overleaf-toolkit/server-pro-only-configuration/sandboxed-compiles
-      SANDBOXED_COMPILES: "true"
-      ### Bind-mount source for /var/lib/overleaf/data/compiles inside the container.
-      SANDBOXED_COMPILES_HOST_DIR_COMPILES: "/home/user/sharelatex_data/data/compiles"
-      ### Bind-mount source for /var/lib/overleaf/data/output inside the container.
-      SANDBOXED_COMPILES_HOST_DIR_OUTPUT: "/home/user/sharelatex_data/data/output"
-      ### Backwards compatibility (before Server Pro 5.5)
-      DOCKER_RUNNER: "true"
-      SANDBOXED_COMPILES_SIBLING_CONTAINERS: "true"
-
-      ## Works with test LDAP server shown at bottom of docker compose
-      # OVERLEAF_LDAP_URL: 'ldap://ldap:389'
-      # OVERLEAF_LDAP_SEARCH_BASE: 'ou=people,dc=planetexpress,dc=com'
-      # OVERLEAF_LDAP_SEARCH_FILTER: '(uid={{username}})'
-      # OVERLEAF_LDAP_BIND_DN: 'cn=admin,dc=planetexpress,dc=com'
-      # OVERLEAF_LDAP_BIND_CREDENTIALS: 'GoodNewsEveryone'
-      # OVERLEAF_LDAP_EMAIL_ATT: 'mail'
-      # OVERLEAF_LDAP_NAME_ATT: 'cn'
-      # OVERLEAF_LDAP_LAST_NAME_ATT: 'sn'
-      # OVERLEAF_LDAP_UPDATE_USER_DETAILS_ON_LOGIN: 'true'
-
-      # OVERLEAF_TEMPLATES_USER_ID: "578773160210479700917ee5"
-      # OVERLEAF_NEW_PROJECT_TEMPLATE_LINKS: '[ {"name":"All Templates","url":"/templates/all"}]'
-
-      # OVERLEAF_PROXY_LEARN: "true"
+      # SANDBOXED_COMPILES: "true"
+      # ## These two are handed to the docker daemon on the host, so they must
+      # ## be absolute host paths, and the same ones as the mounts above.
+      # SANDBOXED_COMPILES_HOST_DIR_COMPILES: "/srv/ayakaleaf/compiles"
+      # SANDBOXED_COMPILES_HOST_DIR_OUTPUT: "/srv/ayakaleaf/output"
+      # ## Read by versions before 5.5
+      # DOCKER_RUNNER: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:3000/status || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
 
   mongo:
-    restart: always
     image: mongo:8.0
-    container_name: mongo
-    command: "--replSet overleaf"
+    container_name: ayakaleaf-mongo
+    restart: always
+    command: "--replSet overleaf --bind_ip_all"
     volumes:
-      - ~/mongo_data:/data/db
-      - ./bin/shared/mongodb-init-replica-set.js:/docker-entrypoint-initdb.d/mongodb-init-replica-set.js
-    environment:
-      MONGO_INITDB_DATABASE: sharelatex
+      - mongo-data:/data/db
     extra_hosts:
-      # Required when using the automatic database setup for initializing the replica set.
-      # This override is not needed when running the setup after starting up mongo.
-      - mongo:127.0.0.1
+      # The replica set names this host, so the container has to be able to
+      # resolve it as itself.
+      - "mongo:127.0.0.1"
     healthcheck:
-      test: echo 'db.stats().ok' | mongosh localhost:27017/test --quiet
-      interval: 10s
+      # Mongo has to be a replica set for the transactions the application
+      # uses, and a single-node set has to be told so once. Doing it here
+      # rather than in a mounted script is what keeps this to one file: the
+      # check starts the set if it is not started, and only reports healthy
+      # once the node is actually able to take writes.
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --eval "try { rs.status() } catch (error) { rs.initiate({_id: 'overleaf', members: [{_id: 0, host: 'mongo:27017'}]}) }; if (!db.hello().isWritablePrimary) { quit(1) }"
+      interval: 5s
       timeout: 10s
-      retries: 5
+      retries: 30
+      start_period: 10s
+
+  # Git access to projects: clone and push a project over git.
+  #
+  # It is behind a profile, so it is off unless you ask for it:
+  #
+  #     docker compose --profile git up -d
+  #
+  # Then turn Git access on in /admin/settings and restart. Both halves are
+  # needed -- the container has to exist, and the application has to be told to
+  # use it.
+  git-bridge:
+    image: ${AYAKALEAF_GIT_BRIDGE_IMAGE:-quay.io/sharelatex/git-bridge:latest}
+    container_name: ayakaleaf-git-bridge
+    restart: always
+    profiles: ["git"]
+    depends_on:
+      ayakaleaf:
+        condition: service_healthy
+    volumes:
+      - git-bridge-data:/data/git-bridge
+    environment:
+      GIT_BRIDGE_API_BASE_URL: "http://ayakaleaf:3000/api/v0/"
+      GIT_BRIDGE_OAUTH2_SERVER: "http://ayakaleaf"
+      GIT_BRIDGE_POSTBACK_BASE_URL: "http://git-bridge:8000"
+      GIT_BRIDGE_ROOT_DIR: "/data/git-bridge"
+    user: root
+    command: ["/server-pro-start.sh"]
 
   redis:
+    image: redis:7.2
+    container_name: ayakaleaf-redis
     restart: always
-    image: redis:6.2
-    container_name: redis
+    command: "--appendonly yes"
     volumes:
-      - ~/redis_data:/data
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # ldap:
-  #    restart: always
-  #    image: rroemhild/test-openldap
-  #    container_name: ldap
-
-  # See https://github.com/jwilder/nginx-proxy for documentation on how to configure the nginx-proxy container,
-  # and https://github.com/overleaf/overleaf/wiki/HTTPS-reverse-proxy-using-Nginx for an example of some recommended
-  # settings. We recommend using a properly managed nginx instance outside of the Overleaf Server Pro setup,
-  # but the example here can be used if you'd prefer to run everything with docker-compose
-
-  # nginx-proxy:
-  #     image: jwilder/nginx-proxy
-  #     container_name: nginx-proxy
-  #     ports:
-  #       - "80:80"
-  #       - "443:443"
-  #     volumes:
-  #       - /var/run/docker.sock:/tmp/docker.sock:ro
-  #       - /home/overleaf/tmp:/etc/nginx/certs
+volumes:
+  # Projects, uploads, compiled output and the generated secrets.
+  ayakaleaf-data:
+  mongo-data:
+  # Sessions, and document changes that have not been written to Mongo yet, so
+  # this is not a cache: losing it loses recent edits.
+  redis-data:
+  # The git repositories, when the git profile is running.
+  git-bridge-data:

@@ -198,6 +198,12 @@ const settings = {
   // The name this is used to describe your Overleaf Community Edition Installation
   appName: process.env.OVERLEAF_APP_NAME || 'Overleaf Community Edition',
 
+  // The deployment guide used to ask for this in the compose file. Installing
+  // takes no configuration now, so it is simply the default.
+  enabledLinkedFileTypes: (
+    process.env.ENABLED_LINKED_FILE_TYPES || 'project_file,project_output_file'
+  ).split(','),
+
   restrictInvitesToExistingAccounts:
     process.env.OVERLEAF_RESTRICT_INVITES_TO_EXISTING_ACCOUNTS === 'true',
 
@@ -309,7 +315,11 @@ const settings = {
 
 // This secret is used for encrypting sharing link tokens in the database
 if (process.env.OVERLEAF_INVITE_TOKEN_SECRET) {
-  module.exports.projectInviteEncryptorOptions = {
+  // Not module.exports: that object is replaced by `settings` at the end of
+  // this file, so anything written to it here would be thrown away -- which is
+  // why link sharing has been logging that this secret is not set even when it
+  // is.
+  settings.projectInviteEncryptorOptions = {
     cipherLabel: '2026.3-v3',
     cipherPasswords: {
       '2026.3-v3': process.env.OVERLEAF_INVITE_TOKEN_SECRET,
