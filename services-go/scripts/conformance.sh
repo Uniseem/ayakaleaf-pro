@@ -118,6 +118,11 @@ run_one() {
     # Failure records, labels and sync state accumulate in Mongo and are read
     # back by the tests as a baseline, so a run has to start from nothing or it
     # is judging what the last one left behind.
+    # The queues, the locks and the remembered history ids are in Redis, and
+    # a queue left behind by an earlier run is a project this one will try to
+    # flush: the sweep over old queues would then be judging what the last run
+    # left rather than what this one did.
+    redis-cli -h "${REDIS_HOST:-127.0.0.1}" --scan --pattern 'ProjectHistory:*'       2>/dev/null | xargs -r redis-cli -h "${REDIS_HOST:-127.0.0.1}" del       >/dev/null 2>&1 || true
     mongosh "${MONGO_CONNECTION_STRING:-mongodb://$MONGO_HOST/sharelatex}"       --quiet --eval '
         db.projectHistoryFailures.deleteMany({});
         db.projectHistoryLabels.deleteMany({});
