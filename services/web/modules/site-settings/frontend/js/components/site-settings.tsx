@@ -236,6 +236,9 @@ function Field({
         />
         <label className="form-check-label" htmlFor={id}>
           {setting.label}
+          {setting.restart && (
+            <span className="badge bg-secondary ms-2">needs a restart</span>
+          )}
         </label>
         {setting.help && (
           <div className="form-text">{setting.help}</div>
