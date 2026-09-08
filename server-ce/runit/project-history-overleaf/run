@@ -1,25 +1,8 @@
 #!/bin/bash
 
-NODE_PARAMS=""
-if [ "$DEBUG_NODE" == "true" ]; then
-    echo "running debug - project-history"
-    NODE_PARAMS="--inspect=0.0.0.0:30540"
-fi
+# services-go/cmd/project-history.
 
 source /etc/overleaf/env.sh
 export LISTEN_ADDRESS=127.0.0.1
 
-# The Go implementation is what this service is: services-go/cmd/project-history.
-#
-# The Node one is still in the image, and PROJECTHISTORY_IMPL=node puts it back, so a
-# rollback is one environment variable and a restart rather than a rebuild.
-if [ "$PROJECTHISTORY_IMPL" != "node" ] && [ -x /overleaf/bin/go/project-history ]; then
-    # /etc/overleaf/settings.js replaces the Redis key schema of every service
-    # with an unbraced one, but not the three keys this service shares with
-    # document-updater: those keep their hash-tag braces even here. The Go port
-    # writes them the way they are actually written rather than the way the
-    # schema says, so nothing needs setting for it.
-    exec /sbin/setuser www-data /overleaf/bin/go/project-history >> /var/log/overleaf/project-history.log 2>&1
-fi
-
-exec /sbin/setuser www-data /usr/bin/node $NODE_PARAMS /overleaf/services/project-history/app.js >> /var/log/overleaf/project-history.log 2>&1
+exec /sbin/setuser www-data /overleaf/bin/go/project-history >> /var/log/overleaf/project-history.log 2>&1

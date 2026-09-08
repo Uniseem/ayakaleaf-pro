@@ -3,11 +3,12 @@
 # Ayakaleaf Pro -- the server image
 # ---------------------------------------------
 #
-# What is in here: nginx, the API (services-go/cmd/api), the Go services it
-# talks to, and the two Node services that have not been replaced yet -- clsi,
-# which runs LaTeX, and history-v1. The pages are not in here: the client is
-# services/frontend and has its own image. Neither is the Node web service,
-# which was most of this image and is gone.
+# What is in here: nginx, TeX Live, and a directory of Go binaries. That is
+# the whole application server -- the API, the services behind it, the
+# compiler, and the history store.
+#
+# The pages are not in here: the client is services/frontend and has its own
+# image.
 
 # Only ARGs declared before the first FROM are in scope for FROM instructions,
 # so both base images have to be named up here -- putting OVERLEAF_BASE_TAG
@@ -16,11 +17,9 @@
 ARG GO_BUILDER_TAG=golang:1.26-bookworm
 ARG OVERLEAF_BASE_TAG=sharelatex/sharelatex-base:latest
 
-# Build the Go ports of the small services
-# ----------------------------------------
-# These are drop-in replacements selected at runtime by the *_IMPL environment
-# variables; see services-go/README.md. The Node implementations stay in the
-# image, so the switch is reversible without a rebuild.
+# Build the services
+# ------------------
+# All of them. See services-go/README.md.
 FROM $GO_BUILDER_TAG AS go-builder
 WORKDIR /src
 COPY services-go/go.mod services-go/go.sum ./
@@ -36,34 +35,12 @@ FROM $OVERLEAF_BASE_TAG
 
 WORKDIR /overleaf
 
-# Add required source files for yarn install
-# -------------------------------------------
-COPY --parents libraries/*/package.json .yarn/patches/ services/*/package.json tools/migrations/ package.json yarn.lock .yarnrc.yml /overleaf/
-COPY server-ce/genScript.js server-ce/services.js /overleaf/
-
-# Pre-install yarn via corepack so it is available at runtime for all users
-# -------------------------------------------------------------------------
-# Corepack setup, shared between all the images.
-ENV PATH="/overleaf/node_modules/.bin:$PATH"
-ENV COREPACK_HOME=/opt/corepack
-RUN corepack enable && corepack install -g yarn@4.14.1
-ENV COREPACK_ENABLE_NETWORK=0
-
-# Install yarn dependencies
-# -------------------------
-RUN --mount=type=cache,target=/root/.cache \
-    --mount=type=cache,target=/root/.yarn/berry/cache,id=server-ce-yarn-cache \
-    --mount=type=cache,target=/usr/local/share/.cache/yarn,id=server-ce-yarn-fallback-cache \
-    --mount=type=tmpfs,target=/tmp node genScript install | bash
-
-# Add the actual source files
-# ---------------------------
-COPY --parents libraries/ services/ tools/migrations/ /overleaf/
-RUN --mount=type=cache,target=/root/.cache \
-    --mount=type=cache,target=/root/.yarn/berry/cache,id=server-ce-yarn-cache \
-    --mount=type=cache,target=/usr/local/share/.cache/yarn,id=server-ce-yarn-fallback-cache \
-    --mount=type=tmpfs,target=/tmp \
-    node genScript compile | bash
+# Nothing is installed here.
+#
+# Every service in this image is a Go binary built in the stage above. There is
+# no package.json, no node_modules and no build step: what used to be most of
+# this file, and most of its build time, was installing and compiling the Node
+# services that are gone.
 
 # Copy the Go binaries
 # --------------------
@@ -104,20 +81,6 @@ RUN chmod 600 /etc/cron.d/crontab-history
 COPY server-ce/init_scripts/ /etc/my_init.d/
 COPY server-ce/init_preshutdown_scripts/ /etc/my_init.pre_shutdown.d/
 
-# Copy app settings files
-# -----------------------
-COPY server-ce/config/settings.js /etc/overleaf/settings.js
-
-# Copy history-v1 files
-# -----------------------
-COPY server-ce/config/production.json /overleaf/services/history-v1/config/production.json
-COPY server-ce/config/custom-environment-variables.json /overleaf/services/history-v1/config/custom-environment-variables.json
-
-# Copy grunt thin wrapper
-# -----------------------
-ADD server-ce/bin/grunt /usr/local/bin/grunt
-RUN chmod +x /usr/local/bin/grunt
-
 # Copy history helper scripts
 # ---------------------------
 ADD server-ce/bin/flush-history-queues /overleaf/bin/flush-history-queues
@@ -136,7 +99,9 @@ RUN touch $SITE_MAINTENANCE_FILE
 
 # Set Environment Variables
 # --------------------------------
-ENV OVERLEAF_CONFIG=/etc/overleaf/settings.js
+# No settings file: every service reads its own variables, and what an
+# administrator changes is in the database and materialised into the
+# environment before anything starts.
 
 ENV WEB_API_USER="overleaf"
 ENV ADMIN_PRIVILEGE_AVAILABLE="true"
@@ -151,7 +116,6 @@ ENV KILL_PROCESS_TIMEOUT=55
 ENV KILL_ALL_PROCESSES_TIMEOUT=55
 ENV GRACEFUL_SHUTDOWN_DELAY_SECONDS=1
 
-ENV NODE_ENV="production"
 ENV LOG_LEVEL="info"
 
 

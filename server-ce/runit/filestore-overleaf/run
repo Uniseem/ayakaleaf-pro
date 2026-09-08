@@ -1,14 +1,8 @@
 #!/bin/bash
 
+# services-go/cmd/filestore.
+
 source /etc/overleaf/env.sh
 export LISTEN_ADDRESS=127.0.0.1
 
-# The Go implementation is what this service is: services-go/cmd/filestore.
-#
-# The Node one is still in the image, and FILESTORE_IMPL=node puts it back, so a
-# rollback is one environment variable and a restart rather than a rebuild.
-if [ "$FILESTORE_IMPL" != "node" ] && [ -x /overleaf/bin/go/filestore ]; then
-    exec /sbin/setuser www-data /overleaf/bin/go/filestore >> /var/log/overleaf/filestore.log 2>&1
-fi
-
-exec /sbin/setuser www-data /usr/bin/node /overleaf/services/filestore/app.js >> /var/log/overleaf/filestore.log 2>&1
+exec /sbin/setuser www-data /overleaf/bin/go/filestore >> /var/log/overleaf/filestore.log 2>&1

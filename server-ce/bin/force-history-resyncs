@@ -3,6 +3,11 @@
 set -euo pipefail
 
 source /etc/container_environment.sh
-source /etc/overleaf/env.sh
-cd /overleaf/services/project-history
-exec /sbin/setuser www-data node scripts/force_resync.js 1000 force
+
+# Asks every project whose history is out of step to be sent again.
+#
+# The last resort when a project's history disagrees with the project: the
+# project document is the one that is right, and this rebuilds the history
+# from it.
+exec curl --fail --silent --show-error -X POST \
+  'http://127.0.0.1:3054/retry/failures?failureType=hard&timeout=3600000&limit=1000'

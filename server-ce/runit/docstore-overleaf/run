@@ -1,20 +1,8 @@
 #!/bin/bash
 
+# services-go/cmd/docstore.
+
 source /etc/overleaf/env.sh
 export LISTEN_ADDRESS=127.0.0.1
 
-# The Go implementation is what this service is: services-go/cmd/docstore.
-#
-# The Node one is still in the image, and DOCSTORE_IMPL=node puts it back, so a
-# rollback is one environment variable and a restart rather than a rebuild.
-if [ "$DOCSTORE_IMPL" != "node" ] && [ -x /overleaf/bin/go/docstore ]; then
-    exec /sbin/setuser www-data /overleaf/bin/go/docstore >> /var/log/overleaf/docstore.log 2>&1
-fi
-
-NODE_PARAMS=""
-if [ "$DEBUG_NODE" == "true" ]; then
-    echo "running debug - docstore"
-    NODE_PARAMS="--inspect=0.0.0.0:30160"
-fi
-
-exec /sbin/setuser www-data /usr/bin/node $NODE_PARAMS /overleaf/services/docstore/app.js >> /var/log/overleaf/docstore.log 2>&1
+exec /sbin/setuser www-data /overleaf/bin/go/docstore >> /var/log/overleaf/docstore.log 2>&1

@@ -2,13 +2,16 @@
 
 set -eu
 
-echo "---------------------------------"
-echo "Flush all project-history changes"
-echo "---------------------------------"
+echo "-------------------------------"
+echo "Flush every project's history"
+echo "-------------------------------"
 date
 
-source /etc/container_environment.sh
-source /etc/overleaf/env.sh
-cd /overleaf/services/project-history && /sbin/setuser www-data node scripts/flush_all.js
+PROJECT_HISTORY_URL='http://127.0.0.1:3054'
 
-echo "Done flushing all project-history changes"
+# timeout=0 takes every project rather than only the ones that have been
+# waiting a while, which is what makes this the nightly sweep rather than the
+# twenty-minute one.
+curl -X POST "${PROJECT_HISTORY_URL}/flush/old?timeout=0&limit=100000&background=1"
+
+echo "Done."

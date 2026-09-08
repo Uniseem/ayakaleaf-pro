@@ -222,8 +222,8 @@
     "services/third-party-datastore",
     "services/third-party-references",
     "tools/dependency-management",
+    "tools/migrations",
     "tools/npm-overrides-helper",
-    "tools/saas-e2e",
-    "tools/migrations"
+    "tools/saas-e2e"
   ]
 }

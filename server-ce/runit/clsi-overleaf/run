@@ -1,13 +1,13 @@
 #!/bin/bash
 
-NODE_PARAMS=""
-if [ "$DEBUG_NODE" == "true" ]; then
-    echo "running debug - clsi"
-    NODE_PARAMS="--inspect=0.0.0.0:30130"
-fi
+# The compiler (services-go/cmd/clsi).
+#
+# The Node implementation is not in the image any more. CLSI_IMPL exists only
+# so that the name is not a surprise if it turns up in a deployment's
+# environment; there is nothing to switch to.
 
-# Set permissions on docker.sock if present,
-# To enable sibling-containers (see entrypoint.sh in clsi project)
+# Set permissions on docker.sock if present, so that a sandboxed compile can
+# start a container of its own.
 if [ -e '/var/run/docker.sock' ]; then
   echo ">> Setting permissions on docker socket"
   DOCKER_GROUP=$(stat -c '%g' /var/run/docker.sock)
@@ -18,4 +18,4 @@ fi
 source /etc/overleaf/env.sh
 export LISTEN_ADDRESS=127.0.0.1
 
-exec /sbin/setuser www-data /usr/bin/node $NODE_PARAMS /overleaf/services/clsi/app.js >> /var/log/overleaf/clsi.log 2>&1
+exec /sbin/setuser www-data /overleaf/bin/go/clsi >> /var/log/overleaf/clsi.log 2>&1

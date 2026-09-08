@@ -1,26 +1,8 @@
 #!/bin/bash
 
-NODE_PARAMS=""
-if [ "$DEBUG_NODE" == "true" ]; then
-    echo "running debug - document updater"
-    NODE_PARAMS="--inspect=0.0.0.0:30030"
-fi
+# services-go/cmd/document-updater.
 
 source /etc/overleaf/env.sh
 export LISTEN_ADDRESS=127.0.0.1
 
-# The Go implementation is what this service is: services-go/cmd/document-updater.
-#
-# The Node one is still in the image, and DOCUPDATER_IMPL=node puts it back, so a
-# rollback is one environment variable and a restart rather than a rebuild.
-if [ "$DOCUPDATER_IMPL" != "node" ] && [ -x /overleaf/bin/go/document-updater ]; then
-    # /etc/overleaf/settings.js replaces the Redis key schema of every service
-    # with an unbraced one -- PendingUpdates:<id> rather than the
-    # PendingUpdates:{<id>} in the services own defaults. Writing the wrong
-    # names is silent: real-time queues an edit under a key this service is not
-    # reading, and the editor declares the document out of sync.
-    export REDIS_KEY_SCHEMA=server-ce
-    exec /sbin/setuser www-data /overleaf/bin/go/document-updater >> /var/log/overleaf/document-updater.log 2>&1
-fi
-
-exec /sbin/setuser www-data /usr/bin/node $NODE_PARAMS /overleaf/services/document-updater/app.js >> /var/log/overleaf/document-updater.log 2>&1
+exec /sbin/setuser www-data /overleaf/bin/go/document-updater >> /var/log/overleaf/document-updater.log 2>&1

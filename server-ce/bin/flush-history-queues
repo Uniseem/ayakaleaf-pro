@@ -3,6 +3,8 @@
 set -euo pipefail
 
 source /etc/container_environment.sh
-source /etc/overleaf/env.sh
-cd /overleaf/services/project-history
-exec /sbin/setuser www-data node scripts/flush_all.js 100000
+
+# Writes every project's queued history into the store, and waits for it.
+# What the nightly sweep does, on demand.
+exec curl --fail --silent --show-error -X POST \
+  'http://127.0.0.1:3054/flush/old?timeout=0&limit=100000'

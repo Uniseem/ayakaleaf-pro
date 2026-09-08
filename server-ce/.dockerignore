@@ -8,7 +8,17 @@ server-ce/test
 # Dockerfile. Nothing in this one reads it.
 services/frontend
 
-# The Node web service. Its pages are the client above and its internal API is
-# services-go/cmd/api, so nothing in this image runs it -- and it was most of
-# the image.
+# The Node services. Every one of them is Go now, built from services-go and
+# copied in as a binary. The sources stay in the repository -- the conformance
+# suite runs the Go ports against them -- and none of them ships.
 services/web
+services/chat
+services/clsi
+services/docstore
+services/document-updater
+services/filestore
+services/history-v1
+services/linked-url-proxy
+services/notifications
+services/project-history
+services/real-time

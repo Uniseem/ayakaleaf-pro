@@ -26,7 +26,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: setup environment|check-databases|check-texlive")
+		fmt.Fprintln(os.Stderr, "usage: setup environment|check-databases|check-texlive|ensure-indexes")
 		os.Exit(2)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -40,6 +40,8 @@ func main() {
 		err = checkDatabases(ctx)
 	case "check-texlive":
 		err = checkTexLive(ctx)
+	case "ensure-indexes":
+		err = ensureIndexes(ctx)
 	default:
 		fmt.Fprintf(os.Stderr, "setup: no such command %q\n", os.Args[1])
 		os.Exit(2)

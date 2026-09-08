@@ -1,9 +1,8 @@
 #!/bin/bash
 
-NODE_PARAMS=""
-if [ "$DEBUG_NODE" == "true" ]; then
-    echo "running debug - history-v1"
-    NODE_PARAMS="--inspect=0.0.0.0:30640"
-fi
+# The history store (services-go/cmd/history): every version of every file.
 
-NODE_CONFIG_DIR=/overleaf/services/history-v1/config exec /sbin/setuser www-data /usr/bin/node $NODE_PARAMS /overleaf/services/history-v1/app.js >> /var/log/overleaf/history-v1.log 2>&1
+source /etc/overleaf/env.sh
+export LISTEN_ADDRESS=127.0.0.1
+
+exec /sbin/setuser www-data /overleaf/bin/go/history >> /var/log/overleaf/history-v1.log 2>&1
