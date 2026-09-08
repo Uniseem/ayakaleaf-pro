@@ -13,7 +13,7 @@ if (!libraryDir) {
   process.stderr.write('usage: harness.js <overleaf-editor-core dir>\n')
   process.exit(2)
 }
-const { TextOperation } = require(libraryDir)
+const { TextOperation, TrackedChangeList } = require(libraryDir)
 
 const out = []
 readline
@@ -35,6 +35,18 @@ readline
           answer.appliedLength = first.applyToLength(scenario.length)
         } catch (err) {
           answer.applyError = String(err && err.message)
+        }
+      }
+
+      // The tracked changes have to move with the operation, and where they
+      // end up is the thing a restored version is read through.
+      if (Array.isArray(scenario.trackedChanges)) {
+        try {
+          const list = TrackedChangeList.fromRaw(scenario.trackedChanges)
+          list.applyTextOperation(first)
+          answer.trackedChanges = list.toRaw()
+        } catch (err) {
+          answer.trackedChangesError = String(err && err.message)
         }
       }
 

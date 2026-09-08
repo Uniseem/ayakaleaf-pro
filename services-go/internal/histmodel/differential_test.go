@@ -46,6 +46,8 @@ type scenario struct {
 	// leaving it out would ask the two sides different questions.
 	Second []json.RawMessage `json:"second"`
 	Length *int              `json:"length,omitempty"`
+	// TrackedChanges are the marks on the document the operation applies to.
+	TrackedChanges []json.RawMessage `json:"trackedChanges"`
 }
 
 type result struct {
@@ -56,7 +58,10 @@ type result struct {
 	ApplyError    string          `json:"applyError"`
 	Composed      json.RawMessage `json:"composed"`
 	ComposeError  string          `json:"composeError"`
-	Error         string          `json:"error"`
+
+	TrackedChanges      json.RawMessage `json:"trackedChanges"`
+	TrackedChangesError string          `json:"trackedChangesError"`
+	Error               string          `json:"error"`
 }
 
 func TestDifferentialAgainstCore(t *testing.T) {
@@ -130,6 +135,30 @@ func TestDifferentialAgainstCore(t *testing.T) {
 			}
 		}
 
+		if s.TrackedChanges != nil {
+			var changes []TrackedChange
+			if err := json.Unmarshal(mustMarshal(s.TrackedChanges), &changes); err == nil {
+				list := NewTrackedChangeList(changes)
+				err := list.ApplyTextOperation(first)
+				switch {
+				case want.TrackedChangesError != "":
+					if err == nil {
+						t.Fatalf("case %d: tracked changes: core refused it (%s), the port did not\n  %s",
+							i, want.TrackedChangesError, encoded)
+					}
+				case err != nil:
+					t.Fatalf("case %d: tracked changes: the port refused it: %v\n  %s",
+						i, err, encoded)
+				default:
+					got, _ := json.Marshal(list)
+					if !sameJSON(string(want.TrackedChanges), string(got)) {
+						t.Fatalf("case %d: tracked changes\n  scenario: %s\n  core: %s\n  go:   %s",
+							i, encoded, want.TrackedChanges, got)
+					}
+				}
+			}
+		}
+
 		if s.Second != nil {
 			second := NewTextOperation()
 			if err := json.Unmarshal(wrap(s.Second), second); err != nil {
@@ -192,6 +221,9 @@ func generateScenarios(count int) []scenario {
 		if random.IntN(2) == 0 {
 			second, _ := randomOperation(random, target)
 			s.Second = second
+		}
+		if random.IntN(2) == 0 {
+			s.TrackedChanges = randomTrackedChanges(random, base)
 		}
 		scenarios = append(scenarios, s)
 	}
@@ -384,4 +416,39 @@ func runHarness(t *testing.T, libraryDir string, scenarios []scenario) []result 
 		t.Fatalf("the harness exited badly: %v", err)
 	}
 	return results
+}
+
+// randomTrackedChanges places marks over a document of the given length.
+//
+// They are laid down left to right and never overlap, which is what the list
+// guarantees for a real document and what it refuses to be given.
+func randomTrackedChanges(random *rand.Rand, base int) []json.RawMessage {
+	changes := []json.RawMessage{}
+	position := 0
+	for c := random.IntN(4); c > 0 && position < base; c-- {
+		position += random.IntN(4)
+		if position >= base {
+			break
+		}
+		length := 1 + random.IntN(minInt(6, base-position))
+		changes = append(changes, mustMarshal(map[string]any{
+			"range":    map[string]any{"pos": position, "length": length},
+			"tracking": randomTrackingProps(random),
+		}))
+		position += length
+	}
+	return changes
+}
+
+// randomTrackingProps draws a mark. Unlike the one used for operations it never
+// draws the clearing directive, which is not something a stored mark can be.
+func randomTrackingProps(random *rand.Rand) map[string]any {
+	kind := "insert"
+	if random.IntN(2) == 0 {
+		kind = "delete"
+	}
+	return map[string]any{
+		"type": kind, "userId": fmt.Sprintf("u%d", random.IntN(2)),
+		"ts": timestamps[random.IntN(len(timestamps))],
+	}
 }
