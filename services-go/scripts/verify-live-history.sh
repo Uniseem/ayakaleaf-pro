@@ -42,6 +42,11 @@ inmongo() {
     tr -d '\r'
 }
 
+# Where the log had got to before any of this ran, so that what is counted at
+# the end is what this run caused rather than everything the service has ever
+# said.
+log_start=$(docker exec "$CONTAINER" sh -c   'wc -l < /var/log/overleaf/project-history.log 2>/dev/null || echo 0' | tr -d '')
+
 echo "=== which implementation each service is running ==="
 docker exec "$CONTAINER" sh -c '
 for s in docstore filestore real-time document-updater project-history; do
@@ -241,10 +246,13 @@ check "GET /check_lock" "200" "$lock"
 
 echo
 echo "=== errors in the logs ==="
-errors=$(incontainer "grep -c '\"level\":50' /var/log/overleaf/project-history.log || true")
-echo "  project-history errors logged: ${errors:-0}"
+errors=$(incontainer "tail -n +$((log_start + 1)) /var/log/overleaf/project-history.log |
+  grep -c '\"level\":50' || true")
+echo "  project-history errors logged by this run: ${errors:-0}"
 if [[ "${errors:-0}" != "0" ]]; then
-  incontainer "grep '\"level\":50' /var/log/overleaf/project-history.log | tail -5"
+  incontainer "tail -n +$((log_start + 1)) /var/log/overleaf/project-history.log |
+    grep '\"level\":50' | tail -5"
+  fail=$((fail + 1))
 fi
 
 echo
