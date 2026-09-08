@@ -74,6 +74,7 @@ export const db = {
   publishers: internalDb.collection('publishers'),
   rooms: internalDb.collection('rooms'),
   samlCache: internalDb.collection('samlCache'),
+  siteSettings: internalDb.collection('siteSettings'),
   samlLogs: internalDb.collection('samlLogs'),
   spellingPreferences: internalDb.collection('spellingPreferences'),
   splittests: internalDb.collection('splittests'),

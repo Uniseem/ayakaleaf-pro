@@ -1,0 +1,15 @@
+extends ../../../../app/views/layout-react
+
+block entrypointVar
+	- entrypoint = 'modules/site-settings/pages/settings'
+
+block vars
+	- const suppressNavContentLinks = true
+	- const suppressPugCookieBanner = true
+
+block content
+	main.content.content-alt#main-content
+		.container
+			.row
+				.col-md-12
+					#site-settings-root

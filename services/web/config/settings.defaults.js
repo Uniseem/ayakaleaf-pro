@@ -1235,6 +1235,9 @@ module.exports = {
 
   moduleImportSequence: [
     'history-v1',
+    // First: the settings an operator changed from the admin page have to be
+    // in place before any module reads them to decide what to register.
+    'site-settings',
     'launchpad',
     'learn',
     'server-ce-scripts',
