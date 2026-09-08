@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/auth"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/oauth"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -234,3 +235,48 @@ func intOr(value any, fallback int) int {
 	}
 	return fallback
 }
+
+// --- the oauth.Settings this store satisfies --------------------------------
+
+// ProviderConfig is what one identity provider needs to be usable, and whether
+// an administrator has set it up.
+func (s *Store) ProviderConfig(providerID string) (oauth.Config, bool) {
+	values := s.Values()
+	var id, secret string
+	switch providerID {
+	case "google":
+		id, secret = values.GoogleClientID, values.GoogleClientSecret
+	case "github":
+		id, secret = values.GitHubClientID, values.GitHubClientSecret
+	default:
+		return oauth.Config{}, false
+	}
+	if id == "" || secret == "" {
+		return oauth.Config{}, false
+	}
+	return oauth.Config{
+		ClientID:     id,
+		ClientSecret: secret,
+		// Built from the site URL rather than from the request, because it has
+		// to match what was registered at the provider exactly, and a request
+		// can arrive on an address nobody registered.
+		RedirectURL: strings.TrimRight(values.SiteURL, "/") + "/api/auth/" + providerID + "/callback",
+	}, true
+}
+
+// MayCreateAccounts says whether signing in with a provider may make an
+// account for somebody the site has never seen.
+func (s *Store) MayCreateAccounts() bool {
+	raw, present := s.current.Load().raw["oauthCreatesAccounts"]
+	if !present {
+		return true
+	}
+	var allowed bool
+	if err := json.Unmarshal(raw, &allowed); err != nil {
+		return true
+	}
+	return allowed
+}
+
+// SiteURL is where this site lives.
+func (s *Store) SiteURL() string { return strings.TrimRight(s.Values().SiteURL, "/") }

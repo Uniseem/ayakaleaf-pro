@@ -18,6 +18,7 @@ import (
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/apierr"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/auth"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/httpapi"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/oauth"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projects"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/settings"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/users"
@@ -32,6 +33,7 @@ type Server struct {
 	settings *settings.Store
 	auth     *auth.Service
 	projects *projects.Service
+	oauth    *oauth.Service
 	origins  []string
 }
 
@@ -49,7 +51,7 @@ type Options struct {
 
 // New builds the server.
 func New(opts Options) *Server {
-	return &Server{
+	server := &Server{
 		log:      opts.Log,
 		users:    opts.Users,
 		sessions: opts.Sessions,
@@ -58,6 +60,11 @@ func New(opts Options) *Server {
 		projects: projects.NewService(opts.Projects),
 		origins:  opts.AllowedOrigins,
 	}
+	// The OAuth handlers start a session for somebody they identified, which
+	// is the auth service's job: passing it in rather than repeating it keeps
+	// one place where a session begins.
+	server.oauth = oauth.NewService(opts.Users, opts.Sessions, opts.Settings, server.auth.SignInUser)
+	return server
 }
 
 // Handler is the whole API.
@@ -80,6 +87,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/auth/login", h(s.auth.Login))
 	mux.HandleFunc("POST /api/auth/logout", h(s.auth.Logout))
 	mux.HandleFunc("GET /api/auth/me", h(s.auth.Me))
+
+	// Signing in with somebody else's identity, and attaching one to an
+	// account that already exists. Which of the two a request means is decided
+	// by whether it arrives signed in.
+	mux.HandleFunc("GET /api/auth/providers", h(s.oauth.Linked))
+	mux.HandleFunc("GET /api/auth/{provider}", h(s.oauth.Start))
+	mux.HandleFunc("GET /api/auth/{provider}/callback", h(s.oauth.Callback))
+	mux.HandleFunc("DELETE /api/auth/{provider}/link", h(s.oauth.Unlink))
 
 	// Projects.
 	mux.HandleFunc("GET /api/projects", h(s.projects.List))

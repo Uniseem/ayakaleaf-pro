@@ -8,7 +8,11 @@ import { LoginForm } from './login-form'
 
 export const metadata = { title: 'Sign in' }
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: { error?: string }
+}) {
   const headers = forwardedHeaders()
   const [user, status] = await Promise.all([
     currentUser(headers).catch(() => null),
@@ -36,6 +40,16 @@ export default async function LoginPage() {
         ) : null
       }
     >
+      {/* Written by the API, never by a provider, so a link cannot put words
+          on this page. */}
+      {searchParams.error ? (
+        <div
+          role="alert"
+          className="rounded-medium border border-danger-200 bg-danger-50 px-4 py-3 text-small text-danger-700 dark:bg-danger-50/10"
+        >
+          {searchParams.error}
+        </div>
+      ) : null}
       <LoginForm />
       <ProviderButtons providers={status.providers} />
     </AuthCard>
