@@ -1205,7 +1205,7 @@ export const SETTINGS = [
     section: 'advanced',
     type: 'text',
     label: 'Anything else, as NAME=value lines',
-    help: 'One per line. These are put into the environment before any module is loaded, which is how everything above works too. Use it for settings that have no field of their own yet.',
+    help: 'One per line. These are put into the environment before any module is loaded, which is how everything above works too. Use it for settings that have no field of their own yet. Unlike the password fields above, what you type here is shown back to anybody who can open this page.',
     default: '',
     restart: true,
   },
