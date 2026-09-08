@@ -141,18 +141,22 @@ async function loadDocument() {
   }
 
   Object.assign(values, seeded)
+
+  // Only true when something actually came from the environment: a fresh site
+  // with nothing set has no compose file to warn anybody about. Stored as it
+  // is worked out, so the next start does not read a flag that was never
+  // earned.
+  seededFromEnvironment =
+    Object.keys(seeded).length > 0 || stored?.seededFromEnvironment === true
+
   await db.siteSettings.updateOne(
     { _id: DOCUMENT_ID },
     {
-      $set: { values, seededFromEnvironment: true },
+      $set: { values, seededFromEnvironment },
       $currentDate: { updatedAt: true },
     },
     { upsert: true }
   )
-  // Only true when something actually came from the environment: a fresh site
-  // with nothing set has no compose file to warn anybody about.
-  seededFromEnvironment =
-    Object.keys(seeded).length > 0 || stored?.seededFromEnvironment === true
   logger.info(
     { count: Object.keys(seeded).length, keys: Object.keys(seeded) },
     'took site settings from the environment'
@@ -160,7 +164,6 @@ async function loadDocument() {
   return values
 }
 
-/** Puts the values into the Settings object every module reads. */
 /**
  * Puts the settings where a module that reads them at import time will look.
  *
@@ -183,6 +186,7 @@ function applyEnvironment(values) {
   }
 }
 
+/** Puts the values into the Settings object every module reads. */
 function apply(values) {
   for (const definition of SETTINGS) {
     const value = coerce(definition, values[definition.key])
