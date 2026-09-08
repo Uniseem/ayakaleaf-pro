@@ -18,6 +18,7 @@ import (
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/apierr"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/auth"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/httpapi"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projects"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/settings"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/users"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/session"
@@ -30,6 +31,7 @@ type Server struct {
 	sessions *session.Store
 	settings *settings.Store
 	auth     *auth.Service
+	projects *projects.Service
 	origins  []string
 }
 
@@ -39,6 +41,7 @@ type Options struct {
 	Users    *users.Store
 	Sessions *session.Store
 	Settings *settings.Store
+	Projects *projects.Store
 	// AllowedOrigins are the addresses a browser may send a state-changing
 	// request from. The site's own is enough unless something else embeds it.
 	AllowedOrigins []string
@@ -52,6 +55,7 @@ func New(opts Options) *Server {
 		sessions: opts.Sessions,
 		settings: opts.Settings,
 		auth:     auth.New(opts.Users, opts.Sessions, opts.Settings),
+		projects: projects.NewService(opts.Projects),
 		origins:  opts.AllowedOrigins,
 	}
 }
@@ -67,12 +71,24 @@ func (s *Server) Handler() http.Handler {
 		_ = httpapi.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
+	// What every page needs to know about the site itself, whoever is asking.
+	mux.HandleFunc("GET /api/site", h(s.site))
+
 	// Signing up and in.
 	mux.HandleFunc("GET /api/auth/status", h(s.auth.Status))
 	mux.HandleFunc("POST /api/auth/register", h(s.auth.Register))
 	mux.HandleFunc("POST /api/auth/login", h(s.auth.Login))
 	mux.HandleFunc("POST /api/auth/logout", h(s.auth.Logout))
 	mux.HandleFunc("GET /api/auth/me", h(s.auth.Me))
+
+	// Projects.
+	mux.HandleFunc("GET /api/projects", h(s.projects.List))
+	mux.HandleFunc("POST /api/projects", h(s.projects.Create))
+	mux.HandleFunc("GET /api/projects/{id}", h(s.projects.Get))
+	mux.HandleFunc("POST /api/projects/{id}/rename", h(s.projects.Rename))
+	mux.HandleFunc("POST /api/projects/{id}/archive", h(s.projects.Archive))
+	mux.HandleFunc("POST /api/projects/{id}/trash", h(s.projects.Trash))
+	mux.HandleFunc("DELETE /api/projects/{id}", h(s.projects.Delete))
 
 	// The admin pages.
 	mux.HandleFunc("GET /api/admin/settings", h(s.getSettings))
@@ -92,6 +108,19 @@ func (s *Server) Handler() http.Handler {
 		httpapi.SameOrigin(s.origins),
 		httpapi.Sessions(s.sessions, s.users, s.log),
 	)
+}
+
+// site answers with what the client needs before it knows who anybody is.
+func (s *Server) site(w http.ResponseWriter, r *http.Request) error {
+	values := s.settings.Values()
+	name := values.AppName
+	if name == "" {
+		name = "Ayakaleaf Pro"
+	}
+	return httpapi.JSON(w, http.StatusOK, map[string]any{
+		"name": name,
+		"url":  values.SiteURL,
+	})
 }
 
 // getSettings answers with every stored setting.

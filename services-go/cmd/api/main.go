@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projects"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/settings"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/users"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/config"
@@ -57,6 +58,11 @@ func main() {
 		log.Warn("could not ensure the user indexes", logx.Err(err))
 	}
 
+	projectStore := projects.NewStore(db)
+	if err := projectStore.EnsureIndexes(ctx); err != nil {
+		log.Warn("could not ensure the project indexes", logx.Err(err))
+	}
+
 	siteSettings := settings.NewStore(db, rdb, log)
 	if err := siteSettings.Load(ctx); err != nil {
 		log.Log(ctx, logx.LevelFatal, "Cannot read the site settings. Exiting.", logx.Err(err))
@@ -76,6 +82,7 @@ func main() {
 		Users:          userStore,
 		Sessions:       sessions,
 		Settings:       siteSettings,
+		Projects:       projectStore,
 		AllowedOrigins: allowedOrigins(siteSettings),
 	})
 
