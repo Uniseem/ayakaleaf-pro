@@ -60,8 +60,10 @@ with open(path, 'w') as out:
 PY
 }
 
-report() {
-  python3 - <<'PY'
+# The reporter is written to a file rather than fed to python on stdin,
+# because the response arrives on stdin and a heredoc would take its place.
+REPORTER=$(mktemp)
+cat > "$REPORTER" <<'PY'
 import json, sys
 
 try:
@@ -86,7 +88,8 @@ print(
     )
 )
 PY
-}
+
+report() { python3 "$REPORTER"; }
 
 echo "# compile timing, $RUNS runs per size, milliseconds"
 echo
@@ -109,3 +112,5 @@ for sections in $SIZES; do
   done
   echo
 done
+
+rm -f "$REPORTER"
