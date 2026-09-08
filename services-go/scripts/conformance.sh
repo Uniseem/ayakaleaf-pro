@@ -9,7 +9,7 @@
 #   scripts/conformance.sh chat
 #   scripts/conformance.sh notifications
 #   scripts/conformance.sh all              # one after another, shared database
-#   scripts/conformance.sh --parallel       # all at once, isolated databases
+#   scripts/conformance.sh --parallel       # the independent ones at once
 #
 # Requires a reachable MongoDB. Point at it with MONGO_CONNECTION_STRING, or
 # MONGO_HOST for the default mongodb://$MONGO_HOST/sharelatex.
@@ -242,22 +242,53 @@ go build -o "$BIN_DIR/" ./cmd/... || exit 1
 
 case "${1:-all}" in
   --parallel)
-    echo "--- running every service concurrently, each against its own database"
+    echo "--- running the independent services concurrently, each against its"
+    echo "    own database, then the ones that share ports in turn"
+    status=0
+
+    # Three of these cannot run at the same time as each other, and it is the
+    # suites rather than the services that collide: real-time's own tests
+    # start a mock document-updater on 3003, which is the port the real Go
+    # document-updater is listening on, and document-updater's tests talk to
+    # project-history on 3054. Ports are not something an isolated database
+    # fixes, so this chain is run one at a time.
+    COUPLED=(real-time document-updater project-history)
+
+    is_coupled() {
+      local want=$1 name
+      for name in "${COUPLED[@]}"; do
+        [[ "$name" == "$want" ]] && return 0
+      done
+      return 1
+    }
+
     pids=()
     names=()
     for spec in "${SERVICES[@]}"; do
       name="${spec%%:*}"
+      is_coupled "$name" && continue
       # A subshell per service, so each gets its own MONGO_CONNECTION_STRING.
       ( run_named "$name" "conformance_${name//-/_}" ) > "$LOG_DIR/$name.log" 2>&1 &
       pids+=("$!")
       names+=("$name")
     done
 
-    status=0
     for i in "${!pids[@]}"; do
       rc=0
       wait "${pids[$i]}" || rc=$?
       name="${names[$i]}"
+      echo
+      echo "======== ${name} (exit ${rc}) ========"
+      cat "$LOG_DIR/$name.log"
+      if [[ $rc -ne 0 ]]; then
+        status=1
+      fi
+    done
+
+    for name in "${COUPLED[@]}"; do
+      spec_for "$name" >/dev/null || continue
+      rc=0
+      ( run_named "$name" "conformance_${name//-/_}" )         > "$LOG_DIR/$name.log" 2>&1 || rc=$?
       echo
       echo "======== ${name} (exit ${rc}) ========"
       cat "$LOG_DIR/$name.log"
