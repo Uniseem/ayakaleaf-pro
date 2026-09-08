@@ -253,7 +253,14 @@ func (m *Meta) Timestamp() int64 {
 }
 
 // IsTextUpdate reports whether the update edits a document.
-func (u *Update) IsTextUpdate() bool { return len(u.Op) > 0 }
+//
+// An update with an empty list of operations is still one: something sent it,
+// it changed nothing, and it is dropped further along rather than refused
+// here.
+func (u *Update) IsTextUpdate() bool {
+	return u.Doc != "" && u.Op != nil && u.Meta.Pathname != "" &&
+		u.Meta.DocLength != nil
+}
 
 // IsTracked reports whether the update was made with track changes on.
 func (u *Update) IsTracked() bool { return u.Meta.TC != "" }

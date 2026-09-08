@@ -190,6 +190,11 @@ func operationsForUpdate(withBlob UpdateWithBlob) ([]histmodel.Operation, string
 			Path: ConvertPathname(update.Pathname), Edit: edit,
 		}}, "", nil, nil
 
+	case hasField(update, "metadata"):
+		return []histmodel.Operation{&histmodel.SetFileMetadataOperation{
+			Path: ConvertPathname(update.Pathname), Metadata: update.Rest["metadata"],
+		}}, "", nil, nil
+
 	case hasField(update, "deleteComment"):
 		edit, err := json.Marshal(map[string]any{
 			"deleteComment": rawString(update.Rest["deleteComment"]),
@@ -199,11 +204,6 @@ func operationsForUpdate(withBlob UpdateWithBlob) ([]histmodel.Operation, string
 		}
 		return []histmodel.Operation{&histmodel.EditFileOperation{
 			Path: ConvertPathname(update.Pathname), Edit: edit,
-		}}, "", nil, nil
-
-	case hasField(update, "metadata"):
-		return []histmodel.Operation{&histmodel.SetFileMetadataOperation{
-			Path: ConvertPathname(update.Pathname), Metadata: update.Rest["metadata"],
 		}}, "", nil, nil
 	}
 
@@ -219,7 +219,10 @@ func isAddDoc(update *Update) bool {
 }
 
 func isAddFile(update *Update) bool {
-	return hasField(update, "file") && hasField(update, "url")
+	// A file that has already been stored says so, and then it carries no url:
+	// there is nothing left to fetch.
+	return hasField(update, "file") &&
+		(isTrue(update.Rest["createdBlob"]) || hasField(update, "url"))
 }
 
 func hasField(update *Update, name string) bool {
