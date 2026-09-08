@@ -330,6 +330,17 @@ function handle(origin, req, res, rawBody) {
   }
 
   if (failure) {
+    if (process.env.MOCK_SERVICES_VERBOSE) {
+      // What the service actually sent. A failed body assertion says what was
+      // expected and that something else arrived; without this, finding out
+      // what means adding a print to the test.
+      process.stderr.write(
+        `  [mock] body did not match for ${request.method} ${request.pathname}:
+` +
+          `    ${bodyText(request.body)}
+`
+      )
+    }
     matched.consume()
     res.writeHead(500, { 'Content-Type': 'text/plain' })
     res.end(`mock assertion failed: ${failure.message}`)
@@ -473,3 +484,17 @@ nock.close = function close() {
 }
 
 export default nock
+
+// bodyText renders a request body for a log line, as text when it is text and
+// as a length when it is not.
+function bodyText(body) {
+  if (body == null) {
+    return '(no body)'
+  }
+  if (Buffer.isBuffer(body)) {
+    const text = body.toString('utf8')
+    // eslint-disable-next-line no-control-regex
+    return /[ -]/.test(text) ? `(${body.length} bytes)` : text
+  }
+  return typeof body === 'string' ? body : JSON.stringify(body)
+}
