@@ -28,6 +28,7 @@ const CHANGE_CHANNEL = 'site-settings:changed'
 
 let loaded = false
 let current = {}
+let seededFromEnvironment = false
 let subscriber = null
 let publisher = null
 
@@ -86,6 +87,7 @@ function fromEnvironment(definition) {
 async function loadDocument() {
   const stored = await db.siteSettings.findOne({ _id: DOCUMENT_ID })
   if (stored) {
+    seededFromEnvironment = stored.seededFromEnvironment === true
     return stored.values || {}
   }
 
@@ -104,6 +106,7 @@ async function loadDocument() {
     },
     { upsert: true }
   )
+  seededFromEnvironment = Object.keys(seeded).length > 0
   logger.info(
     { count: Object.keys(seeded).length },
     'seeded site settings from the environment'
@@ -227,6 +230,10 @@ const SiteSettingsManager = {
   describe() {
     return {
       sections: SECTIONS,
+      // True on a deployment that was upgraded into this: its first values
+      // came out of a compose file, and the page should say so, because the
+      // compose file is not read again after that.
+      seededFromEnvironment,
       settings: SETTINGS.map(definition => ({
         key: definition.key,
         section: definition.section,
@@ -235,7 +242,9 @@ const SiteSettingsManager = {
         help: definition.help,
         options: definition.options,
         restart: definition.restart === true,
-        fromEnvironment: definition.env != null,
+        // The variable this used to be read from, for somebody who knows the
+        // site by its compose file.
+        env: definition.env,
         value: isSecret(definition)
           ? undefined
           : coerce(definition, current[definition.key]),

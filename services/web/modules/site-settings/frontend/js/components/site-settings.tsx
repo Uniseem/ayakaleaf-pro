@@ -15,12 +15,16 @@ type Setting = {
   help?: string
   options?: Array<{ value: string; label: string }>
   restart: boolean
-  fromEnvironment: boolean
+  env?: string
   value?: string | number | boolean
   isSet?: boolean
 }
 
-type Catalogue = { sections: Section[]; settings: Setting[] }
+type Catalogue = {
+  sections: Section[]
+  settings: Setting[]
+  seededFromEnvironment?: boolean
+}
 
 export default function SiteSettings() {
   const [catalogue, setCatalogue] = useState<Catalogue | null>(null)
@@ -113,6 +117,13 @@ export default function SiteSettings() {
         </div>
       </div>
 
+      {catalogue.seededFromEnvironment && (
+        <Notification type="info">
+          These values were taken from this site&rsquo;s environment the first
+          time it started with this version. What is set here is what counts
+          now &mdash; the compose file is not read again.
+        </Notification>
+      )}
       {message && <Notification type={message.type}>{message.text}</Notification>}
       {needsRestart && (
         <Notification type="warning">
@@ -216,9 +227,20 @@ function Field({
         {setting.help && (
           <div className="form-text">{setting.help}</div>
         )}
+        {setting.env && (
+          <div className="form-text text-muted">
+            was <code>{setting.env}</code>
+          </div>
+        )}
       </div>
     )
   }
+
+  const wasVariable = setting.env ? (
+    <div className="form-text text-muted">
+      was <code>{setting.env}</code>
+    </div>
+  ) : null
 
   return (
     <div className="mb-3">
@@ -263,6 +285,7 @@ function Field({
         />
       )}
       {setting.help && <div className="form-text">{setting.help}</div>}
+      {wasVariable}
     </div>
   )
 }

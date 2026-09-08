@@ -45,8 +45,8 @@ services:
       ####  variables below.                                           ####
       ####################################################################
       # - /var/run/docker.sock:/var/run/docker.sock
-      # - ./data/compiles:/var/lib/overleaf/data/compiles
-      # - ./data/output:/var/lib/overleaf/data/output
+      # - /srv/ayakaleaf/compiles:/var/lib/overleaf/data/compiles
+      # - /srv/ayakaleaf/output:/var/lib/overleaf/data/output
     environment:
       # Where the databases are. These describe this compose file, so they
       # stay here; everything else lives in the database and is set in the
@@ -56,9 +56,10 @@ services:
       REDIS_HOST: redis
 
       # SANDBOXED_COMPILES: "true"
-      # ## Paths on the host, not in this container. Relative to this file.
-      # SANDBOXED_COMPILES_HOST_DIR_COMPILES: "./data/compiles"
-      # SANDBOXED_COMPILES_HOST_DIR_OUTPUT: "./data/output"
+      # ## These two are handed to the docker daemon on the host, so they must
+      # ## be absolute host paths, and the same ones as the mounts above.
+      # SANDBOXED_COMPILES_HOST_DIR_COMPILES: "/srv/ayakaleaf/compiles"
+      # SANDBOXED_COMPILES_HOST_DIR_OUTPUT: "/srv/ayakaleaf/output"
       # ## Read by versions before 5.5
       # DOCKER_RUNNER: "true"
     healthcheck:
