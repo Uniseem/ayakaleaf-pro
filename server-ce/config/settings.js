@@ -315,7 +315,11 @@ const settings = {
 
 // This secret is used for encrypting sharing link tokens in the database
 if (process.env.OVERLEAF_INVITE_TOKEN_SECRET) {
-  module.exports.projectInviteEncryptorOptions = {
+  // Not module.exports: that object is replaced by `settings` at the end of
+  // this file, so anything written to it here would be thrown away -- which is
+  // why link sharing has been logging that this secret is not set even when it
+  // is.
+  settings.projectInviteEncryptorOptions = {
     cipherLabel: '2026.3-v3',
     cipherPasswords: {
       '2026.3-v3': process.env.OVERLEAF_INVITE_TOKEN_SECRET,
