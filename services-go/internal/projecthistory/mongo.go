@@ -132,7 +132,7 @@ func (s *Store) RecordFailure(ctx context.Context, projectID string,
 
 	record := bson.M{
 		"queueSize": queueSize,
-		"error":     normalizeFailureMessage(failure.Error()),
+		"error":     failure.Error(),
 		"stack":     "",
 		"ts":        time.Now(),
 	}
@@ -168,6 +168,7 @@ func (s *Store) GetFailure(ctx context.Context, projectID string) (*Failure, err
 	if err != nil {
 		return nil, err
 	}
+	failure.Error = normalizeFailureMessage(failure.Error)
 	return &failure, nil
 }
 
@@ -181,12 +182,18 @@ func (s *Store) GetFailures(ctx context.Context) ([]Failure, error) {
 	if err := cursor.All(ctx, &failures); err != nil {
 		return nil, err
 	}
+	for i := range failures {
+		failures[i].Error = normalizeFailureMessage(failures[i].Error)
+	}
 	return failures, nil
 }
 
 // normalizeFailureMessage rewrites the one prefix that two versions of the
 // error library disagree about, so that counting failures by message does not
 // split the same failure in two.
+//
+// It is done on the way out rather than on the way in, so that a record
+// written before this existed is counted the same as one written now.
 func normalizeFailureMessage(message string) string {
 	if strings.Contains(message, "OError:") {
 		return strings.ReplaceAll(message, "OError:", "Error:")
