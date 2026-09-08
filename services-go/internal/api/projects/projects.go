@@ -72,22 +72,22 @@ type FileRef struct {
 
 // Project is a project.
 type Project struct {
-	ID          bson.ObjectID   `bson:"_id" json:"id"`
-	Name        string          `bson:"name" json:"name"`
-	OwnerRef    bson.ObjectID   `bson:"owner_ref" json:"ownerId"`
-	Collaborators []bson.ObjectID `bson:"collaberator_refs,omitempty" json:"-"`
-	ReadOnly    []bson.ObjectID `bson:"readOnly_refs,omitempty" json:"-"`
+	ID                   bson.ObjectID   `bson:"_id" json:"id"`
+	Name                 string          `bson:"name" json:"name"`
+	OwnerRef             bson.ObjectID   `bson:"owner_ref" json:"ownerId"`
+	Collaborators        []bson.ObjectID `bson:"collaberator_refs,omitempty" json:"-"`
+	ReadOnly             []bson.ObjectID `bson:"readOnly_refs,omitempty" json:"-"`
 	TokenAccessReadWrite []bson.ObjectID `bson:"tokenAccessReadAndWrite_refs,omitempty" json:"-"`
 	TokenAccessReadOnly  []bson.ObjectID `bson:"tokenAccessReadOnly_refs,omitempty" json:"-"`
 
-	RootFolder  []Folder      `bson:"rootFolder,omitempty" json:"rootFolder,omitempty"`
-	RootDocID   bson.ObjectID `bson:"rootDoc_id,omitempty" json:"rootDocId,omitempty"`
-	Compiler    string        `bson:"compiler,omitempty" json:"compiler,omitempty"`
-	ImageName   string        `bson:"imageName,omitempty" json:"imageName,omitempty"`
-	SpellCheck  string        `bson:"spellCheckLanguage,omitempty" json:"spellCheckLanguage,omitempty"`
+	RootFolder []Folder      `bson:"rootFolder,omitempty" json:"rootFolder,omitempty"`
+	RootDocID  bson.ObjectID `bson:"rootDoc_id,omitempty" json:"rootDocId,omitempty"`
+	Compiler   string        `bson:"compiler,omitempty" json:"compiler,omitempty"`
+	ImageName  string        `bson:"imageName,omitempty" json:"imageName,omitempty"`
+	SpellCheck string        `bson:"spellCheckLanguage,omitempty" json:"spellCheckLanguage,omitempty"`
 
-	LastUpdated   time.Time      `bson:"lastUpdated,omitempty" json:"lastUpdated,omitempty"`
-	LastUpdatedBy *bson.ObjectID `bson:"lastUpdatedBy,omitempty" json:"lastUpdatedBy,omitempty"`
+	LastUpdated   time.Time       `bson:"lastUpdated,omitempty" json:"lastUpdated,omitempty"`
+	LastUpdatedBy *bson.ObjectID  `bson:"lastUpdatedBy,omitempty" json:"lastUpdatedBy,omitempty"`
 	Archived      []bson.ObjectID `bson:"archived,omitempty" json:"-"`
 	Trashed       []bson.ObjectID `bson:"trashed,omitempty" json:"-"`
 

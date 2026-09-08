@@ -36,10 +36,10 @@ var (
 
 // Email is one address on an account.
 type Email struct {
-	Email          string     `bson:"email" json:"email"`
-	CreatedAt      time.Time  `bson:"createdAt,omitempty" json:"createdAt,omitempty"`
-	ConfirmedAt    *time.Time `bson:"confirmedAt,omitempty" json:"confirmedAt,omitempty"`
-	ReversedHostname string   `bson:"reversedHostname,omitempty" json:"-"`
+	Email            string     `bson:"email" json:"email"`
+	CreatedAt        time.Time  `bson:"createdAt,omitempty" json:"createdAt,omitempty"`
+	ConfirmedAt      *time.Time `bson:"confirmedAt,omitempty" json:"confirmedAt,omitempty"`
+	ReversedHostname string     `bson:"reversedHostname,omitempty" json:"-"`
 }
 
 // ThirdPartyIdentifier links an account to an identity at Google, GitHub or
