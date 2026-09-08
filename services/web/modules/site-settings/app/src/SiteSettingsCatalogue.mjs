@@ -74,7 +74,9 @@ export const SETTINGS = [
     section: 'site',
     type: 'string',
     label: 'Default language',
+    help: 'A two-letter code, or one like zh-CN. The translations are loaded once when the site starts, so this one needs a restart.',
     default: 'en',
+    restart: true,
   },
   {
     key: 'statusPageUrl',
