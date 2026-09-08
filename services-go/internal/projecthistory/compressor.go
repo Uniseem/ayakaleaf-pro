@@ -152,7 +152,9 @@ func FilterBlankUpdates(updates []*Update) []*Update {
 func ConcatUpdatesWithSameVersion(updates []*Update) []*Update {
 	var concatenated []*Update
 	for _, update := range updates {
-		if !update.IsTextUpdate() {
+		// Anything without an operation is a change to the file tree, which
+		// stands on its own.
+		if len(update.Op) == 0 {
 			concatenated = append(concatenated, update)
 			continue
 		}
@@ -160,7 +162,7 @@ func ConcatUpdatesWithSameVersion(updates []*Update) []*Update {
 		current := update.clone()
 		if len(concatenated) > 0 {
 			last := concatenated[len(concatenated)-1]
-			if last.IsTextUpdate() && sameVersion(last, current) {
+			if len(last.Op) > 0 && sameVersion(last, current) {
 				last.Op = append(last.Op, current.Op...)
 				// The hash belongs to the last operation of the run.
 				last.Meta.DocHash = current.Meta.DocHash
@@ -174,10 +176,16 @@ func ConcatUpdatesWithSameVersion(updates []*Update) []*Update {
 
 // sameVersion reports whether two updates came from the same edit.
 func sameVersion(a, b *Update) bool {
-	if a.V == nil || b.V == nil {
+	switch {
+	case a.V == nil && b.V == nil:
+		// Neither says which version it is, which is what a resync sends: two
+		// of those are as much the same version as two numbered alike.
+	case a.V == nil || b.V == nil:
+		return false
+	case *a.V != *b.V:
 		return false
 	}
-	return *a.V == *b.V && a.Doc == b.Doc && a.Pathname == b.Pathname
+	return a.Doc == b.Doc && a.Pathname == b.Pathname
 }
 
 // CompressUpdates merges each update into the one before it where it can.
