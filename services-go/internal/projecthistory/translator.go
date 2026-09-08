@@ -310,7 +310,10 @@ func (b *operationsBuilder) addOp(op *Op, update *Update) error {
 		// construction is finished first.
 		b.commitTextOperation("")
 
-		length := op.Size()
+		// The comment text, not Op.Size: that reports the length of an insert
+		// or a delete and nothing else, because the compressor relies on a
+		// comment having no size to keep from merging one.
+		length := utf16Len(*op.Comment)
 		if op.HLen != nil {
 			length = *op.HLen
 		}
