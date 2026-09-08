@@ -95,7 +95,7 @@ func trackedChangesFromRanges(entries []rangeEntry) ([]histmodel.TrackedChange, 
 		return sorted[i].Op.IsDelete() && sorted[j].Op.IsInsert()
 	})
 
-	list := histmodel.NewTrackedChangeList(nil)
+	list := histmodel.NewTrackedChangeList([]histmodel.TrackedChange{})
 	for _, entry := range sorted {
 		var kind string
 		var length int
@@ -125,7 +125,12 @@ func trackedChangesFromRanges(entries []rangeEntry) ([]histmodel.TrackedChange, 
 			return nil, err
 		}
 	}
-	return list.Changes(), nil
+	changes := list.Changes()
+	if changes == nil {
+		// An empty list is written as one, not as nothing.
+		changes = []histmodel.TrackedChange{}
+	}
+	return changes, nil
 }
 
 // commentsFromRanges gathers the comment operations into one comment per
