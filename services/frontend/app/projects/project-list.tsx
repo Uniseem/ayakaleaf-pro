@@ -39,7 +39,10 @@ export function ProjectList({ projects }: { projects: ProjectSummary[] }) {
 
   async function create(event: FormEvent) {
     event.preventDefault()
-    if (!name.trim()) return
+    // An empty name is not a reason to do nothing. Somebody who presses
+    // Create without typing wants a project; the API names an unnamed one
+    // Untitled, and it can be renamed. A button that silently ignores a
+    // press looks broken, because it is.
     setError(null)
     setBusy(true)
     try {
