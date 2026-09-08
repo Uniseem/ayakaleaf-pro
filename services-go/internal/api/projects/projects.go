@@ -11,6 +11,8 @@ package projects
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -86,6 +88,9 @@ type Project struct {
 	ImageName  string        `bson:"imageName,omitempty" json:"imageName,omitempty"`
 	SpellCheck string        `bson:"spellCheckLanguage,omitempty" json:"spellCheckLanguage,omitempty"`
 
+	// Version counts changes to the tree. The history is ordered by it.
+	Version int64 `bson:"version,omitempty" json:"version,omitempty"`
+
 	LastUpdated   time.Time       `bson:"lastUpdated,omitempty" json:"lastUpdated,omitempty"`
 	LastUpdatedBy *bson.ObjectID  `bson:"lastUpdatedBy,omitempty" json:"lastUpdatedBy,omitempty"`
 	Archived      []bson.ObjectID `bson:"archived,omitempty" json:"-"`
@@ -93,6 +98,49 @@ type Project struct {
 
 	PublicAccessLevel string `bson:"publicAccesLevel,omitempty" json:"publicAccessLevel,omitempty"`
 	Description       string `bson:"description,omitempty" json:"description,omitempty"`
+
+	// Overleaf is where the project's history lives. Only the id is modelled:
+	// the rest of what is under there belongs to the history services, and a
+	// write here would be this service having an opinion about it.
+	Overleaf *Overleaf `bson:"overleaf,omitempty" json:"-"`
+}
+
+// Overleaf is the part of a project document the history services own.
+type Overleaf struct {
+	History History `bson:"history" json:"history"`
+}
+
+// History names a project in the history store.
+type History struct {
+	// ID is the project's name in the history store. Stored as a number by
+	// some versions and as a string by others, so it is read as either and
+	// used as text.
+	ID any `bson:"id,omitempty" json:"id,omitempty"`
+}
+
+// HistoryID is what the history services call this project.
+//
+// Empty means the project has no history yet, which is true of one made
+// before anything was written to it. Everything that reads a version has to
+// cope with that rather than assume it.
+func (p *Project) HistoryID() string {
+	if p.Overleaf == nil {
+		return ""
+	}
+	switch id := p.Overleaf.History.ID.(type) {
+	case string:
+		return id
+	case int32:
+		return strconv.FormatInt(int64(id), 10)
+	case int64:
+		return strconv.FormatInt(id, 10)
+	case float64:
+		return strconv.FormatInt(int64(id), 10)
+	case nil:
+		return ""
+	default:
+		return fmt.Sprintf("%v", id)
+	}
 }
 
 // AccessFor says what somebody may do with this project.

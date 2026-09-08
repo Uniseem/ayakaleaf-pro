@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // Changing the tree.
@@ -16,6 +17,11 @@ import (
 // Those positions are worked out from the copy already in memory, which is
 // what stops this from being a second traversal written slightly differently
 // each time somebody needs one.
+//
+// Every change here bumps the project's version and returns the new one. That
+// number is what the history is ordered by: a change applied without it, or
+// with a number somebody else has already used, is a change the history
+// records in the wrong place or not at all.
 
 // RootFolderID is the folder everything is in.
 func (p *Project) RootFolderID() (bson.ObjectID, bool) {
@@ -137,52 +143,76 @@ func (f Folder) Taken(name string) bool {
 }
 
 // AddDoc puts a document into a folder.
-func (s *Store) AddDoc(ctx context.Context, project *Project, folderID bson.ObjectID, doc DocRef) error {
+func (s *Store) AddDoc(ctx context.Context, project *Project, folderID bson.ObjectID, doc DocRef) (int64, error) {
 	path, ok := project.FolderPath(folderID)
 	if !ok {
-		return ErrNotFound
+		return 0, ErrNotFound
 	}
-	update := bson.M{
-		"$push": bson.M{path + ".docs": doc},
-		"$set":  bson.M{"lastUpdated": time.Now().UTC()},
-	}
+	update := bson.M{"$push": bson.M{path + ".docs": doc}}
 	// The first document in a project becomes the one that gets compiled.
 	// Somebody who has just made a project and typed into the only file in it
 	// should be able to press compile without first choosing a root document.
 	if project.RootDocID.IsZero() {
-		update["$set"].(bson.M)["rootDoc_id"] = doc.ID
+		update["$set"] = bson.M{"rootDoc_id": doc.ID}
 	}
-	_, err := s.projects.UpdateByID(ctx, project.ID, update)
-	return err
+	return s.applyTreeChange(ctx, project.ID, update)
+}
+
+// AddFile puts a binary file into a folder.
+func (s *Store) AddFile(ctx context.Context, project *Project, folderID bson.ObjectID, file FileRef) (int64, error) {
+	path, ok := project.FolderPath(folderID)
+	if !ok {
+		return 0, ErrNotFound
+	}
+	return s.applyTreeChange(ctx, project.ID, bson.M{
+		"$push": bson.M{path + ".fileRefs": file},
+	})
 }
 
 // AddFolder puts a folder into a folder.
-func (s *Store) AddFolder(ctx context.Context, project *Project, parentID bson.ObjectID, folder Folder) error {
+func (s *Store) AddFolder(ctx context.Context, project *Project, parentID bson.ObjectID, folder Folder) (int64, error) {
 	path, ok := project.FolderPath(parentID)
 	if !ok {
-		return ErrNotFound
+		return 0, ErrNotFound
 	}
-	_, err := s.projects.UpdateByID(ctx, project.ID, bson.M{
+	return s.applyTreeChange(ctx, project.ID, bson.M{
 		"$push": bson.M{path + ".folders": folder},
-		"$set":  bson.M{"lastUpdated": time.Now().UTC()},
 	})
-	return err
+}
+
+// SetFileHash records that a file's bytes changed.
+//
+// The entry keeps its id, which is what makes this an edit of one file rather
+// than a delete and an add: anything holding a reference to it -- a link in
+// another document, a history entry -- still means this file.
+func (s *Store) SetFileHash(ctx context.Context, project *Project, id bson.ObjectID, hash string, size int64) (int64, error) {
+	path, _, ok := project.EntryPath(id)
+	if !ok {
+		return 0, ErrNotFound
+	}
+	return s.applyTreeChange(ctx, project.ID, bson.M{
+		"$set": bson.M{
+			path + ".hash":    hash,
+			path + ".size":    size,
+			path + ".created": time.Now().UTC(),
+		},
+	})
 }
 
 // RemoveEntry takes something out of the tree.
 //
 // What it was is not deleted: a document's text stays in docstore and a file's
-// bytes stay in filestore, marked deleted there. This removes the only path to
-// it, which is what somebody deleting a file means, and leaves the content for
-// whatever restores it.
-func (s *Store) RemoveEntry(ctx context.Context, project *Project, id bson.ObjectID) error {
+// bytes stay in the blob store. This removes the only path to it, which is
+// what somebody deleting a file means, and leaves the content for whatever
+// restores it.
+func (s *Store) RemoveEntry(ctx context.Context, project *Project, id bson.ObjectID) (int64, error) {
 	_, parent, ok := project.EntryPath(id)
 	if !ok {
-		return ErrNotFound
+		return 0, ErrNotFound
 	}
 	entry, found := project.Find(id)
 	if !found {
-		return ErrNotFound
+		return 0, ErrNotFound
 	}
 	field := map[EntryKind]string{
 		EntryDoc:    "docs",
@@ -190,30 +220,25 @@ func (s *Store) RemoveEntry(ctx context.Context, project *Project, id bson.Objec
 		EntryFolder: "folders",
 	}[entry.Kind]
 
-	update := bson.M{
-		"$pull": bson.M{parent + "." + field: bson.M{"_id": id}},
-		"$set":  bson.M{"lastUpdated": time.Now().UTC()},
-	}
+	update := bson.M{"$pull": bson.M{parent + "." + field: bson.M{"_id": id}}}
 	// A project whose root document has just been deleted has no root
 	// document. Leaving the id there would make every compile fail with
 	// nothing on screen to explain it.
 	if project.RootDocID == id {
 		update["$unset"] = bson.M{"rootDoc_id": ""}
 	}
-	_, err := s.projects.UpdateByID(ctx, project.ID, update)
-	return err
+	return s.applyTreeChange(ctx, project.ID, update)
 }
 
 // RenameEntry changes what something in the tree is called.
-func (s *Store) RenameEntry(ctx context.Context, project *Project, id bson.ObjectID, name string) error {
+func (s *Store) RenameEntry(ctx context.Context, project *Project, id bson.ObjectID, name string) (int64, error) {
 	path, _, ok := project.EntryPath(id)
 	if !ok {
-		return ErrNotFound
+		return 0, ErrNotFound
 	}
-	_, err := s.projects.UpdateByID(ctx, project.ID, bson.M{
-		"$set": bson.M{path + ".name": name, "lastUpdated": time.Now().UTC()},
+	return s.applyTreeChange(ctx, project.ID, bson.M{
+		"$set": bson.M{path + ".name": name},
 	})
-	return err
 }
 
 // SetRootDoc chooses which document a compile starts from.
@@ -222,6 +247,41 @@ func (s *Store) SetRootDoc(ctx context.Context, id, docID bson.ObjectID) error {
 		"$set": bson.M{"rootDoc_id": docID, "lastUpdated": time.Now().UTC()},
 	})
 	return err
+}
+
+// applyTreeChange writes a change to the tree and answers with the project's
+// new version.
+//
+// The version is incremented in the same write, so two changes arriving at
+// once get different numbers and the history can order them. Reading it back
+// afterwards would sometimes read the other one's.
+func (s *Store) applyTreeChange(ctx context.Context, id bson.ObjectID, update bson.M) (int64, error) {
+	inc, ok := update["$inc"].(bson.M)
+	if !ok {
+		inc = bson.M{}
+	}
+	inc["version"] = 1
+	update["$inc"] = inc
+
+	set, ok := update["$set"].(bson.M)
+	if !ok {
+		set = bson.M{}
+	}
+	set["lastUpdated"] = time.Now().UTC()
+	update["$set"] = set
+
+	var after struct {
+		Version int64 `bson:"version"`
+	}
+	err := s.projects.FindOneAndUpdate(ctx, bson.M{"_id": id}, update,
+		options.FindOneAndUpdate().
+			SetReturnDocument(options.After).
+			SetProjection(bson.M{"version": 1}),
+	).Decode(&after)
+	if err != nil {
+		return 0, err
+	}
+	return after.Version, nil
 }
 
 // ValidName says whether something in a project may be called this.

@@ -62,6 +62,7 @@ var Sections = []Section{
 	{ID: "oauth", Label: "Google and GitHub", Help: "Leave a client id blank to hide that button."},
 	{ID: "email", Label: "Email", Help: "Used for invitations, password resets and notifications."},
 	{ID: "compile", Label: "Compiling", Help: "Limits applied to every compile."},
+	{ID: "git", Label: "Git", Help: "Cloning and pushing a project over git."},
 	{ID: "security", Label: "Security", Help: "Session and password rules."},
 	{ID: "advanced", Label: "Advanced", Help: "Anything without a field of its own."},
 }
@@ -140,6 +141,30 @@ var Settings = []Definition{
 		Label:   "TeX Live images this site offers",
 		Help:    "Comma separated, full references. Pull each one on the host first; nothing here pulls them.",
 		Env:     "ALL_TEX_LIVE_DOCKER_IMAGES",
+		Restart: true,
+	},
+
+	{
+		Key: "gitBridgeEnabled", Section: "git", Kind: KindBool,
+		Label: "Allow projects to be cloned and pushed over git",
+		Help: "Needs the git container as well: start the deployment with " +
+			"--profile git. Without it, a clone hangs instead of being refused.",
+		Env:     "GIT_BRIDGE_ENABLED",
+		Restart: true,
+	},
+	{
+		Key: "gitBridgeHost", Section: "git", Kind: KindString,
+		Label:   "Where the git container is",
+		Help:    "The name it has on the deployment's network. Leave it alone unless you renamed it.",
+		Env:     "GIT_BRIDGE_HOST",
+		Default: "git-bridge",
+		Restart: true,
+	},
+	{
+		Key: "gitBridgePort", Section: "git", Kind: KindNumber,
+		Label:   "The port it listens on",
+		Env:     "GIT_BRIDGE_PORT",
+		Default: 8000,
 		Restart: true,
 	},
 

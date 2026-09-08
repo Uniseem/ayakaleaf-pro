@@ -1,5 +1,20 @@
 import { api } from './api'
 
+/** What every page needs to know about the site itself. */
+export type Site = {
+  name: string
+  url?: string
+  git?: { enabled: boolean }
+}
+
+export async function site(headers?: Record<string, string>): Promise<Site> {
+  try {
+    return await api<Site>('/api/site', { headers })
+  } catch {
+    return { name: 'Ayakaleaf Pro' }
+  }
+}
+
 /**
  * The name this site calls itself.
  *

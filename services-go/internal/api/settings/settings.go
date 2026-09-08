@@ -49,6 +49,8 @@ type Values struct {
 	CompileTimeout any    `json:"compileTimeout,omitempty"`
 	TexLiveImages  string `json:"texLiveImages,omitempty"`
 
+	GitBridgeEnabled *bool `json:"gitBridgeEnabled,omitempty"`
+
 	GoogleClientID     string `json:"googleClientId,omitempty"`
 	GoogleClientSecret string `json:"googleClientSecret,omitempty"`
 	GitHubClientID     string `json:"githubClientId,omitempty"`
@@ -266,6 +268,18 @@ func (s *Store) DefaultImageName() string {
 		}
 	}
 	return os.Getenv("TEX_LIVE_DOCKER_IMAGE")
+}
+
+// --- the gitbridge.Settings this store satisfies ----------------------------
+
+// GitEnabled says whether projects can be cloned and pushed over git.
+//
+// Off unless somebody turned it on, because it needs a second container that a
+// deployment only has if it asked for one: answering yes without it would mean
+// a clone that hangs rather than one that is refused.
+func (s *Store) GitEnabled() bool {
+	enabled := s.Values().GitBridgeEnabled
+	return enabled != nil && *enabled
 }
 
 // --- the oauth.Settings this store satisfies --------------------------------

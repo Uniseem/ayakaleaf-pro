@@ -19,8 +19,10 @@ import (
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/compile"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/documents"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/history"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projects"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/settings"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/tokens"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/users"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/config"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/httpx"
@@ -46,6 +48,11 @@ func main() {
 		_ = client.Disconnect(shutdown)
 	}()
 
+	// The addresses of the other services come from the same variables every
+	// service in the deployment reads, so there is nothing new to set: a
+	// container that can already run the editor can run this.
+	filestoreURL := serviceURL("FILESTORE", "3009")
+
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     config.RedisAddr("web"),
 		Password: config.RedisPassword("web"),
@@ -65,6 +72,25 @@ func main() {
 		log.Warn("could not ensure the project indexes", logx.Err(err))
 	}
 
+	tokenStore := tokens.NewStore(db)
+	if err := tokenStore.EnsureIndexes(ctx); err != nil {
+		log.Warn("could not ensure the token indexes", logx.Err(err))
+	}
+
+	// The two history services, and the blob store they share with filestore.
+	histories := history.NewClient(history.Options{
+		ProjectHistoryURL: serviceURL("PROJECT_HISTORY", "3054"),
+		HistoryV1URL:      config.Env("V1_HISTORY_URL", "http://127.0.0.1:3100/api"),
+		FilestoreURL:      filestoreURL,
+		HistoryV1User:     config.Env("V1_HISTORY_USER", "staging"),
+		HistoryV1Password: config.Env("STAGING_PASSWORD", ""),
+	})
+	// Which blobs are shared by every project decides how their addresses are
+	// built, and getting it wrong is a file that cannot be fetched.
+	if err := histories.LoadGlobalBlobs(ctx, db); err != nil {
+		log.Warn("could not read the list of shared blobs", logx.Err(err))
+	}
+
 	siteSettings := settings.NewStore(db, rdb, log)
 	if err := siteSettings.Load(ctx); err != nil {
 		log.Log(ctx, logx.LevelFatal, "Cannot read the site settings. Exiting.", logx.Err(err))
@@ -79,21 +105,21 @@ func main() {
 		Secure:     config.Env("OVERLEAF_SECURE_COOKIE", "") != "",
 	})
 
-	// The two services this one does not own. Their addresses come from the
-	// same variables every other service in the deployment reads, so there is
-	// nothing new to set: a container that can already run the editor can run
-	// this.
-	filestoreURL := serviceURL("FILESTORE", "3009")
 	server := api.New(api.Options{
-		Log:            log,
-		Users:          userStore,
-		Sessions:       sessions,
-		Settings:       siteSettings,
-		Projects:       projectStore,
-		Documents:      documents.NewClient(serviceURL("DOCUPDATER", "3003")),
-		Storage:        documents.NewStorage(serviceURL("DOCSTORE", "3016")),
-		Compiler:       compile.NewClient(serviceURL("CLSI", "3013")),
-		FilestoreURL:   filestoreURL,
+		Log:       log,
+		Users:     userStore,
+		Sessions:  sessions,
+		Settings:  siteSettings,
+		Projects:  projectStore,
+		Documents: documents.NewClient(serviceURL("DOCUPDATER", "3003")),
+		Storage:   documents.NewStorage(serviceURL("DOCSTORE", "3016")),
+		Compiler:  compile.NewClient(serviceURL("CLSI", "3013")),
+		History:   histories,
+		Tokens:    tokenStore,
+		// The git container reaches this service by the name the deployment
+		// gives it, which is not the address people type into a browser.
+		GitBaseURL:     config.Env("GIT_BRIDGE_CALLBACK_BASE_URL", "http://ayakaleaf"),
+		GitSecret:      gitSecret(),
 		AllowedOrigins: allowedOrigins(siteSettings),
 	})
 
@@ -118,6 +144,19 @@ func main() {
 func serviceURL(name, defaultPort string) string {
 	return "http://" + config.Env(name+"_HOST", "127.0.0.1") +
 		":" + config.Env(name+"_PORT", defaultPort)
+}
+
+// gitSecret signs the download links handed to the git container.
+//
+// The session secret, because it is already the deployment's one secret and
+// these links are of the same kind: something this service produced, that
+// something else presents back, and that nobody else can forge.
+func gitSecret() string {
+	secrets := config.SessionSecrets()
+	if len(secrets) == 0 {
+		return ""
+	}
+	return secrets[0]
 }
 
 // allowedOrigins is where a browser may send a state-changing request from:

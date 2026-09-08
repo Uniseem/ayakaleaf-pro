@@ -3,6 +3,7 @@ import { currentUser } from '@/lib/auth'
 import { getProject } from '@/lib/editor'
 import { ApiError } from '@/lib/api'
 import { forwardedHeaders } from '@/lib/server'
+import { site } from '@/lib/site'
 import { Editor } from './editor'
 
 export const metadata = { title: 'Editor' }
@@ -21,6 +22,8 @@ export default async function ProjectPage({ params }: { params: { id: string } }
     redirect(`/login?next=/projects/${params.id}`)
   }
 
+  const where = await site(headers)
+
   let view
   try {
     view = await getProject(params.id, headers)
@@ -34,5 +37,5 @@ export default async function ProjectPage({ params }: { params: { id: string } }
     throw error
   }
 
-  return <Editor user={user} view={view} />
+  return <Editor user={user} view={view} git={where.git?.enabled ?? false} />
 }

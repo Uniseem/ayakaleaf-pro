@@ -8,6 +8,7 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Snippet,
   Spinner,
 } from '@heroui/react'
 import Link from 'next/link'
@@ -51,7 +52,15 @@ type Prompt =
   | { kind: 'rename'; entry: FileEntry; value: string }
   | { kind: 'delete'; entry: FileEntry }
 
-export function Editor({ user, view }: { user: PublicUser; view: ProjectView }) {
+export function Editor({
+  user,
+  view,
+  git,
+}: {
+  user: PublicUser
+  view: ProjectView
+  git: boolean
+}) {
   const projectId = view.project.id
   const writable = canWrite(view.access)
 
@@ -69,6 +78,7 @@ export function Editor({ user, view }: { user: PublicUser; view: ProjectView }) 
   const [showPdf, setShowPdf] = useState(true)
   const [prompt, setPrompt] = useState<Prompt | null>(null)
   const [working, setWorking] = useState(false)
+  const [showClone, setShowClone] = useState(false)
 
   // What has been typed but not written back yet. A ref rather than state
   // because saving must see the latest text, not the text as it was when a
@@ -282,6 +292,11 @@ export function Editor({ user, view }: { user: PublicUser; view: ProjectView }) 
         </span>
 
         <div className="ml-auto flex items-center gap-2">
+          {git ? (
+            <Button size="sm" variant="light" onPress={() => setShowClone(true)}>
+              Git
+            </Button>
+          ) : null}
           <Button size="sm" variant="flat" onPress={() => setShowPdf(value => !value)}>
             {showPdf ? 'Hide PDF' : 'Show PDF'}
           </Button>
@@ -348,6 +363,24 @@ export function Editor({ user, view }: { user: PublicUser; view: ProjectView }) 
         ) : null}
       </div>
 
+      <Modal isOpen={showClone} onClose={() => setShowClone(false)} size="lg">
+        <ModalContent>
+          <ModalHeader className="text-base">Clone this project</ModalHeader>
+          <ModalBody className="gap-3 pb-6">
+            <Snippet size="sm" symbol="" variant="bordered" className="w-full">
+              {`git clone ${cloneURL(projectId)}`}
+            </Snippet>
+            <p className="text-small text-default-500">
+              Sign in as <code>git</code>, with a token from{' '}
+              <Link href="/account" className="underline">
+                your account page
+              </Link>{' '}
+              as the password.
+            </p>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+
       <Modal isOpen={prompt !== null} onClose={() => setPrompt(null)} size="sm">
         <ModalContent>
           <ModalHeader className="text-base">{titleFor(prompt)}</ModalHeader>
@@ -397,6 +430,18 @@ export function Editor({ user, view }: { user: PublicUser; view: ProjectView }) 
       ) : null}
     </div>
   )
+}
+
+/**
+ * Where git finds this project.
+ *
+ * Built from the address in the browser rather than from a setting, so it is
+ * the address this person actually reached the site at -- which is the one
+ * that will work when they paste it into a terminal.
+ */
+function cloneURL(projectId: string): string {
+  const origin = typeof window === 'undefined' ? '' : window.location.origin
+  return `${origin}/git/${projectId}`
 }
 
 /** A LaTeX file with no extension almost always meant to have one. */

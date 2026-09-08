@@ -19,10 +19,13 @@ import (
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/auth"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/compile"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/documents"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/gitbridge"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/history"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/httpapi"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/oauth"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projects"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/settings"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/tokens"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/users"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/session"
 )
@@ -38,6 +41,8 @@ type Server struct {
 	oauth     *oauth.Service
 	documents *documents.Service
 	compile   *compile.Service
+	tokens    *tokens.Service
+	git       *gitbridge.Service
 	origins   []string
 }
 
@@ -58,9 +63,14 @@ type Options struct {
 	// go through instead.
 	Storage  *documents.Storage
 	Compiler *compile.Client
-	// FilestoreURL is the address the compiler fetches a project's binary
-	// files from. It is the compiler's view of it, not this process's.
-	FilestoreURL string
+	// History is where a project's versions and the bytes of its files live.
+	History *history.Client
+	// Tokens are the personal access tokens git authenticates with.
+	Tokens *tokens.Store
+	// GitBaseURL is the address the git container reaches this service at, and
+	// GitSecret signs the download links handed to it.
+	GitBaseURL string
+	GitSecret  string
 	// AllowedOrigins are the addresses a browser may send a state-changing
 	// request from. The site's own is enough unless something else embeds it.
 	AllowedOrigins []string
@@ -76,12 +86,25 @@ func New(opts Options) *Server {
 		auth:     auth.New(opts.Users, opts.Sessions, opts.Settings),
 		origins:  opts.AllowedOrigins,
 	}
-	server.documents = documents.NewService(opts.Projects, opts.Documents, opts.Storage)
+	server.documents = documents.NewService(
+		opts.Projects, opts.Documents, opts.Storage, opts.History)
 	// A new project is given its first file by the documents service, so the
 	// two are wired together here rather than knowing about each other.
 	server.projects = projects.NewService(opts.Projects, server.documents)
 	server.compile = compile.NewService(
-		opts.Projects, opts.Documents, opts.Compiler, opts.Settings, opts.FilestoreURL)
+		opts.Projects, opts.Documents, opts.Compiler, opts.Settings, opts.History)
+	server.tokens = tokens.NewService(opts.Tokens)
+	server.git = gitbridge.NewService(gitbridge.Options{
+		Log:       opts.Log,
+		Projects:  opts.Projects,
+		Users:     opts.Users,
+		Tokens:    opts.Tokens,
+		Documents: server.documents,
+		History:   opts.History,
+		Settings:  opts.Settings,
+		BaseURL:   opts.GitBaseURL,
+		Secret:    opts.GitSecret,
+	})
 	// The OAuth handlers start a session for somebody they identified, which
 	// is the auth service's job: passing it in rather than repeating it keeps
 	// one place where a session begins.
@@ -140,6 +163,20 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/projects/{id}/compile", h(s.compile.Compile))
 	mux.HandleFunc("POST /api/projects/{id}/compile/stop", h(s.compile.Stop))
 
+	// The tokens somebody uses instead of a password, which today means git.
+	mux.HandleFunc("GET /api/tokens", h(s.tokens.List))
+	mux.HandleFunc("POST /api/tokens", h(s.tokens.Create))
+	mux.HandleFunc("DELETE /api/tokens/{tokenId}", h(s.tokens.Delete))
+
+	// What the git container asks for. Its own shapes, its own way of
+	// authenticating, and the same access rules as everything else.
+	mux.HandleFunc("GET /oauth/token/info", h(s.git.TokenInfo))
+	mux.HandleFunc("GET /api/v0/docs/{projectId}", h(s.git.GetDoc))
+	mux.HandleFunc("GET /api/v0/docs/{projectId}/saved_vers", h(s.git.GetSavedVers))
+	mux.HandleFunc("GET /api/v0/docs/{projectId}/snapshots/{version}", h(s.git.GetSnapshot))
+	mux.HandleFunc("POST /api/v0/docs/{projectId}/snapshots", h(s.git.PostSnapshot))
+	mux.HandleFunc("GET /api/v0/blobs/{historyId}/{hash}", h(s.git.Blob))
+
 	// The admin pages.
 	mux.HandleFunc("GET /api/admin/settings", h(s.getSettings))
 	mux.HandleFunc("POST /api/admin/settings", h(s.putSettings))
@@ -170,6 +207,10 @@ func (s *Server) site(w http.ResponseWriter, r *http.Request) error {
 	return httpapi.JSON(w, http.StatusOK, map[string]any{
 		"name": name,
 		"url":  values.SiteURL,
+		// Whether the client should offer to clone a project. Not a secret,
+		// and asking here means the editor does not have to guess from a
+		// failed request.
+		"git": map[string]any{"enabled": s.settings.GitEnabled()},
 	})
 }
 

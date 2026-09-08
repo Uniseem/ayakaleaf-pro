@@ -91,8 +91,10 @@ services:
       # OVERLEAF_INVITE_TOKEN_SECRET: ...
       # OVERLEAF_SESSION_SECRET: ...
       #
-      # ## Where history-v1 is, for the git-bridge container below.
-      # V1_HISTORY_URL: http://localhost:3100/api
+      # ## What the git container calls this one, if you renamed the service
+      # ## above. The links it fetches a project's images from are built from
+      # ## this, so it has to be an address reachable from that container.
+      # GIT_BRIDGE_CALLBACK_BASE_URL: http://ayakaleaf
 
       # SANDBOXED_COMPILES: "true"
       # ## These two are handed to the docker daemon on the host, so they must
@@ -164,12 +166,14 @@ services:
 
   # Git access to projects: clone and push a project over git.
   #
-  # Not available at the moment. It authenticates against an OAuth2 endpoint
-  # that belonged to the service the API replaced, so it stays here, off,
-  # until the API offers that endpoint itself. Starting it will get you a
-  # container that cannot sign anybody in.
+  # It is behind a profile, so it is off unless you ask for it:
   #
   #     docker compose --profile git up -d
+  #
+  # Then turn Git access on in /admin/settings and restart. Both halves are
+  # needed -- the container has to exist, and the application has to be told to
+  # use it. Sign in with the username "git" and a token made under Account ->
+  # Git access as the password.
   git-bridge:
     image: ${AYAKALEAF_GIT_BRIDGE_IMAGE:-quay.io/sharelatex/git-bridge:latest}
     container_name: ayakaleaf-git-bridge
@@ -181,7 +185,8 @@ services:
     volumes:
       - git-bridge-data:/data/git-bridge
     environment:
-      GIT_BRIDGE_API_BASE_URL: "http://ayakaleaf:3000/api/v0/"
+      # Both go through this deployment's nginx, which is where the API is.
+      GIT_BRIDGE_API_BASE_URL: "http://ayakaleaf/api/v0/"
       GIT_BRIDGE_OAUTH2_SERVER: "http://ayakaleaf"
       GIT_BRIDGE_POSTBACK_BASE_URL: "http://git-bridge:8000"
       GIT_BRIDGE_ROOT_DIR: "/data/git-bridge"

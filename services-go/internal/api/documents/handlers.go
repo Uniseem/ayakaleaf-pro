@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/apierr"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/history"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/httpapi"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projects"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -16,11 +17,22 @@ type Service struct {
 	projects *projects.Store
 	client   *Client
 	storage  *Storage
+	history  *history.Client
 }
 
 // NewService builds it.
-func NewService(projectStore *projects.Store, client *Client, storage *Storage) *Service {
-	return &Service{projects: projectStore, client: client, storage: storage}
+func NewService(
+	projectStore *projects.Store,
+	client *Client,
+	storage *Storage,
+	histories *history.Client,
+) *Service {
+	return &Service{
+		projects: projectStore,
+		client:   client,
+		storage:  storage,
+		history:  histories,
+	}
 }
 
 // Get reads a document.

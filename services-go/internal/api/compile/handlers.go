@@ -7,6 +7,7 @@ import (
 
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/apierr"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/documents"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/history"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/httpapi"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projects"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -24,8 +25,10 @@ type Service struct {
 	documents *documents.Client
 	clsi      *Client
 	limits    Limits
-	// filestoreURL is where clsi fetches a project's binary files from.
-	filestoreURL string
+	// history is asked where a project's binary files are. They are stored as
+	// history blobs, addressed by the hash of their contents, so the answer
+	// depends on the project's history id and not on the project's own.
+	history *history.Client
 }
 
 // NewService builds it.
@@ -34,14 +37,14 @@ func NewService(
 	docs *documents.Client,
 	clsi *Client,
 	limits Limits,
-	filestoreURL string,
+	histories *history.Client,
 ) *Service {
 	return &Service{
-		projects:     projectStore,
-		documents:    docs,
-		clsi:         clsi,
-		limits:       limits,
-		filestoreURL: strings.TrimRight(filestoreURL, "/"),
+		projects:  projectStore,
+		documents: docs,
+		clsi:      clsi,
+		limits:    limits,
+		history:   histories,
 	}
 }
 
@@ -141,6 +144,7 @@ func (s *Service) resourcesFor(
 	// Everything anybody has typed is in document-updater and not yet in
 	// storage, so the text is read from there: a compile of the stored copy
 	// would silently leave out the last few minutes of work.
+	historyID := project.HistoryID()
 	resources := []Resource{}
 	rootPath := ""
 	var failure error
@@ -166,10 +170,15 @@ func (s *Service) resourcesFor(
 				rootPath = entry.Path
 			}
 		case projects.EntryFile:
+			if entry.Hash == "" || historyID == "" {
+				// A file whose bytes were never written, or a project with no
+				// history yet. Sending the compiler an address that answers
+				// nothing would fail the whole compile over one image.
+				return
+			}
 			resources = append(resources, Resource{
 				Path: entry.Path,
-				URL: s.filestoreURL + "/project/" + project.ID.Hex() +
-					"/file/" + entry.ID.Hex(),
+				URL:  s.history.BlobURL(historyID, entry.Hash),
 			})
 		}
 	})
