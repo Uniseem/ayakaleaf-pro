@@ -163,7 +163,8 @@ func ConcatUpdatesWithSameVersion(updates []*Update) []*Update {
 		current := update.clone()
 		if len(concatenated) > 0 {
 			last := concatenated[len(concatenated)-1]
-			if len(last.Op) > 0 && sameVersion(last, current) {
+			if len(last.Op) > 0 && sameVersion(last, current) &&
+				isHistoryOTOp(&last.Op[0]) == isHistoryOTOp(&current.Op[0]) {
 				last.Op = append(last.Op, current.Op...)
 				// The hash belongs to the last operation of the run.
 				last.Meta.DocHash = current.Meta.DocHash
