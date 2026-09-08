@@ -51,6 +51,14 @@ export CI="${CI:-true}"
 # service shares that process -- Node started externally fails it too. Skipping
 # it is what makes a red run mean something.
 #
+# project-history excludes eight, and none of them is about the port. Two push
+# a project id onto Settings.shortHistoryQueues, one assigns
+# settings.history.healthCheck, and one turns Settings.apis.filestore off:
+# those reach into the running service and can only work when it is the test
+# process. Three read a sinon spy on that process's own logger. The last needs
+# port 80 for a callback URL, which is taken on most machines. Node started as
+# its own process fails exactly these eight and passes the other 119.
+#
 # document-updater excludes two things. history-ot is a second OT type with its
 # own storage format that this port does not implement; it is refused outright
 # by the Go service rather than half-handled, and is named in
@@ -65,6 +73,7 @@ SERVICES=(
   "filestore:3009:services/filestore:FILESTORE_EXTERNAL:test/acceptance/js/FilestoreApiTests.js"
   "real-time:3026:services/real-time:REALTIME_EXTERNAL:--recursive test/acceptance/js:should trigger a low level message only"
   "document-updater:3003:services/document-updater:DOCUPDATER_EXTERNAL:--recursive test/acceptance/js:history-ot|accepting multiple changes"
+  "project-history:3054:services/project-history:PROJECT_HISTORY_EXTERNAL:--loader=esmock --recursive test/acceptance/js:short queue|health check|retries in the background|record error when checking blob fails|record error when blob is missing|remove and re-add the file during hard resync|reject partial resync on docs"
 )
 
 spec_for() {
@@ -101,6 +110,19 @@ run_one() {
     # The documents, the locks and the queue real-time pushes edits onto all
     # live in Redis.
     export REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
+  fi
+
+  if [[ "$name" == "project-history" ]]; then
+    # The queue document-updater fills, and the lock, are in Redis.
+    export REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
+    # Failure records, labels and sync state accumulate in Mongo and are read
+    # back by the tests as a baseline, so a run has to start from nothing or it
+    # is judging what the last one left behind.
+    mongosh "${MONGO_CONNECTION_STRING:-mongodb://$MONGO_HOST/sharelatex}"       --quiet --eval '
+        db.projectHistoryFailures.deleteMany({});
+        db.projectHistoryLabels.deleteMany({});
+        db.projectHistorySyncState.deleteMany({});
+      ' >/dev/null 2>&1 || true
   fi
 
   if [[ "$name" == "filestore" ]]; then

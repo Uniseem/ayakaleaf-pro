@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import crypto from 'node:crypto'
 import mongodb from 'mongodb-legacy'
-import nock from 'nock'
+import nock from './helpers/nock.js'
 import * as ProjectHistoryClient from './helpers/ProjectHistoryClient.js'
 import * as ProjectHistoryApp from './helpers/ProjectHistoryApp.js'
 const { ObjectId } = mongodb

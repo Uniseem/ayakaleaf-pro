@@ -1,5 +1,5 @@
 import { expect } from 'chai'
-import nock from 'nock'
+import nock from './helpers/nock.js'
 import * as ProjectHistoryApp from './helpers/ProjectHistoryApp.js'
 import * as ProjectHistoryClient from './helpers/ProjectHistoryClient.js'
 import { fetchStringWithResponse } from '@overleaf/fetch-utils'

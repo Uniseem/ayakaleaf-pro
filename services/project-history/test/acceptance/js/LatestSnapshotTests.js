@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import mongodb from 'mongodb-legacy'
-import nock from 'nock'
+import nock from './helpers/nock.js'
 import { readFileSync } from 'node:fs'
 import * as ProjectHistoryClient from './helpers/ProjectHistoryClient.js'
 import * as ProjectHistoryApp from './helpers/ProjectHistoryApp.js'
