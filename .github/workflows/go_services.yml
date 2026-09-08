@@ -91,6 +91,22 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      # The differentials below run the real Node code and compare against it,
+      # so they need the packages that code imports: DiffCodec pulls in the
+      # Overleaf fork of diff-match-patch, and project-history's modules pull
+      # in most of libraries/. Installing the workspaces rather than fetching
+      # one package by hand is also what makes sure the comparison is against
+      # the version the service actually uses.
+      - name: Install the workspaces the differentials read
+        env:
+          # The lockfile in this fork is not always in step with package.json.
+          YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
+        run: |
+          corepack enable
+          yarn workspaces focus \
+            @overleaf/document-updater \
+            @overleaf/project-history
+
       # The OT transform is the one piece where being close is worthless: two
       # implementations can each converge and converge on different text. This
       # runs the Go port and the vendored ShareJS over the same random
@@ -125,10 +141,7 @@ jobs:
         env:
           DOCUPDATER_NODE_DIR: ${{ github.workspace }}/services/document-updater
           DIFF_CODEC_CASES: '30000'
-        run: |
-          npm --prefix "$GITHUB_WORKSPACE" ls diff-match-patch >/dev/null 2>&1 ||
-            npm --prefix "$GITHUB_WORKSPACE" install --no-save --no-audit               --no-fund diff-match-patch
-          go test -count=1 -run DiffDifferential ./internal/docupdater/ -v
+        run: go test -count=1 -run DiffDifferential ./internal/docupdater/ -v
 
       # With history ranges support on -- which every project created by this
       # version of web has -- an edit is recorded twice over: once in the
@@ -142,6 +155,19 @@ jobs:
           HISTORY_OPS_CASES: '20000'
           HISTORY_RANGES_CASES: '20000'
         run: go test -count=1 -run 'History(Ops|Ranges)Differential' ./internal/docupdater/ -v
+
+      # Which keystrokes become one entry in the history, and what that entry
+      # says. A history written wrongly is still written: nobody finds out
+      # until they open it months later and the words are not the ones they
+      # wrote, so both halves are compared against the code they replace.
+      - name: 'Differential: the history compressor and translator'
+        working-directory: services-go
+        env:
+          PROJECT_HISTORY_DIR: ${{ github.workspace }}/services/project-history
+          COMPRESSOR_CASES: '20000'
+          TRANSLATOR_CASES: '20000'
+          BLOB_CASES: '20000'
+        run: go test -count=1 -run Differential ./internal/projecthistory/ -v
 
   build:
     name: Build (linux/${{ matrix.goarch }})
@@ -268,6 +294,9 @@ jobs:
             @overleaf/notifications \
             @overleaf/docstore \
             @overleaf/filestore \
+            @overleaf/real-time \
+            @overleaf/document-updater \
+            @overleaf/project-history \
             @overleaf/migrations
 
       - name: Set up Go
@@ -332,6 +361,27 @@ jobs:
       - name: 'Baseline: real-time acceptance suite against the Node service'
         working-directory: services/real-time
         run: yarn run test:acceptance:_run
+
+      # document-updater's baseline leaves out the same two things the
+      # conformance step does. history-ot is a second operation type with its
+      # own storage format that the port refuses outright rather than half
+      # implementing, and is named in services-go/README.md as what is not
+      # ported. The "accepting multiple changes" tests spy on a function inside
+      # the service and read its return values, so they pass only when the
+      # service shares a process with the tests.
+      - name: 'Baseline: document-updater acceptance suite against the Node service'
+        working-directory: services/document-updater
+        run: |
+          PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH"           mocha --timeout 15000 --exit --retries="$RETRIES"             --grep 'history-ot|accepting multiple changes' --invert             --recursive test/acceptance/js
+
+      # project-history's baseline leaves out eight, and none of them is about
+      # the port: four push values into Settings at runtime, three read a sinon
+      # spy on the test process's own logger, and one needs port 80. Node
+      # started as its own process fails exactly these eight.
+      - name: 'Baseline: project-history acceptance suite against the Node service'
+        working-directory: services/project-history
+        run: |
+          PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH"           mocha --timeout 15000 --exit --retries="$RETRIES" --loader=esmock             --grep 'short queue|health check|retries in the background|record error when checking blob fails|record error when blob is missing|remove and re-add the file during hard resync|reject partial resync on docs'             --invert             --recursive test/acceptance/js
 
       # Each service gets its own database here, so the suites run at the same
       # time without their migrations racing.
