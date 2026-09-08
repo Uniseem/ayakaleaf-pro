@@ -63,7 +63,7 @@ export function resolveEnvironment(values) {
   const environment = {}
 
   for (const definition of SETTINGS) {
-    if (!definition.env) continue
+    if (!definition.env || definition.seedOnly) continue
     const value = coerce(definition, values[definition.key])
     if (value === true) {
       environment[definition.env] = 'true'
@@ -100,7 +100,7 @@ export function resolveEnvironment(values) {
 export function managedNames(values) {
   const names = new Set()
   for (const definition of SETTINGS) {
-    if (definition.env) names.add(definition.env)
+    if (definition.env && !definition.seedOnly) names.add(definition.env)
   }
   names.add('ENABLED_LINKED_FILE_TYPES')
   for (const name of Object.keys(parseExtraEnvironment(values?.extraEnvironment))) {

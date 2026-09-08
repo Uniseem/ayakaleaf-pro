@@ -82,13 +82,6 @@ function fromEnvironment(definition) {
 }
 
 /**
- * The stored document, or one built from the environment.
- *
- * Seeding from the environment is what keeps an existing deployment working
- * across the upgrade: whatever was in its compose file becomes the first
- * stored value, and after that the page is the only place it changes.
- */
-/**
  * Reads what the environment says about settings nothing has stored yet.
  *
  * This runs on every load, not only for a new site. A setting added to the
@@ -208,6 +201,11 @@ function apply(values) {
       }
     }
     if (definition.type === 'json') {
+      if (value === '' || value == null) {
+        // Nothing typed: leave whatever the site already shows. Writing an
+        // empty list here would take away the footer links that come with it.
+        continue
+      }
       // Stored and edited as the text somebody typed, but what reads it walks
       // a list. Text that is not JSON is left out rather than written as a
       // string, which would make the footer render as characters.

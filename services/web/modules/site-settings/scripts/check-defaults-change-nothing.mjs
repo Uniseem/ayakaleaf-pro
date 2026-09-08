@@ -18,13 +18,19 @@
 
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { resolveEnvironment } from '../app/src/SiteSettingsEnvironment.mjs'
+import {
+  resolveEnvironment,
+  managedNames,
+} from '../app/src/SiteSettingsEnvironment.mjs'
 
 const run = promisify(execFile)
 
+// The settings module announces which files it read, on stdout, so the dump is
+// marked and everything before the mark is thrown away.
+const MARK = '---settings-follow---'
 const DUMP = `
 import Settings from '@overleaf/settings'
-process.stdout.write(JSON.stringify(Settings, (key, value) =>
+process.stdout.write('${MARK}' + JSON.stringify(Settings, (key, value) =>
   typeof value === 'function' ? '[function]' : value
 ))
 `
@@ -35,7 +41,11 @@ async function settingsWith(environment) {
     ['--input-type=module', '--eval', DUMP],
     { env: environment, maxBuffer: 32 * 1024 * 1024, cwd: process.cwd() }
   )
-  return JSON.parse(stdout)
+  const at = stdout.lastIndexOf(MARK)
+  if (at === -1) {
+    throw new Error('the settings dump did not arrive: ' + stdout.slice(0, 200))
+  }
+  return JSON.parse(stdout.slice(at + MARK.length))
 }
 
 /** Every leaf, as a path -> value map, so two shapes can be compared. */
@@ -50,9 +60,18 @@ function flatten(node, prefix = '', out = {}) {
   return out
 }
 
-const baseline = await settingsWith(process.env)
+// The comparison is between what this deployment does with none of these
+// variables set and what it does with the defaults, so anything an operator
+// happens to have set is taken out of both sides first. Otherwise every
+// variable in their compose file shows up as a difference.
+const withoutAny = { ...process.env }
+for (const name of managedNames({})) {
+  delete withoutAny[name]
+}
+
+const baseline = await settingsWith(withoutAny)
 const withDefaults = await settingsWith({
-  ...process.env,
+  ...withoutAny,
   ...resolveEnvironment({}),
 })
 

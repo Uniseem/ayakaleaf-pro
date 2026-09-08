@@ -25,6 +25,11 @@
  * @property {any} [default]
  * @property {Array<{value: string, label: string}>} [options]
  * @property {boolean} [restart] true when the value is only read at startup
+ * @property {boolean} [seedOnly] true for a variable this reads once, to
+ *   take a value an operator had, but never writes back. server-ce builds
+ *   passwordStrengthOptions only when one of those variables is set, and
+ *   turns on a password pattern when it does -- so writing them back would
+ *   impose a pattern nobody asked for.
  */
 
 export const SECTIONS = [
@@ -309,7 +314,7 @@ export const SETTINGS = [
     type: 'json',
     label: 'Left footer',
     help: 'A JSON array of {"text": "...", "url": "..."} entries.',
-    default: '[]',
+    default: '',
   },
   {
     key: 'rightFooter',
@@ -319,7 +324,7 @@ export const SETTINGS = [
     type: 'json',
     label: 'Right footer',
     help: 'A JSON array of {"text": "...", "url": "..."} entries.',
-    default: '[]',
+    default: '',
   },
   {
     key: 'maintenanceMessage',
@@ -387,6 +392,7 @@ export const SETTINGS = [
     type: 'number',
     label: 'Minimum password length',
     default: 8,
+    seedOnly: true,
   },
   {
     key: 'passwordMaxLength',
@@ -396,6 +402,7 @@ export const SETTINGS = [
     type: 'number',
     label: 'Maximum password length',
     default: 72,
+    seedOnly: true,
   },
 
   // Everything below is delivered by putting it back into the environment
