@@ -1,6 +1,7 @@
 import logger from '@overleaf/logger'
 import SocialAuthController from './SocialAuthController.mjs'
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
+import { PROVIDERS } from './SocialAuthProviders.mjs'
 
 export default {
   apply(webRouter) {
@@ -14,7 +15,17 @@ export default {
     webRouter.get('/auth/:provider', SocialAuthController.start)
     webRouter.get('/auth/:provider/callback', SocialAuthController.callback)
 
+    // The whitelist matches whole paths, so each provider's two addresses are
+    // listed rather than the pattern they were mounted as. Without this a
+    // site that requires a login sends somebody trying to sign in to the
+    // sign-in page they were already on.
     AuthenticationController.addEndpointToLoginWhitelist('/auth/providers')
+    for (const providerId of Object.keys(PROVIDERS)) {
+      AuthenticationController.addEndpointToLoginWhitelist(`/auth/${providerId}`)
+      AuthenticationController.addEndpointToLoginWhitelist(
+        `/auth/${providerId}/callback`
+      )
+    }
 
     webRouter.post(
       '/user/oauth/:provider/unlink',

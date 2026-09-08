@@ -92,17 +92,16 @@ async function registerWithUsernameAndPassword(req, res, next) {
     return res.status(400).json({ message: error.message })
   }
 
-  const promoted = decision.isFirstUser
-    ? await RegistrationPolicy.promoteIfFirstUser(user._id)
-    : false
-
-  // The first administrator is signed in rather than sent to the login page:
-  // they have just proved they hold the account, and the next thing they need
-  // is the settings page.
-  if (promoted) {
-    return AuthenticationController.finishLogin(user, req, res, next)
+  if (decision.isFirstUser) {
+    await RegistrationPolicy.promoteIfFirstUser(user._id)
   }
-  return res.json({ redir: '/login' })
+
+  // Signed in rather than sent back to the login page to type the same
+  // password again: somebody who just chose it is holding the session that
+  // chose it. Core sends people to /login here because registration there is
+  // an administrator creating an account for somebody else, which is not what
+  // this is.
+  return AuthenticationController.finishLogin(user, req, res, next)
 }
 
 async function registerWithEmail(req, res, next) {
