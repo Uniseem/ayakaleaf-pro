@@ -719,19 +719,32 @@ func isHistoryOTEditUpdate(update *Update) bool {
 
 // isHistoryOTOp reports whether one operation is in the history's form.
 func isHistoryOTOp(op *Op) bool {
-	raw := op.Raw()
-	if len(raw) == 0 {
+	raw, err := historyOTRaw(op)
+	if err != nil {
 		return false
 	}
 	kind, _ := classifyEdit(raw)
 	return kind != editUnknown
 }
 
+// historyOTRaw is an operation as JSON: the form it arrived in when it has one,
+// and otherwise the form it would be written in.
+func historyOTRaw(op *Op) (json.RawMessage, error) {
+	if raw := op.Raw(); len(raw) > 0 {
+		return raw, nil
+	}
+	return json.Marshal(op)
+}
+
 // historyOTOperation turns an operation that is already in the history's form
 // into one against a file.
 func historyOTOperation(pathname string, op *Op) (histmodel.Operation, error) {
+	raw, err := historyOTRaw(op)
+	if err != nil {
+		return nil, err
+	}
 	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(op.Raw(), &fields); err != nil {
+	if err := json.Unmarshal(raw, &fields); err != nil {
 		return nil, err
 	}
 	delete(fields, "pathname")
@@ -755,7 +768,11 @@ func historyOTOperation(pathname string, op *Op) (histmodel.Operation, error) {
 // composeHistoryOTOps merges two operations that are already in the history's
 // form, when the history's rules say they can be.
 func composeHistoryOTOps(first, second *Op) (json.RawMessage, bool) {
-	a, b := first.Raw(), second.Raw()
+	a, errA := historyOTRaw(first)
+	b, errB := historyOTRaw(second)
+	if errA != nil || errB != nil {
+		return nil, false
+	}
 	kindA, _ := classifyEdit(a)
 	kindB, _ := classifyEdit(b)
 

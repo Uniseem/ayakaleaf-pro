@@ -281,18 +281,25 @@ func (e *SyncUpdateExpander) queueUpdatesForOutOfSyncCommentsHistoryOT(
 		persistedByID[comment.ID] = comment
 	}
 
-	for _, comment := range persisted {
-		if _, ok := expectedByID[comment.ID]; ok {
-			continue
+	queue := func(fields map[string]any) {
+		op, err := newHistoryOTOp(fields)
+		if err != nil {
+			return
 		}
-		id := comment.ID
 		e.expanded = append(e.expanded, &Update{
-			Doc: update.Doc, Op: []Op{{DeleteComment: &id}},
+			Doc: update.Doc, Op: []Op{op},
 			Meta: Meta{
 				Pathname: pathname, Resync: true, Origin: e.origin,
 				TS: update.Meta.TS,
 			},
 		})
+	}
+
+	for _, comment := range persisted {
+		if _, ok := expectedByID[comment.ID]; ok {
+			continue
+		}
+		queue(map[string]any{"deleteComment": comment.ID})
 	}
 
 	for _, comment := range expected {
@@ -301,32 +308,39 @@ func (e *SyncUpdateExpander) queueUpdatesForOutOfSyncCommentsHistoryOT(
 			if existing.Resolved == comment.Resolved {
 				continue
 			}
-			id := comment.ID
-			resolved := comment.Resolved
-			e.expanded = append(e.expanded, &Update{
-				Doc: update.Doc,
-				Op:  []Op{{CommentID: &id, Resolved: &resolved}},
-				Meta: Meta{
-					Pathname: pathname, Resync: true, Origin: e.origin,
-					TS: update.Meta.TS,
-				},
+			// Only the resolved state differs, which is a smaller change than
+			// putting the comment back.
+			queue(map[string]any{
+				"commentId": comment.ID, "resolved": comment.Resolved,
 			})
 			continue
 		}
-
-		id := comment.ID
-		resolved := comment.Resolved
-		e.expanded = append(e.expanded, &Update{
-			Doc: update.Doc,
-			Op: []Op{{
-				CommentID: &id, Ranges: comment.Ranges, Resolved: &resolved,
-			}},
-			Meta: Meta{
-				Pathname: pathname, Resync: true, Origin: e.origin,
-				TS: update.Meta.TS,
-			},
+		ranges := comment.Ranges
+		if ranges == nil {
+			ranges = []histmodel.Range{}
+		}
+		queue(map[string]any{
+			"commentId": comment.ID, "ranges": ranges,
+			"resolved": comment.Resolved,
 		})
 	}
+}
+
+// newHistoryOTOp builds an operation that is already in the history's form.
+//
+// It is built as JSON and read back, so that the operation carries the shape
+// it will be written in rather than whatever this service's own operation
+// struct can hold.
+func newHistoryOTOp(fields map[string]any) (Op, error) {
+	encoded, err := json.Marshal(fields)
+	if err != nil {
+		return Op{}, err
+	}
+	var op Op
+	if err := json.Unmarshal(encoded, &op); err != nil {
+		return Op{}, err
+	}
+	return op, nil
 }
 
 // commentRangesAreInSync reports whether a comment covers the same text on
