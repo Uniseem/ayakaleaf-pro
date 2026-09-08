@@ -21,11 +21,5 @@ func upsert() *options.UpdateOneOptionsBuilder {
 	return options.UpdateOne().SetUpsert(true)
 }
 
-// upsert2 is the same, for the blob index: a project whose document has not
-// been made yet still records its first blob.
-func upsert2() *options.UpdateOneOptionsBuilder {
-	return options.UpdateOne().SetUpsert(true)
-}
-
 // validUTF8 says whether these bytes are text at all.
 func validUTF8(content []byte) bool { return utf8.Valid(content) }

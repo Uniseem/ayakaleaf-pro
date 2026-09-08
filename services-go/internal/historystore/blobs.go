@@ -224,9 +224,10 @@ func (s *Store) recordBlob(ctx context.Context, historyID string, blob *Blob) er
 				maxInBucket,
 			}},
 		},
-		bson.M{"$addToSet": bson.M{bucket: record}},
-		upsert2())
-	if err == nil && result.MatchedCount > 0 || (err == nil && result.UpsertedCount > 0) {
+		// No upsert: mongo refuses $expr in the filter of one, and the
+		// project's document was made when its history was started.
+		bson.M{"$addToSet": bson.M{bucket: record}})
+	if err == nil && result.MatchedCount > 0 {
 		return nil
 	}
 	if err != nil && !mongo.IsDuplicateKeyError(err) {
