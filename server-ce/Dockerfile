@@ -1,7 +1,13 @@
 # syntax=docker/dockerfile:1-labs
 # ---------------------------------------------
-# Overleaf Community Edition (overleaf/overleaf)
+# Ayakaleaf Pro -- the server image
 # ---------------------------------------------
+#
+# What is in here: nginx, the API (services-go/cmd/api), the Go services it
+# talks to, and the two Node services that have not been replaced yet -- clsi,
+# which runs LaTeX, and history-v1. The pages are not in here: the client is
+# services/frontend and has its own image, which is why this one no longer
+# builds a browser bundle.
 
 # Only ARGs declared before the first FROM are in scope for FROM instructions,
 # so both base images have to be named up here -- putting OVERLEAF_BASE_TAG
@@ -74,8 +80,11 @@ ADD server-ce/config/env.sh /etc/overleaf/env.sh
 
 # Configure nginx
 # ---------------
+# Both the server-wide config and the site itself are templates now: the site
+# has to be told where the client container is, and that is a deployment's
+# answer, not the image's.
 ADD server-ce/nginx/nginx.conf.template /etc/nginx/templates/nginx.conf.template
-ADD server-ce/nginx/overleaf.conf /etc/nginx/sites-enabled/overleaf.conf
+ADD server-ce/nginx/overleaf.conf.template /etc/nginx/templates/overleaf.conf.template
 ADD server-ce/nginx/clsi-nginx.conf /etc/nginx/sites-enabled/clsi-nginx.conf
 
 
@@ -134,7 +143,7 @@ ENV OVERLEAF_CONFIG=/etc/overleaf/settings.js
 ENV WEB_API_USER="overleaf"
 ENV ADMIN_PRIVILEGE_AVAILABLE="true"
 
-ENV OVERLEAF_APP_NAME="Overleaf Community Edition"
+ENV OVERLEAF_APP_NAME="Ayakaleaf Pro"
 
 ENV OPTIMISE_PDF="true"
 

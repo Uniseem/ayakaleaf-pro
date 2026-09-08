@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# The application's API (services-go/cmd/api).
+#
+# This is what took the place of the Node web service. It answers everything
+# under /api: signing in, projects, the files inside them, compiling, and the
+# admin settings. The pages themselves are rendered by a separate container,
+# which talks to this through the same nginx a browser does.
+#
+# Unlike the other Go services here there is no *_IMPL switch, because there is
+# nothing to switch back to.
+
+source /etc/overleaf/env.sh
+export LISTEN_ADDRESS=127.0.0.1
+
+# Nginx sends /api here, so this port is agreed in two places: change it there
+# too. 3100 is history-v1 and 3000 is the internal web API, hence 3400.
+export API_PORT=3400
+
+exec /sbin/setuser www-data /overleaf/bin/go/api >> /var/log/overleaf/api.log 2>&1

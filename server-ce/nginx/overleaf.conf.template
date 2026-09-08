@@ -1,29 +1,73 @@
+## ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ##
+## ! This file was generated from a template ! ##
+## ! See /etc/nginx/templates/               ! ##
+## ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ##
+
+# One address, two processes behind it.
+#
+#   /api/   the API in this container   (services-go/cmd/api)
+#   /       the client, in its own      (services/frontend)
+#
+# They have to look like one site to a browser: the session cookie is scoped to
+# the host, and the API refuses a state-changing request that came from
+# anywhere else. Splitting them by prefix here is what lets them be separate
+# processes without being separate origins.
+
 server {
 	listen         80;
 	server_name    _; # Catch all, see http://nginx.org/en/docs/http/server_names.html
 
-	root /overleaf/services/web/public/;
+	# The client is a different container and may not be running when nginx
+	# starts. Resolving its name per request rather than at startup is what
+	# stops a client that is restarting from taking the whole site down with
+	# it -- and what lets this container start at all when the client has not
+	# been created yet.
+	resolver ${NGINX_RESOLVER} valid=10s;
+	resolver_timeout 2s;
 
 	# block external access to prometheus /metrics
 	location /metrics {
 		internal;
 	}
 
+	location /api/ {
+		proxy_pass http://127.0.0.1:${API_PORT};
+		proxy_http_version 1.1;
+		proxy_set_header Host $host;
+		proxy_set_header X-Forwarded-Host $host;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		# A compile is allowed to take minutes, and this is the request that
+		# waits for it.
+		proxy_read_timeout 10m;
+		proxy_send_timeout 10m;
+	}
+
 	location / {
-		proxy_pass http://127.0.0.1:4000;
+		set $frontend_upstream ${FRONTEND_UPSTREAM};
+		proxy_pass $frontend_upstream;
 		proxy_http_version 1.1;
 		proxy_set_header Upgrade $http_upgrade;
 		proxy_set_header Connection "upgrade";
 		proxy_set_header Host $host;
 		proxy_set_header X-Forwarded-Host $host;
+		proxy_set_header X-Forwarded-Proto $scheme;
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 		proxy_read_timeout 10m;
 		proxy_send_timeout 10m;
 	}
 
+	# The client's own build output, which is content-addressed and immutable.
+	location /_next/static {
+		set $frontend_upstream ${FRONTEND_UPSTREAM};
+		proxy_pass $frontend_upstream;
+		proxy_http_version 1.1;
+		proxy_set_header Host $host;
+		expires 1y;
+		add_header Cache-Control "public, immutable";
+	}
+
 	location ^~ /git/ {
-		resolver_timeout 2s;
-		resolver 127.0.0.11 valid=10s;
 		set $git_upstream http://git-bridge:8000;
 		rewrite ^/git/(.*)$ /$1 break;
 		proxy_pass $git_upstream;
@@ -48,18 +92,6 @@ server {
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 		proxy_read_timeout 10m;
 		proxy_send_timeout 10m;
-	}
-
-	location /stylesheets {
-		expires 1y;
-	}
-
-	location /minjs {
-		expires 1y;
-	}
-
-	location /img {
-		expires 1y;
 	}
 
   # handle output files for specific users

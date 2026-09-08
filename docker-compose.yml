@@ -16,7 +16,17 @@
 # containers there are and where they keep their data -- because that is the
 # one thing a page inside the application cannot describe.
 #
-# Git access needs a second container, so it has a profile:
+#   ayakaleaf   nginx, the API, and the services it talks to
+#   frontend    the client: the pages, rendered
+#   mongo       projects, accounts, settings
+#   redis       sessions, and edits not yet written to mongo
+#
+# The client is its own container because it is its own program. A browser
+# never talks to it directly: everything goes through the address below, and
+# nginx sends /api to the API and everything else to the client, so the two
+# are one site as far as a session cookie is concerned.
+#
+# Git access needs another container, so it has a profile:
 #
 #     docker compose --profile git up -d
 
@@ -92,11 +102,39 @@ services:
       # ## Read by versions before 5.5
       # DOCKER_RUNNER: "true"
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail --silent http://localhost:3000/status || exit 1"]
+      # Through nginx rather than straight at the API, so that this says what
+      # a browser would find: both processes up, and the routing between them
+      # right.
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost/api/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12
       start_period: 60s
+
+  # The client.
+  #
+  # It renders the pages, on the server for the first view and in the browser
+  # afterwards. It has no database and no secrets: everything it shows, it asks
+  # the API for, with the reader's own cookie, so it can see exactly what the
+  # person looking at it may see and nothing more.
+  frontend:
+    image: ${AYAKALEAF_FRONTEND_IMAGE:-ayakaleaf/frontend:latest}
+    container_name: ayakaleaf-frontend
+    restart: always
+    depends_on:
+      ayakaleaf:
+        condition: service_started
+    environment:
+      # Where to find the API when rendering a page here. Through the same
+      # nginx a browser goes through, so there is one set of routes and not a
+      # second one that only server-rendering uses.
+      API_INTERNAL_URL: http://ayakaleaf
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3200/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
   mongo:
     image: mongo:8.0
@@ -126,13 +164,12 @@ services:
 
   # Git access to projects: clone and push a project over git.
   #
-  # It is behind a profile, so it is off unless you ask for it:
+  # Not available at the moment. It authenticates against an OAuth2 endpoint
+  # that belonged to the service the API replaced, so it stays here, off,
+  # until the API offers that endpoint itself. Starting it will get you a
+  # container that cannot sign anybody in.
   #
   #     docker compose --profile git up -d
-  #
-  # Then turn Git access on in /admin/settings and restart. Both halves are
-  # needed -- the container has to exist, and the application has to be told to
-  # use it.
   git-bridge:
     image: ${AYAKALEAF_GIT_BRIDGE_IMAGE:-quay.io/sharelatex/git-bridge:latest}
     container_name: ayakaleaf-git-bridge

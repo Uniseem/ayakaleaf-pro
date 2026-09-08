@@ -4,6 +4,10 @@ services/git-bridge
 server-ce/server-ce
 server-ce/test
 
+# The client has its own image, built from services/frontend with its own
+# Dockerfile. Nothing in this one reads it.
+services/frontend
+
 # omit scripts with extra dependencies
 services/web/scripts/plan-prices
 services/web/scripts/translations

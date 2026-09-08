@@ -14,8 +14,11 @@ export OVERLEAF_TAG ?= sharelatex/sharelatex:$(BRANCH_NAME_TAG_SAFE)-$(MONOREPO_
 # The name docker-compose.yml looks for, so that building the image and
 # then bringing the site up needs nothing in between.
 export AYAKALEAF_TAG ?= ayakaleaf/ayakaleaf:latest
+# The client is a second image, and docker-compose.yml looks for it by this
+# name too.
+export AYAKALEAF_FRONTEND_TAG ?= ayakaleaf/frontend:latest
 
-all: build-base build-community
+all: build-base build-community build-frontend
 
 clean:
 	-docker rmi --force $(OVERLEAF_BASE_TAG) $(OVERLEAF_TAG)
@@ -57,6 +60,17 @@ build-community:
 	  --tag $(OVERLEAF_BRANCH) \
 	  --tag $(AYAKALEAF_TAG) \
 	  $(MONOREPO_ROOT)
+
+# The client. Its own image, from its own directory: it shares no code with
+# anything else here, so it does not need the monorepo as build context and
+# builds in a minute rather than in the better part of an hour.
+build-frontend:
+	docker build \
+	  --build-arg BUILDKIT_INLINE_CACHE=1 \
+	  --progress=plain \
+	  --file $(MONOREPO_ROOT)services/frontend/Dockerfile \
+	  --tag $(AYAKALEAF_FRONTEND_TAG) \
+	  $(MONOREPO_ROOT)services/frontend
 
 push:
 	docker push $(OVERLEAF_BASE_TAG)
