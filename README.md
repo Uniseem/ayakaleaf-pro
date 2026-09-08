@@ -55,6 +55,18 @@ If you just want to try Ayakaleaf Pro without setting up a server, you can use o
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/ayaka-notes/ayakaleaf-pro-playground)
 
+> [!IMPORTANT]
+> The client is being rewritten. The pages are now a separate Next.js
+> application (`services/frontend`) talking to a Go API, and the Node service
+> that served the old ones has been removed from the image. What works today is
+> signing in and registering, Google and GitHub sign-in and account linking,
+> projects, the editor with compiling, and the admin settings. What the old
+> client did and this one does not do yet: collaborating in real time, track
+> changes and comments, project history, uploads, sharing and invites, the
+> template gallery, Git access, Zotero and Mendeley, LDAP, SAML and OIDC. The
+> feature list above describes where this is going, not what a deployment of
+> the current `server-pro` branch will do.
+
 To run it on your own server, take the `docker-compose.yml` from this repository and start it:
 
 ```bash
@@ -71,13 +83,8 @@ images exist, S3 for files and history, LDAP, SAML and OIDC.
 Then open the site. The first person to register becomes the administrator,
 and the settings are under Admin -> Site Settings.
 
-Git access needs a second container, so it has a profile of its own:
-
-```bash
-docker compose --profile git up -d
-```
-
-Then turn it on in the settings and restart.
+Git access is unavailable during the rewrite: it signs in through an endpoint
+that belonged to the service the API replaced.
 
 There are longer installation instructions on the [Documents](https://ayakaleaf-pro.ayaka.space/) page, and the [ayaka-notes/Toolkit](https://github.com/ayaka-notes/toolkit/) if you would rather manage the deployment with that.
 
