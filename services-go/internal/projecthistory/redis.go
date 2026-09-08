@@ -163,6 +163,14 @@ func (s *RedisStore) DeleteAppliedUpdates(ctx context.Context, projectID string,
 	return err
 }
 
+// DeleteAppliedUpdate takes one update off the queue, leaving the record of
+// when the queue started waiting alone: the rest of the queue is still there.
+func (s *RedisStore) DeleteAppliedUpdate(ctx context.Context, projectID,
+	raw string) error {
+
+	return s.queue.LRem(ctx, s.keys.ProjectHistoryOps(projectID), 1, raw).Err()
+}
+
 // DestroyQueue empties a project's queue. It is what deleting a project does,
 // and nothing else should.
 func (s *RedisStore) DestroyQueue(ctx context.Context, projectID string) error {

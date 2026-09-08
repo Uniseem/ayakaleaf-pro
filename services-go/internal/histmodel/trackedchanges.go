@@ -148,6 +148,25 @@ func (l *TrackedChangeList) Add(change TrackedChange) error {
 	return l.mergeRanges()
 }
 
+// ApplyInsert moves the marks for text put in at a position, and records a new
+// mark when the insert was itself tracked.
+func (l *TrackedChangeList) ApplyInsert(cursor, length int,
+	tracking *TrackingProps) error {
+
+	l.applyInsert(cursor, length, tracking)
+	return l.mergeRanges()
+}
+
+// ApplyDelete moves the marks for text taken out.
+func (l *TrackedChangeList) ApplyDelete(cursor, length int) error {
+	l.applyDelete(cursor, length)
+	return l.mergeRanges()
+}
+
+// Sorted is the marks in order of position, which is the order they are kept
+// in.
+func (l *TrackedChangeList) Sorted() []TrackedChange { return l.changes }
+
 // mergeRanges puts the marks in order and joins the ones that belong together.
 //
 // The marks cannot overlap: two people cannot have made the same stretch of

@@ -365,7 +365,7 @@ func (b *operationsBuilder) addOp(op *Op, update *Update) error {
 		b.insert(*op.Insert, tracking, op.CommentIDs)
 
 	case op.Retain != nil:
-		b.retain(*op.Retain, nil)
+		b.retain(utf16Len(*op.Retain), op.Tracking)
 
 	case op.IsDelete():
 		b.addDelete(op, update)

@@ -2,6 +2,8 @@ package projecthistory
 
 import (
 	"encoding/json"
+
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/histmodel"
 )
 
 // An update is what document-updater puts on the queue. There are several
@@ -18,10 +20,16 @@ type Op struct {
 	Pos int `json:"p"`
 	// Exactly one of these says what the operation does: insert, delete,
 	// retain, or comment.
-	Insert  *string `json:"i,omitempty"`
-	Delete  *string `json:"d,omitempty"`
-	Retain  *int    `json:"r,omitempty"`
+	Insert *string `json:"i,omitempty"`
+	Delete *string `json:"d,omitempty"`
+	// Retain is the text left alone, not a length: a retain says what it is
+	// passing over so that the mark it carries can be checked against it.
+	Retain  *string `json:"r,omitempty"`
 	Comment *string `json:"c,omitempty"`
+
+	// Tracking is the mark a retain puts on the text it passes over, which is
+	// how a resync takes a tracked change off or puts one on.
+	Tracking json.RawMessage `json:"tracking,omitempty"`
 
 	// Undo marks an operation that reverses an earlier one, which the history
 	// treats differently: a tracked delete that is an undo is the rejection of
@@ -46,6 +54,13 @@ type Op struct {
 
 	// Resolved is carried by a comment operation whose thread is resolved.
 	Resolved *bool `json:"resolved,omitempty"`
+
+	// CommentID, Ranges and DeleteComment are the operations a project using
+	// the history's own operation type sends about a comment. They name a
+	// thread directly rather than describing the text it covers.
+	CommentID     *string           `json:"commentId,omitempty"`
+	Ranges        []histmodel.Range `json:"ranges,omitempty"`
+	DeleteComment *string           `json:"deleteComment,omitempty"`
 }
 
 // TrackedChangeInOp is one mark caught inside a delete.
@@ -125,6 +140,11 @@ type Update struct {
 	// Rest is every field this service does not read, kept so that it reaches
 	// the history as it arrived.
 	Rest map[string]json.RawMessage `json:"-"`
+
+	// Raw is the exact text the update was read from, kept only for the one
+	// update that may have to be put back on the queue: taking it off again
+	// is done by value, so the value has to be the one that was written.
+	Raw string `json:"-"`
 }
 
 // knownUpdateFields are the ones the struct above covers. Anything else goes

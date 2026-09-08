@@ -6,8 +6,12 @@ import (
 	"fmt"
 )
 
-// maxStringLength is the largest document the history will hold.
-const maxStringLength = 2 * 1024 * 1024
+// MaxStringLength is the largest document the history will hold, in UTF-16
+// code units.
+const MaxStringLength = 2 * 1024 * 1024
+
+// maxStringLength is the unexported spelling used through this package.
+const maxStringLength = MaxStringLength
 
 // ErrTooLong is an operation whose result would exceed that.
 var ErrTooLong = errors.New("document too long")
