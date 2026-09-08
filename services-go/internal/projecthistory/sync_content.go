@@ -408,9 +408,11 @@ func (t trackingDirective) raw() json.RawMessage {
 	if t.Kind == "none" {
 		return json.RawMessage(`{"type":"none"}`)
 	}
-	encoded, err := json.Marshal(map[string]string{
-		"type": t.Kind, "userId": t.UserID, "ts": t.TS,
-	})
+	encoded, err := json.Marshal(struct {
+		Type   string `json:"type"`
+		UserID string `json:"userId"`
+		TS     string `json:"ts"`
+	}{Type: t.Kind, UserID: t.UserID, TS: t.TS})
 	if err != nil {
 		return json.RawMessage(`{"type":"none"}`)
 	}

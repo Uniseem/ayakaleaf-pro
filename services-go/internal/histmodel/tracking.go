@@ -85,10 +85,21 @@ func (t *TrackingProps) MergeWith(other TrackingDirective) TrackingDirective {
 
 // Raw is the JSON form.
 func (t *TrackingProps) Raw() json.RawMessage {
-	encoded, _ := json.Marshal(map[string]string{
-		"type": t.Kind, "userId": t.UserID, "ts": formatTimestamp(t.TS),
+	// Written field by field rather than from a map, because a map is written
+	// in alphabetical order and this ends up inside a blob: the blob is named
+	// by the hash of its bytes, so the same marks written differently would be
+	// stored twice under different names.
+	encoded, _ := json.Marshal(rawTrackingProps{
+		Type: t.Kind, UserID: t.UserID, TS: formatTimestamp(t.TS),
 	})
 	return encoded
+}
+
+// rawTrackingProps is the wire form, in the order it is written.
+type rawTrackingProps struct {
+	Type   string `json:"type"`
+	UserID string `json:"userId"`
+	TS     string `json:"ts"`
 }
 
 // ClearTracking is the instruction to take a mark off a run of text, which is

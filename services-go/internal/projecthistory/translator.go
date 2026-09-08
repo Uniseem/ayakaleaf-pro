@@ -445,9 +445,14 @@ func (b *operationsBuilder) deletePortion(length int, update *Update) {
 
 // trackingProps builds the mark an edit made with track changes on leaves.
 func trackingProps(kind string, update *Update) json.RawMessage {
-	encoded, _ := json.Marshal(map[string]any{
-		"type": kind, "userId": update.Meta.UserID,
-		"ts": time.UnixMilli(update.Meta.Timestamp()).UTC().Format("2006-01-02T15:04:05.000Z"),
+	encoded, _ := json.Marshal(struct {
+		Type   string `json:"type"`
+		UserID string `json:"userId"`
+		TS     string `json:"ts"`
+	}{
+		Type: kind, UserID: update.Meta.UserID,
+		TS: time.UnixMilli(update.Meta.Timestamp()).UTC().
+			Format("2006-01-02T15:04:05.000Z"),
 	})
 	return encoded
 }
