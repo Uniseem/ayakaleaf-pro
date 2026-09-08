@@ -16,18 +16,23 @@ export const metadata = { title: 'Editor' }
  * paint already has the file tree and the project's name: opening a project
  * should not begin with an empty frame that then fills in.
  */
-export default async function ProjectPage({ params }: { params: { id: string } }) {
-  const headers = forwardedHeaders()
+export default async function ProjectPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
+  const headers = await forwardedHeaders()
   const user = await currentUser(headers).catch(() => null)
   if (!user) {
-    redirect(`/login?next=/projects/${params.id}`)
+    redirect(`/login?next=/projects/${id}`)
   }
 
   const where = await site(headers)
 
   let view
   try {
-    view = await getProject(params.id, headers)
+    view = await getProject(id, headers)
   } catch (error) {
     // A project somebody may not open and one that does not exist are the
     // same answer here, deliberately: the API does not tell them apart, and
@@ -40,7 +45,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
 
   // Whether this project has a repository is asked here so the editor opens
   // with the answer rather than with a button that does not know yet.
-  const github = await projectGitHub(params.id, headers).catch(() => ({
+  const github = await projectGitHub(id, headers).catch(() => ({
     enabled: false,
     linked: false,
   }))

@@ -9,7 +9,7 @@ import { ProjectList } from './project-list'
 export const metadata = { title: 'Projects' }
 
 export default async function ProjectsPage() {
-  const headers = forwardedHeaders()
+  const headers = await forwardedHeaders()
   const user = await currentUser(headers).catch(() => null)
   if (!user) {
     redirect('/login')

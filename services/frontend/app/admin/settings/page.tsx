@@ -9,7 +9,7 @@ import { SettingsForm } from './settings-form'
 export const metadata = { title: 'Settings' }
 
 export default async function AdminSettingsPage() {
-  const headers = forwardedHeaders()
+  const headers = await forwardedHeaders()
   const user = await currentUser(headers).catch(() => null)
   if (!user) {
     redirect('/login')

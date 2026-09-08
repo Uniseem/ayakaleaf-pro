@@ -16,6 +16,11 @@ const nextConfig = {
   // A self-contained server tree, so the image copies one directory rather
   // than a node_modules the size of the monorepo.
   output: 'standalone',
+  // Where that tree is rooted. Without this it is wherever the nearest
+  // package.json above happens to be, which is this directory when the image
+  // is built and the whole repository when it is not -- and the server ends up
+  // at a different path in each.
+  outputFileTracingRoot: import.meta.dirname,
   reactStrictMode: true,
   poweredByHeader: false,
 

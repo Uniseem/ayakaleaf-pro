@@ -12,16 +12,17 @@ export const metadata = { title: 'Sign in' }
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: { error?: string; next?: string }
+  searchParams: Promise<{ error?: string; next?: string }>
 }) {
-  const headers = forwardedHeaders()
+  const query = await searchParams
+  const headers = await forwardedHeaders()
   const [user, status] = await Promise.all([
     currentUser(headers).catch(() => null),
     authStatus(headers),
   ])
 
   if (user) {
-    redirect(localPath(searchParams.next, '/projects'))
+    redirect(localPath(query.next, '/projects'))
   }
   // A site nobody has claimed has nothing to sign in to. Sending the first
   // visitor to the sign-up form is what makes a fresh install claimable by
@@ -43,15 +44,15 @@ export default async function LoginPage({
     >
       {/* Written by the API, never by a provider, so a link cannot put words
           on this page. */}
-      {searchParams.error ? (
+      {query.error ? (
         <div
           role="alert"
           className="rounded-medium border border-danger-200 bg-danger-50 px-4 py-3 text-small text-danger-700 dark:bg-danger-50/10"
         >
-          {searchParams.error}
+          {query.error}
         </div>
       ) : null}
-      <LoginForm next={searchParams.next} />
+      <LoginForm next={query.next} />
       <ProviderButtons providers={status.providers} />
     </AuthCard>
   )

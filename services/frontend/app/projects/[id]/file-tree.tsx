@@ -1,7 +1,7 @@
 'use client'
 
 import { Button, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger } from '@heroui/react'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactElement } from 'react'
 import type { FileEntry } from '@/lib/editor'
 
 /**
@@ -82,7 +82,7 @@ export function FileTree(props: FileTreeProps) {
     })
   }
 
-  function rows(nodes: Node[], depth: number): JSX.Element[] {
+  function rows(nodes: Node[], depth: number): ReactElement[] {
     return nodes.flatMap(node => {
       const { entry } = node
       const isOpen = entry.id === props.openId

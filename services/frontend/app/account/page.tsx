@@ -16,9 +16,10 @@ export const metadata = { title: 'Account' }
 export default async function AccountPage({
   searchParams,
 }: {
-  searchParams: { error?: string }
+  searchParams: Promise<{ error?: string }>
 }) {
-  const headers = forwardedHeaders()
+  const query = await searchParams
+  const headers = await forwardedHeaders()
   const user = await currentUser(headers).catch(() => null)
   if (!user) {
     redirect('/login')
@@ -39,12 +40,12 @@ export default async function AccountPage({
 
         {/* Written by the API, never by a provider, so a link cannot put words
             on this page. */}
-        {searchParams.error ? (
+        {query.error ? (
           <div
             role="alert"
             className="rounded-medium border border-danger-200 bg-danger-50 px-4 py-3 text-small text-danger-700 dark:bg-danger-50/10"
           >
-            {searchParams.error}
+            {query.error}
           </div>
         ) : null}
 

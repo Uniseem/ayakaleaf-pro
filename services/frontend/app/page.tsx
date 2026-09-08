@@ -5,6 +5,6 @@ import { forwardedHeaders } from '@/lib/server'
 // The root is not a page. Somebody signed in wants their projects; somebody
 // who is not wants a way in.
 export default async function Home() {
-  const user = await currentUser(forwardedHeaders()).catch(() => null)
+  const user = await currentUser(await forwardedHeaders()).catch(() => null)
   redirect(user ? '/projects' : '/login')
 }

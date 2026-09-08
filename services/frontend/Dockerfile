@@ -11,7 +11,11 @@ COPY package.json package-lock.json ./
 # npm rather than the monorepo's yarn: this package is built alone, and its
 # lockfile is its own. `ci` rather than `install` so a build installs the
 # versions that were tested, and fails rather than resolving new ones.
-RUN npm ci --omit=optional --no-audit --no-fund
+#
+# Optional dependencies are installed, not skipped. Tailwind compiles CSS with
+# a native module that is packaged as optional-per-platform, so leaving them
+# out is a build that cannot read a stylesheet.
+RUN npm ci --no-audit --no-fund
 
 FROM node:22-alpine AS build
 WORKDIR /app

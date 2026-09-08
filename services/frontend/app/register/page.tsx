@@ -9,7 +9,7 @@ import { RegisterForm } from './register-form'
 export const metadata = { title: 'Create an account' }
 
 export default async function RegisterPage() {
-  const headers = forwardedHeaders()
+  const headers = await forwardedHeaders()
   const [user, status] = await Promise.all([
     currentUser(headers).catch(() => null),
     authStatus(headers),

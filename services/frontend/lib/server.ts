@@ -7,8 +7,8 @@ import { cookies } from 'next/headers'
  * incoming request and have to be forwarded by hand, or the API sees an
  * anonymous visitor and every page renders signed out.
  */
-export function forwardedHeaders(): Record<string, string> {
-  const jar = cookies()
+export async function forwardedHeaders(): Promise<Record<string, string>> {
+  const jar = await cookies()
   const cookie = jar
     .getAll()
     .map(({ name, value }) => `${name}=${value}`)
