@@ -374,8 +374,9 @@ export const SETTINGS = [
     env: 'OVERLEAF_COOKIE_SESSION_LENGTH',
     section: 'security',
     type: 'number',
-    label: 'How long a session lasts, seconds',
-    default: 5 * 24 * 60 * 60,
+    label: 'How long a session lasts, in milliseconds',
+    help: 'Five days by default. It is milliseconds, not seconds: reading it as seconds gives everybody a session of about seven minutes.',
+    default: 5 * 24 * 60 * 60 * 1000,
     restart: true,
   },
   {
@@ -847,10 +848,10 @@ export const SETTINGS = [
     type: 'select',
     label: 'Where history is kept',
     options: [
-      { value: 'gcs', label: 'on this server' },
+      { value: 'fs', label: 'on this server' },
       { value: 's3', label: 'S3' },
     ],
-    default: 'gcs',
+    default: 'fs',
     restart: true,
   },
   {
@@ -987,7 +988,7 @@ export const SETTINGS = [
     section: 'enterpriseAuth',
     type: 'string',
     label: 'LDAP attribute holding the first name',
-    default: 'cn',
+    default: '',
     restart: true,
   },
   {
@@ -996,7 +997,7 @@ export const SETTINGS = [
     section: 'enterpriseAuth',
     type: 'string',
     label: 'LDAP attribute holding the last name',
-    default: 'sn',
+    default: '',
     restart: true,
   },
   {
