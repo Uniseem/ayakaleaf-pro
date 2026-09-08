@@ -73,17 +73,25 @@ for i in $(seq 1 "$runs"); do
   timed pdflatex -interaction=batchmode -halt-on-error main.tex
 done
 
-echo "latexmk"
+echo "latexmk-changed"
 for i in $(seq 1 "$runs"); do
-  # Touched so latexmk has a reason to typeset, which is the ordinary case:
-  # somebody changed the document and asked for a compile.
-  touch main.tex
+  # Changed, not touched: latexmk compares content, so a document whose bytes
+  # are the same is one it correctly refuses to typeset again.
+  echo "% edit $i" >> main.tex
   timed latexmk -pdf -f -interaction=batchmode -synctex=1 main.tex
 done
 
-echo "latexmk-nothing-to-do"
+echo "latexmk-unchanged"
 for i in $(seq 1 "$runs"); do
   timed latexmk -pdf -f -interaction=batchmode -synctex=1 main.tex
+done
+
+echo "latexmk-without-typesetting"
+for i in $(seq 1 "$runs"); do
+  # The same decision, with the typesetting replaced by nothing. What is left
+  # is what latexmk costs to consult.
+  echo "% edit $i" >> main.tex
+  timed latexmk -pdf -f -interaction=batchmode -pdflatex=/bin/true main.tex
 done
 RUNNER
 docker cp /tmp/lm-runner.sh "$CONTAINER":/tmp/lm-runner.sh >/dev/null
