@@ -273,7 +273,21 @@ func randomTranslatorTextUpdate(random *rand.Rand, meta map[string]any, timestam
 				op["hlen"] = size + 1
 			}
 			if random.IntN(4) == 0 {
-				op["resolved"] = true
+				// Both ways round: an unresolved comment is written
+				// differently from one that says nothing about it.
+				op["resolved"] = random.IntN(2) == 0
+			}
+			if random.IntN(6) == 0 {
+				// A second comment on the same thread, which is the one case
+				// where two comment operations meet inside one change.
+				op2 := map[string]any{
+					"p": position, "c": document[position : position+size],
+					"t": "thread-1",
+				}
+				if random.IntN(3) == 0 {
+					op2["resolved"] = random.IntN(2) == 0
+				}
+				ops = append(ops, op2)
 			}
 			ops = append(ops, op)
 		}
