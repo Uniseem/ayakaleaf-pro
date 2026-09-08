@@ -197,8 +197,6 @@ func (s *Service) fail(w http.ResponseWriter, r *http.Request, err error) {
 		status = http.StatusNotFound
 	case errors.Is(err, ErrBadRequest):
 		status = http.StatusBadRequest
-	case errors.Is(err, ErrSyncOngoing):
-		status = http.StatusConflict
 	case errors.Is(err, ErrTooManyRequests):
 		status = http.StatusTooManyRequests
 	case errors.Is(err, ErrInconsistentChunk):
@@ -206,9 +204,17 @@ func (s *Service) fail(w http.ResponseWriter, r *http.Request, err error) {
 	}
 
 	if s.logger != nil {
-		s.logger.Error("request failed",
+		attrs := []any{
 			"method", r.Method, "path", r.URL.Path, "status", status,
-			"err", err.Error())
+			"err", err.Error(),
+		}
+		// What the other service said, when it said anything: a status code on
+		// its own does not say which request it refused or why.
+		var refused *StatusError
+		if errors.As(err, &refused) && refused.Body != "" {
+			attrs = append(attrs, "body", refused.Body)
+		}
+		s.logger.Error("request failed", attrs...)
 	}
 	w.WriteHeader(status)
 }
