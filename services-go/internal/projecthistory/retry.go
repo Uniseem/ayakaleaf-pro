@@ -152,7 +152,7 @@ func (m *RetryManager) RetryFailures(ctx context.Context,
 		}
 		return m.retryBatch(ctx, batch, options.Timeout,
 			func(ctx context.Context, failure *Failure) error {
-				return m.processor.ProcessUpdatesForProject(ctx, failure.ProjectID)
+				return m.processor.ProcessUpdatesForProject(ctx, failure.ProjectID.String())
 			})
 
 	case "hard":
@@ -166,7 +166,7 @@ func (m *RetryManager) RetryFailures(ctx context.Context,
 				// rebuilding would throw away the state that says it is stuck.
 				hard := failureRequiresHardResync(failure) &&
 					!isOngoingSyncFailure(failure)
-				return m.resyncProject(ctx, failure.ProjectID, hard)
+				return m.resyncProject(ctx, failure.ProjectID.String(), hard)
 			})
 	}
 	return &RetryResult{Succeeded: []string{}, Failed: []string{}}, nil
@@ -213,10 +213,10 @@ func (m *RetryManager) retryBatch(ctx context.Context, failures []Failure,
 			break
 		}
 		if err := retry(ctx, &failures[i]); err != nil {
-			result.Failed = append(result.Failed, failures[i].ProjectID)
+			result.Failed = append(result.Failed, failures[i].ProjectID.String())
 			continue
 		}
-		result.Succeeded = append(result.Succeeded, failures[i].ProjectID)
+		result.Succeeded = append(result.Succeeded, failures[i].ProjectID.String())
 	}
 	return result, nil
 }

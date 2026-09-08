@@ -2,6 +2,7 @@ package projecthistory
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/histmodel"
 )
@@ -63,6 +64,48 @@ type Op struct {
 	DeleteComment *string           `json:"deleteComment,omitempty"`
 }
 
+// Millis is a time as an update carries it.
+//
+// The editor writes it as a number of milliseconds and a resync writes it as a
+// date, so it is read as either and written back as whichever it arrived as: an
+// update this service passes on should reach the history the way it was sent.
+type Millis struct {
+	Value int64
+	raw   json.RawMessage
+}
+
+// NewMillis builds a time from a number of milliseconds.
+func NewMillis(value int64) *Millis { return &Millis{Value: value} }
+
+// UnmarshalJSON reads a time in either form.
+func (m *Millis) UnmarshalJSON(data []byte) error {
+	m.raw = append([]byte(nil), data...)
+
+	var number int64
+	if err := json.Unmarshal(data, &number); err == nil {
+		m.Value = number
+		return nil
+	}
+	var text string
+	if err := json.Unmarshal(data, &text); err == nil {
+		// A date that cannot be read is not an error: the other side makes an
+		// invalid time out of it rather than refusing the update.
+		if parsed, err := time.Parse(time.RFC3339Nano, text); err == nil {
+			m.Value = parsed.UnixMilli()
+		}
+		return nil
+	}
+	return nil
+}
+
+// MarshalJSON writes the time as it arrived.
+func (m Millis) MarshalJSON() ([]byte, error) {
+	if len(m.raw) > 0 {
+		return m.raw, nil
+	}
+	return json.Marshal(m.Value)
+}
+
 // TrackedChangeInOp is one mark caught inside a delete.
 type TrackedChangeInOp struct {
 	Type   string `json:"type"`
@@ -105,8 +148,10 @@ func (o *Op) HistoryOffset() int {
 
 // Meta is the who, when and where of an update.
 type Meta struct {
-	TS     int64  `json:"ts,omitempty"`
-	UserID string `json:"user_id,omitempty"`
+	// TS is when the update was made. It arrives either as milliseconds or as
+	// a date, depending on what wrote it, and is passed on as it came.
+	TS     *Millis `json:"ts,omitempty"`
+	UserID string  `json:"user_id,omitempty"`
 	// Type is "external" for a change that did not come from the editor.
 	Type   string `json:"type,omitempty"`
 	Source string `json:"source,omitempty"`
@@ -196,6 +241,15 @@ func (u *Update) MarshalJSON() ([]byte, error) {
 		all[key] = value
 	}
 	return json.Marshal(all)
+}
+
+// Timestamp is when an update was made, in milliseconds, or zero when it does
+// not say.
+func (m *Meta) Timestamp() int64 {
+	if m == nil || m.TS == nil {
+		return 0
+	}
+	return m.TS.Value
 }
 
 // IsTextUpdate reports whether the update edits a document.

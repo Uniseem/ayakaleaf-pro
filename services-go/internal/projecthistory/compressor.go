@@ -238,7 +238,7 @@ func concatTwoUpdates(first, second *Update) ([]*Update, error) {
 		return []*Update{first, second}, nil
 	}
 
-	if second.Meta.TS-first.Meta.TS > maxTimeBetweenUpdates {
+	if second.Meta.Timestamp()-first.Meta.Timestamp() > maxTimeBetweenUpdates {
 		return []*Update{first, second}, nil
 	}
 

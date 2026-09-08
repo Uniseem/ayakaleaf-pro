@@ -280,19 +280,33 @@ func (s *Snapshot) applyOperation(op Operation) error {
 		if file == nil {
 			return fmt.Errorf("%w: %s", ErrFileNotFound, typed.Path)
 		}
-		content, ok := file.Data.(*StringFileData)
-		if !ok {
-			// The file has not been loaded, so the edit cannot be applied
-			// here. The caller fetches the blob and tries again.
-			return fmt.Errorf("%w: %s is not loaded", ErrApply, typed.Path)
-		}
-		if typed.TextOperation == nil {
-			// An edit that is not a text operation -- a comment being resolved
-			// or deleted -- changes no text.
-			return nil
-		}
-		if err := content.Edit(typed.TextOperation); err != nil {
-			return err
+		switch content := file.Data.(type) {
+		case *StringFileData:
+			if typed.TextOperation == nil {
+				// An edit that is not a text operation -- a comment being
+				// resolved or deleted -- is applied to the marks.
+				return content.ApplyEdit(typed.Edit)
+			}
+			if err := content.Edit(typed.TextOperation); err != nil {
+				return err
+			}
+
+		case *LazyStringFileData:
+			// The file has not been fetched, and for most of what a snapshot
+			// is asked it does not need to be: the edit is recorded against it
+			// and the length kept up to date, so the content can be worked out
+			// later by replaying them onto the blob.
+			if typed.TextOperation != nil {
+				length, err := typed.TextOperation.ApplyToLength(content.StringLength_)
+				if err != nil {
+					return err
+				}
+				content.StringLength_ = length
+			}
+			content.Operations = append(content.Operations, typed.Edit)
+
+		default:
+			return fmt.Errorf("%w: %s is not editable", ErrApply, typed.Path)
 		}
 
 	case *NoOperation:
@@ -352,9 +366,15 @@ func (c *Chunk) GetSnapshotAt(version int) (*Snapshot, error) {
 	if c.History == nil || c.History.Snapshot == nil {
 		return nil, errors.New("chunk has no history")
 	}
-	if version < c.StartVersion || version > c.EndVersion() {
-		return nil, fmt.Errorf("version %d is not in this chunk (%d to %d)",
-			version, c.StartVersion, c.EndVersion())
+	// A version outside the chunk is taken as the nearest end of it rather than
+	// refused: the caller is asking what the project looked like, and this
+	// chunk can only say what it holds.
+	applied := version - c.StartVersion
+	if applied < 0 {
+		applied = 0
+	}
+	if applied > len(c.History.Changes) {
+		applied = len(c.History.Changes)
 	}
 
 	// A copy, so that moving it on does not change the chunk.
@@ -367,7 +387,7 @@ func (c *Chunk) GetSnapshotAt(version int) (*Snapshot, error) {
 		return nil, err
 	}
 
-	for _, change := range c.History.Changes[:version-c.StartVersion] {
+	for _, change := range c.History.Changes[:applied] {
 		if err := snapshot.ApplyChange(change); err != nil {
 			return nil, err
 		}

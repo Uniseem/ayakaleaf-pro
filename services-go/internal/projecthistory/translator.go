@@ -78,7 +78,7 @@ func convertToChange(withBlob UpdateWithBlob) (*histmodel.Change, error) {
 
 	change := &histmodel.Change{
 		Operations:     operations,
-		Timestamp:      time.UnixMilli(update.Meta.TS).UTC(),
+		Timestamp:      time.UnixMilli(update.Meta.Timestamp()).UTC(),
 		Authors:        []json.RawMessage{},
 		V2Authors:      authors,
 		ProjectVersion: projectVersion,
@@ -426,7 +426,7 @@ func (b *operationsBuilder) deletePortion(length int, update *Update) {
 func trackingProps(kind string, update *Update) json.RawMessage {
 	encoded, _ := json.Marshal(map[string]any{
 		"type": kind, "userId": update.Meta.UserID,
-		"ts": time.UnixMilli(update.Meta.TS).UTC().Format("2006-01-02T15:04:05.000Z"),
+		"ts": time.UnixMilli(update.Meta.Timestamp()).UTC().Format("2006-01-02T15:04:05.000Z"),
 	})
 	return encoded
 }

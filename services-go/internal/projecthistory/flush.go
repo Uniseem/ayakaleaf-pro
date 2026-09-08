@@ -111,8 +111,8 @@ func (m *FlushManager) FlushOldOps(ctx context.Context,
 	failing := map[string]bool{}
 	failedProjects := make([]string, 0, len(failures))
 	for _, failure := range failures {
-		failing[failure.ProjectID] = true
-		failedProjects = append(failedProjects, failure.ProjectID)
+		failing[failure.ProjectID.String()] = true
+		failedProjects = append(failedProjects, failure.ProjectID.String())
 	}
 
 	// Shuffled, so that a limit does not mean the same projects are swept

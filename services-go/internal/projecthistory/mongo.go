@@ -34,9 +34,50 @@ func NewStore(database *mongo.Database) *Store {
 	}
 }
 
+// StoredID is a project id as it is stored.
+//
+// This service writes them as strings, because a history id need not be an
+// object id at all, but records written elsewhere hold them as object ids. A
+// record that could not be read would take the whole listing with it.
+type StoredID string
+
+// UnmarshalBSONValue reads an id stored either way.
+func (s *StoredID) UnmarshalBSONValue(bsonType byte, data []byte) error {
+	value := bson.RawValue{Type: bson.Type(bsonType), Value: data}
+	switch bson.Type(bsonType) {
+	case bson.TypeString:
+		text, ok := value.StringValueOK()
+		if !ok {
+			return errors.New("unreadable project id")
+		}
+		*s = StoredID(text)
+	case bson.TypeObjectID:
+		id, ok := value.ObjectIDOK()
+		if !ok {
+			return errors.New("unreadable project id")
+		}
+		*s = StoredID(id.Hex())
+	case bson.TypeNull, bson.TypeUndefined:
+		*s = ""
+	default:
+		*s = StoredID(value.String())
+	}
+	return nil
+}
+
+// MarshalBSONValue writes an id as a string, which is how this service stores
+// them.
+func (s StoredID) MarshalBSONValue() (byte, []byte, error) {
+	bsonType, data, err := bson.MarshalValue(string(s))
+	return byte(bsonType), data, err
+}
+
+// String is the id as text.
+func (s StoredID) String() string { return string(s) }
+
 // Failure is what is recorded when a project cannot be processed.
 type Failure struct {
-	ProjectID string    `bson:"project_id" json:"project_id"`
+	ProjectID StoredID  `bson:"project_id" json:"project_id"`
 	Attempts  int       `bson:"attempts" json:"attempts"`
 	QueueSize int       `bson:"queueSize" json:"queueSize"`
 	Error     string    `bson:"error" json:"error"`
