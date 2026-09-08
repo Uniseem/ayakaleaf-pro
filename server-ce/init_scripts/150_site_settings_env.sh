@@ -9,6 +9,5 @@ set -e
 # 500_check_db_access.sh, which says so properly.
 
 echo "Applying site settings from the database"
-cd /overleaf/services/web
 # Runs as root: /etc/container_environment is root's, and this writes into it.
-node modules/site-settings/scripts/write-container-environment.mjs || true
+/overleaf/bin/go/setup environment || true

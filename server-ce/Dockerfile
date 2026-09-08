@@ -6,8 +6,8 @@
 # What is in here: nginx, the API (services-go/cmd/api), the Go services it
 # talks to, and the two Node services that have not been replaced yet -- clsi,
 # which runs LaTeX, and history-v1. The pages are not in here: the client is
-# services/frontend and has its own image, which is why this one no longer
-# builds a browser bundle.
+# services/frontend and has its own image. Neither is the Node web service,
+# which was most of this image and is gone.
 
 # Only ARGs declared before the first FROM are in scope for FROM instructions,
 # so both base images have to be named up here -- putting OVERLEAF_BASE_TAG
@@ -62,12 +62,12 @@ COPY --parents libraries/ services/ tools/migrations/ /overleaf/
 RUN --mount=type=cache,target=/root/.cache \
     --mount=type=cache,target=/root/.yarn/berry/cache,id=server-ce-yarn-cache \
     --mount=type=cache,target=/usr/local/share/.cache/yarn,id=server-ce-yarn-fallback-cache \
-    --mount=type=cache,target=/overleaf/services/web/node_modules/.cache,id=server-ce-webpack-cache \
     --mount=type=tmpfs,target=/tmp \
     node genScript compile | bash
 
-# Copy the Go service binaries
-# ----------------------------
+# Copy the Go binaries
+# --------------------
+# The services, the API, and the setup command the startup scripts run.
 COPY --from=go-builder /out/ /overleaf/bin/go/
 
 # Copy runit service startup scripts to its location
@@ -98,8 +98,6 @@ RUN chmod 644 /etc/logrotate.d/overleaf
 ADD server-ce/cron /overleaf/cron
 ADD server-ce/config/crontab-history /etc/cron.d/crontab-history
 RUN chmod 600 /etc/cron.d/crontab-history
-ADD server-ce/config/crontab-deletion /etc/cron.d/crontab-deletion
-RUN chmod 600 /etc/cron.d/crontab-deletion
 
 # Copy Phusion Image startup and shutdown scripts to their locations
 # ------------------------------------------------------------------

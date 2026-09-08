@@ -221,7 +221,6 @@
     "services/templates",
     "services/third-party-datastore",
     "services/third-party-references",
-    "services/web",
     "tools/dependency-management",
     "tools/npm-overrides-helper",
     "tools/saas-e2e",

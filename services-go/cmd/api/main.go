@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/documents"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/githubsync"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/history"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/internalapi"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projects"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/settings"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/tokens"
@@ -128,6 +130,41 @@ func main() {
 		GitSecret:      gitSecret(),
 		AllowedOrigins: allowedOrigins(siteSettings),
 	})
+
+	// The other services in this deployment ask this one things -- whether
+	// somebody may open a project, what a stored document says, where a
+	// project's history is. That is a different surface from the one a browser
+	// reaches, with different shapes and its own authentication, so it is a
+	// second listener on the port those services already look for it on.
+	internal := internalapi.New(internalapi.Options{
+		Log:        log,
+		Projects:   projectStore,
+		Users:      userStore,
+		Storage:    documents.NewStorage(serviceURL("DOCSTORE", "3016")),
+		Docupdater: documents.NewClient(serviceURL("DOCUPDATER", "3003")),
+		ChatURL:    serviceURL("CHAT", "3010"),
+		User:       config.Env("WEB_API_USER", "overleaf"),
+		Password:   config.Env("WEB_API_PASSWORD", "password"),
+	})
+	internalAddr := fmt.Sprintf("%s:%d",
+		config.ListenAddress(), config.EnvInt("WEB_API_PORT", 3000))
+	internalServer := &http.Server{
+		Addr:              internalAddr,
+		Handler:           internal.Handler(),
+		ReadHeaderTimeout: 30 * time.Second,
+		WriteTimeout:      internalapi.ReadTimeout(),
+	}
+	go func() {
+		log.Info("internal api listening", slog.String("addr", internalAddr))
+		if err := internalServer.ListenAndServe(); err != nil &&
+			!errors.Is(err, http.ErrServerClosed) {
+			// Without this the editor cannot open a project: real-time asks
+			// here before it lets anybody in.
+			log.Log(ctx, logx.LevelFatal, "The internal API stopped. Exiting.",
+				logx.Err(err), slog.String("addr", internalAddr))
+			os.Exit(1)
+		}
+	}()
 
 	addr := fmt.Sprintf("%s:%d", config.ListenAddress(), config.EnvInt("API_PORT", 3400))
 	srv := &http.Server{
