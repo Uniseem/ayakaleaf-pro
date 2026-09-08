@@ -446,7 +446,7 @@ export const SETTINGS = [
   },
   {
     key: 'defaultCompiler',
-    path: 'defaultFeatures.compiler',
+    path: 'defaultLatexCompiler',
     env: 'DEFAULT_LATEX_COMPILER',
     section: 'projects',
     type: 'select',
@@ -481,13 +481,13 @@ export const SETTINGS = [
   },
   {
     key: 'additionalTextExtensions',
-    path: 'additionalTextExtensions',
     env: 'ADDITIONAL_TEXT_EXTENSIONS',
     section: 'projects',
     type: 'string',
     label: 'Extra file extensions to treat as editable text',
-    help: 'Comma separated, without the dot. For example: cls,sty,bst',
+    help: 'Comma separated, without the dot. For example: cls,sty,bst. These are added to the built-in list when the site starts.',
     default: '',
+    restart: true,
   },
   {
     key: 'enabledLinkedFileTypes',
