@@ -172,3 +172,55 @@ export function setRootDoc(projectId: string, docId: string): Promise<void> {
     body: { docId },
   })
 }
+
+/**
+ * Moves an entry into a folder, or to the root when no folder is given.
+ *
+ * Separate from a rename because it is a different question for the server:
+ * a rename cannot collide with anything outside its own folder, and a move
+ * can.
+ */
+export function moveEntry(
+  projectId: string,
+  entryId: string,
+  folderId?: string
+): Promise<void> {
+  return api<void>(`/api/projects/${projectId}/entries/${entryId}/move`, {
+    method: 'POST',
+    body: { folderId: folderId ?? null },
+  })
+}
+
+/**
+ * Uploads a file.
+ *
+ * Not through `api`: that sends JSON, and this is the one request in the
+ * client that is a multipart body. The same rules still apply -- same origin,
+ * cookies, one error shape.
+ */
+export async function uploadFile(
+  projectId: string,
+  file: File,
+  folderId?: string
+): Promise<FileEntry> {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('name', file.name)
+  if (folderId) {
+    form.append('folderId', folderId)
+  }
+
+  const response = await fetch(`/api/projects/${projectId}/uploads`, {
+    method: 'POST',
+    credentials: 'include',
+    body: form,
+  })
+
+  const text = await response.text()
+  const parsed = text ? (JSON.parse(text) as Record<string, unknown>) : {}
+  if (!response.ok) {
+    const failure = parsed.error as { message?: string } | undefined
+    throw new Error(failure?.message ?? 'That file could not be uploaded.')
+  }
+  return (parsed as { file: FileEntry }).file
+}
