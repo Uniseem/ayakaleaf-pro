@@ -1,6 +1,7 @@
 package compile
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -348,4 +349,14 @@ func (s *Service) readable(r *http.Request) (*users.User, *projects.Project, err
 		return nil, nil, apierr.Internal.WithCause(err)
 	}
 	return user, project, nil
+}
+
+// ForgetProject removes what a deleted project left in the compiler.
+//
+// A copy of every file, the PDF, the logs, and everything TeX wrote along the
+// way -- once for each person who has compiled it. It is a cache and would
+// have been rebuilt by the next compile, but a deleted project has no next
+// compile, so it would simply stay.
+func (s *Service) ForgetProject(ctx context.Context, projectID bson.ObjectID, _ string) error {
+	return s.clsi.Clear(ctx, projectID)
 }

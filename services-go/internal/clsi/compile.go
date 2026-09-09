@@ -203,6 +203,13 @@ func (s *Service) Clear(projectID, userID string) error {
 	if !validID(projectID) {
 		return fmt.Errorf("%w: that is not a project", ErrBadRequest)
 	}
+	// Naming nobody means all of them. A project has one directory per person
+	// who has compiled it, so clearing only the unsuffixed name would leave
+	// every collaborator's copy behind -- which is the whole project, once
+	// for each of them, and this is the call a deleted project makes.
+	if userID == "" {
+		return s.clearEveryone(projectID)
+	}
 	unlock := s.lock(compileName(projectID, userID))
 	defer unlock()
 
@@ -210,6 +217,35 @@ func (s *Service) Clear(projectID, userID string) error {
 		return err
 	}
 	return os.RemoveAll(s.outputDir(projectID, userID))
+}
+
+// clearEveryone removes a project's directories, whoever compiled them.
+func (s *Service) clearEveryone(projectID string) error {
+	for _, root := range []string{s.options.CompilesDir, s.options.OutputDir} {
+		entries, err := os.ReadDir(root)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return err
+		}
+		for _, entry := range entries {
+			name := entry.Name()
+			// The project on its own, or the project and somebody. Not a
+			// project whose id merely starts the same way -- ids are a fixed
+			// length, so that cannot happen, but the check is the cheap one.
+			if name != projectID && !strings.HasPrefix(name, projectID+"-") {
+				continue
+			}
+			unlock := s.lock(name)
+			err := os.RemoveAll(filepath.Join(root, name))
+			unlock()
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // --- the four steps --------------------------------------------------------

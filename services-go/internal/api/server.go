@@ -129,16 +129,17 @@ func New(opts Options) *Server {
 	// record that names it leaves the text, the conversation and every
 	// version of every file on the disk for good, under an id nothing points
 	// at -- invisible, which is not the same as gone.
+	server.compile = compile.NewService(
+		opts.Projects, opts.Documents, opts.Compiler, opts.Settings, opts.History)
 	server.projects.OnDelete(
 		server.tags,      // it comes off everybody's tags
 		server.documents, // its text
 		server.chat,      // its comments and messages
 		server.histories, // its history, which is the largest part
 		server.sharing,   // the invitations, whose tokens grant access
+		server.compile,   // what the compiler kept, for everybody who built it
 	)
 	server.projects.Logs(opts.Log)
-	server.compile = compile.NewService(
-		opts.Projects, opts.Documents, opts.Compiler, opts.Settings, opts.History)
 	server.tokens = tokens.NewService(opts.Tokens)
 	server.github = githubsync.NewService(githubsync.Options{
 		Log:        opts.Log,

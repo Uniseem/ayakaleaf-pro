@@ -350,3 +350,29 @@ func (c *Client) get(ctx context.Context, endpoint string, into any) error {
 	}
 	return json.NewDecoder(response.Body).Decode(into)
 }
+
+// Clear removes what a project left in the compiler.
+//
+// The compile directory and the output directory: a copy of every file, the
+// PDF, the logs, and everything TeX wrote along the way. They are a cache and
+// would be rebuilt by the next compile -- but a project that has been deleted
+// has no next compile, so they would simply stay, and they are the largest
+// thing on the disk after the history.
+func (c *Client) Clear(ctx context.Context, projectID bson.ObjectID) error {
+	// No user in the address: a project has one directory per person who has
+	// compiled it, and all of them go.
+	endpoint := fmt.Sprintf("%s/project/%s", c.baseURL, projectID.Hex())
+	request, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
+	if err != nil {
+		return err
+	}
+	response, err := c.http.Do(request)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode >= 300 && response.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("the compiler answered %s", response.Status)
+	}
+	return nil
+}
