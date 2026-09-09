@@ -32,8 +32,8 @@ import (
 
 // How long an unaccepted invitation lasts, and how many one project may have.
 const (
-	inviteLifetime  = 30 * 24 * time.Hour
-	maxOpenInvites  = 50
+	inviteLifetime   = 30 * 24 * time.Hour
+	maxOpenInvites   = 50
 	maxCollaborators = 200
 )
 
@@ -140,8 +140,8 @@ func (s *Service) List(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	return httpapi.JSON(w, http.StatusOK, map[string]any{
-		"members":     members,
-		"invites":     invites,
+		"members":      members,
+		"invites":      invites,
 		"publicAccess": project.PublicAccessLevel,
 	})
 }

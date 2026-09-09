@@ -25,6 +25,7 @@ import (
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/history"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/httpapi"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/oauth"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projecthistory"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projects"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/settings"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/sharing"
@@ -53,6 +54,7 @@ type Server struct {
 	prefs     *settings.UserService
 	tags      *tags.Service
 	sharing   *sharing.Service
+	histories *projecthistory.Service
 	origins   []string
 }
 
@@ -83,6 +85,10 @@ type Options struct {
 	// GitSecret signs the download links handed to it.
 	GitBaseURL string
 	GitSecret  string
+	// ProjectHistoryURL is where the summarising history service is. Like
+	// chat, it answers for any project id it is given and checks nothing,
+	// which is why it is only reachable from inside.
+	ProjectHistoryURL string
 	// ChatURL is where the chat service is, for the messages people leave on
 	// a project. This service is the only thing between it and a browser: it
 	// has no idea who may read a project.
@@ -113,6 +119,8 @@ func New(opts Options) *Server {
 		opts.Projects, opts.Documents, opts.Storage, opts.History)
 	// A new project is given its first file by the documents service, so the
 	// two are wired together here rather than knowing about each other.
+	server.histories = projecthistory.New(
+		opts.Projects, opts.Users, opts.History, server.documents, opts.ProjectHistoryURL)
 	server.projects = projects.NewService(opts.Projects, server.documents)
 	// A deleted project has to come off everybody's tags.
 	server.projects.OnDelete(server.tags)
@@ -196,6 +204,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/projects/{id}/entries/{entryId}/rename", h(s.documents.Rename))
 	mux.HandleFunc("DELETE /api/projects/{id}/entries/{entryId}", h(s.documents.Delete))
 	mux.HandleFunc("POST /api/projects/{id}/clone", h(s.documents.Clone))
+	mux.HandleFunc("GET /api/projects/{id}/history/updates", h(s.histories.Updates))
+	mux.HandleFunc("GET /api/projects/{id}/history/diff", h(s.histories.Diff))
+	mux.HandleFunc("GET /api/projects/{id}/history/changes", h(s.histories.Changes))
+	mux.HandleFunc("GET /api/projects/{id}/history/labels", h(s.histories.Labels))
+	mux.HandleFunc("POST /api/projects/{id}/history/labels", h(s.histories.CreateLabel))
+	mux.HandleFunc("POST /api/projects/{id}/history/restore", h(s.histories.Restore))
+
 	mux.HandleFunc("GET /api/projects/{id}/sharing", h(s.sharing.List))
 	mux.HandleFunc("POST /api/projects/{id}/sharing/invites", h(s.sharing.Invite))
 	mux.HandleFunc("DELETE /api/projects/{id}/sharing/invites/{inviteId}", h(s.sharing.RevokeInvite))

@@ -97,6 +97,22 @@ export function Toolbar({ userName }: { userName: string }) {
 
       <div className="flex-1" />
 
+      <Tooltip content="History" delay={400}>
+        <Button
+          size="sm"
+          variant="light"
+          isIconOnly
+          className="h-8 w-8 min-w-8"
+          aria-label="Project history"
+          aria-pressed={layout.view === 'history'}
+          onPress={() =>
+            layout.view === 'history' ? layout.restoreView() : layout.setView('history')
+          }
+        >
+          <HistoryIcon />
+        </Button>
+      </Tooltip>
+
       <Button
         size="sm"
         variant="flat"
@@ -331,6 +347,16 @@ function ConnectionBadge() {
         {label}
       </span>
     </Tooltip>
+  )
+}
+
+function HistoryIcon() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <path d="M2.6 8a5.4 5.4 0 1 0 1.6-3.8" strokeLinecap="round" />
+      <path d="M2.5 3v2.6h2.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 5.2V8l2 1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 }
 

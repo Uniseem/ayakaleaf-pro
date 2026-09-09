@@ -126,11 +126,12 @@ func main() {
 		Tokens:    tokenStore,
 		// The git container reaches this service by the name the deployment
 		// gives it, which is not the address people type into a browser.
-		GitBaseURL:     config.Env("GIT_BRIDGE_CALLBACK_BASE_URL", "http://ayakaleaf"),
-		GitSecret:      gitSecret(),
-		ChatURL:        serviceURL("CHAT", "3010"),
-		Database:       db,
-		AllowedOrigins: allowedOrigins(siteSettings),
+		GitBaseURL:        config.Env("GIT_BRIDGE_CALLBACK_BASE_URL", "http://ayakaleaf"),
+		GitSecret:         gitSecret(),
+		ChatURL:           serviceURL("CHAT", "3010"),
+		ProjectHistoryURL: serviceURL("PROJECT_HISTORY", "3054"),
+		Database:          db,
+		AllowedOrigins:    allowedOrigins(siteSettings),
 	})
 
 	// The other services in this deployment ask this one things -- whether

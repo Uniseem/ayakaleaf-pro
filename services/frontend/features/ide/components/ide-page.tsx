@@ -24,6 +24,7 @@ import { SettingsProvider, useSettings, editorFontStyle } from '@/features/ide/c
 import { SourceEditor } from '@/features/source-editor/editor'
 import { PdfPane } from '@/features/pdf-preview/pdf-pane'
 import { FileView } from '@/features/file-view/file-view'
+import { HistoryView } from '@/features/history/history-view'
 import { Rail } from './rail'
 import { Toolbar } from './toolbar'
 
@@ -70,7 +71,13 @@ function IdeShell({ userName }: { userName: string }) {
         ) : null}
 
         <Panel id="main" order={2} minSize={30}>
-          <PanelGroup direction="horizontal" autoSaveId="ide.main">
+          {layout.view === 'history' ? <HistoryView /> : null}
+
+          <PanelGroup
+            direction="horizontal"
+            autoSaveId="ide.main"
+            className={layout.view === 'history' ? 'hidden' : ''}
+          >
             {layout.editorIsOpen ? (
               <Panel id="editor" order={1} minSize={20} defaultSize={50}>
                 <EditorPane />
