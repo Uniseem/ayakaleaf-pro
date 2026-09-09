@@ -134,7 +134,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     )
 
     if (href) {
-      const { onClick, target, rel, download, id, style, title } = props
+      const { onClick, target, rel, download, id, style, title, draggable } = props
       return (
         <a
           className={buttonClassName}
@@ -145,6 +145,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           id={id}
           style={style}
           title={title}
+          draggable={draggable}
+          aria-label={props['aria-label']}
+          data-testid={props['data-testid']}
+          data-disabled={disabled ? 'true' : undefined}
           aria-disabled={disabled || undefined}
           onClick={onClick as unknown as React.MouseEventHandler<HTMLAnchorElement>}
           data-ol-loading={isLoading}

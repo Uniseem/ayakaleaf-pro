@@ -34,7 +34,6 @@ import { useConnection } from '@/features/ide/contexts/connection-context'
 import { useMetadataContext } from '@/features/ide/contexts/metadata-context'
 import { useEditorPropertiesContext } from '@/features/ide/contexts/editor-properties-context'
 import { useReview } from '@/features/ide/contexts/review-context'
-import type { LogEntry } from '@/features/pdf-preview/log-parser'
 
 type GotoLineDetail = {
   /** 0-based */
@@ -45,34 +44,6 @@ type GotoLineDetail = {
   docId?: string
 }
 
-const normalisePath = (path: string) => path.replace(/^(\.\/|\/)+/, '')
-
-/** The compile log entries that belong to one document, as annotations. */
-const annotationsForDoc = (logEntries: LogEntry[], docPath: string): Annotation[] => {
-  const path = normalisePath(docPath)
-  const annotations: Annotation[] = []
-  const seenLines = new Set<number>()
-  logEntries.forEach((entry, index) => {
-    if (!entry.file || typeof entry.line !== 'number' || normalisePath(entry.file) !== path) {
-      return
-    }
-    const row = entry.line - 1
-    if (row < 0) {
-      return
-    }
-    annotations.push({
-      row,
-      column: 0,
-      type: entry.level === 'typesetting' ? 'info' : entry.level,
-      text: entry.message,
-      source: 'compile',
-      entryIndex: index,
-      firstOnLine: !seenLines.has(row),
-    })
-    seenLines.add(row)
-  })
-  return annotations
-}
 
 /** The other people's cursors in this document. */
 const highlightsForDoc = (
@@ -106,7 +77,7 @@ function useCodeMirrorScope(view: EditorView) {
   const editor = useEditor()
   const { current, revision, change, editable, rememberPosition } = editor
   const { files, canWrite, canReview } = useProject()
-  const { logEntries, compiling, stale, markEdited } = useCompile()
+  const { logEntryAnnotations, compiling, stale, markEdited } = useCompile()
   const { others, reportPosition } = useConnection()
   const metadata = useMetadataContext()
   const settings = useSettings()
@@ -524,10 +495,9 @@ function useCodeMirrorScope(view: EditorView) {
   }, [view, enableCompileLogLinter])
 
   // set the compile log annotations when they change
-  const docPath = current?.path
   useEffect(() => {
-    if (docPath) {
-      const annotations = annotationsForDoc(logEntries, docPath)
+    if (docId) {
+      const annotations = logEntryAnnotations?.[docId] ?? []
 
       window.setTimeout(() => {
         view.dispatch(
@@ -537,7 +507,7 @@ function useCodeMirrorScope(view: EditorView) {
         )
       })
     }
-  }, [view, docPath, logEntries])
+  }, [view, docId, logEntryAnnotations])
 
   useEffect(() => {
     if (docId) {

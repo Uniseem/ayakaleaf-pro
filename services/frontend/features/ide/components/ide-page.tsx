@@ -29,6 +29,7 @@ import { MetadataProvider } from '@/features/ide/contexts/metadata-context'
 import { EditorPropertiesProvider } from '@/features/ide/contexts/editor-properties-context'
 import { MainLayout } from '@/features/ide/components/layout/main-layout'
 import { SettingsModal } from '@/features/settings/settings-modal'
+import { GlobalToasts } from '@/features/ide/components/global-toasts'
 
 export type IdePageProps = {
   user: PublicUser
@@ -56,28 +57,29 @@ export function IdePage({ user, view, site }: IdePageProps) {
         <ProjectProvider initial={view}>
           <ConnectionProvider>
             <LayoutProvider>
-              <CompileProvider>
-                <EditorProvider>
+              <EditorProvider>
+                <CompileProvider>
                   <ReviewProvider>
                     <CommandRegistryProvider>
                       <EditorPropertiesProvider>
                         <MetadataProvider>
                           <OutlineProvider>
-                      <RailProvider>
-                        <TabsProvider>
-                          <div id="ide-root" className="ide-shell">
-                            <SettingsModal />
-                            <MainLayout />
-                          </div>
-                        </TabsProvider>
-                      </RailProvider>
+                            <RailProvider>
+                              <TabsProvider>
+                                <div id="ide-root" className="ide-shell">
+                                  <SettingsModal />
+                                  <MainLayout />
+                                  <GlobalToasts />
+                                </div>
+                              </TabsProvider>
+                            </RailProvider>
                           </OutlineProvider>
                         </MetadataProvider>
                       </EditorPropertiesProvider>
                     </CommandRegistryProvider>
                   </ReviewProvider>
-                </EditorProvider>
-              </CompileProvider>
+                </CompileProvider>
+              </EditorProvider>
             </LayoutProvider>
           </ConnectionProvider>
         </ProjectProvider>

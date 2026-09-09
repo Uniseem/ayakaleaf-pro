@@ -22,6 +22,7 @@ import { Toolbar } from '@/features/ide/components/toolbar/toolbar'
 import { TabsContainer } from '@/features/source-editor/tabs/tabs'
 import SourceEditor from '@/features/source-editor/components/source-editor'
 import { PdfPane } from '@/features/pdf-preview/pdf-pane'
+import { DefaultSynctexControl } from '@/features/pdf-preview/components/pdf-synctex-controls'
 import { FileView } from '@/features/file-view/file-view'
 import { HistoryView } from '@/features/history/history-view'
 import { useCollapsiblePanel } from '@/features/ide/hooks/use-collapsible-panel'
@@ -121,6 +122,11 @@ export function MainLayout() {
                   tooltipWhenOpen={t('tooltip_hide_pdf')}
                   tooltipWhenClosed={t('tooltip_show_pdf')}
                 />
+                {pdfLayout === 'sideBySide' && (
+                  <div className="synctex-controls">
+                    <DefaultSynctexControl />
+                  </div>
+                )}
               </HorizontalResizeHandle>
               <Panel
                 collapsible
@@ -136,6 +142,11 @@ export function MainLayout() {
                 aria-label={t('pdf_preview')}
               >
                 <PdfPane />
+                {pdfLayout === 'flat' && view === 'pdf' && (
+                  <div className="synctex-controls" hidden>
+                    <DefaultSynctexControl />
+                  </div>
+                )}
               </Panel>
             </PanelGroup>
           </Panel>

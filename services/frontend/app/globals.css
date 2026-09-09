@@ -27,6 +27,7 @@
 @import './styles/editor/file-tree.css';
 @import './styles/editor/integrations.css';
 @import './styles/editor/source-editor.css';
+@import './styles/editor/pdf.css';
 
 /*
  * The design system, for Tailwind.

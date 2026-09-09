@@ -1,0 +1,944 @@
+/*
+ * The PDF pane, from pages/editor/pdf.scss, logs.scss, compile-button.scss
+ * and toast.scss, with the parts of pages/editor/toolbar.scss and
+ * components/button-group.scss that the PDF toolbar stands on.
+ */
+
+:root {
+  --pdf-bg: var(--bg-dark-secondary);
+  --pdf-toolbar-btn-hover-color: rgb(125 125 125 / 20%);
+  --synctex-control-size: 24px;
+}
+
+[data-theme='light'] {
+  --pdf-toolbar-btn-hover-color: var(--neutral-10);
+  --pdf-bg: var(--neutral-10);
+}
+
+/* The toolbar base, from pages/editor/toolbar.scss ---------------------- */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  height: var(--toolbar-height);
+  border-bottom: 1px solid var(--toolbar-border-color);
+}
+
+.toolbar button {
+  position: relative;
+}
+
+.toolbar button .badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  pointer-events: none; /* Labels were capturing button/anchor clicks. */
+}
+
+.toolbar button .badge .badge-content {
+  padding: 0;
+}
+
+.btn-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-03);
+  flex-wrap: nowrap;
+}
+
+.pdf-code-check-failed-banner-container {
+  position: absolute;
+  top: calc(var(--toolbar-small-height) + var(--spacing-04));
+  left: 0;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  padding: 0 var(--spacing-06);
+}
+
+.pdf-code-check-failed-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-02);
+  background-color: var(--bg-light-primary);
+  color: var(--content-primary);
+  border: 1px solid var(--border-divider);
+  padding: var(--spacing-02) var(--spacing-03) var(--spacing-02) var(--spacing-02);
+  border-radius: var(--border-radius-full);
+  box-shadow: 0 2px 4px 0 #1e253029;
+}
+
+.pdf .toolbar.toolbar-pdf {
+  height: var(--toolbar-small-height);
+  background-color: var(--toolbar-alt-bg-color);
+  padding-right: var(--spacing-03);
+  margin-left: 0;
+}
+
+.pdf .toolbar.toolbar-pdf .btn.disabled,
+.pdf .toolbar.toolbar-pdf .btn[disabled] {
+  pointer-events: auto;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.toolbar-pdf-left {
+  gap: var(--spacing-02);
+}
+
+.toolbar-pdf-left .compile-button-group {
+  height: 24px;
+  background-color: var(--bg-accent-01);
+  border-radius: 12px;
+  margin-left: var(--spacing-02);
+}
+
+.toolbar-pdf-left .compile-button-group .btn-primary:hover {
+  z-index: auto; /* prevents border from being hidden */
+}
+
+.toolbar-pdf-left .dropdown > .btn {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.toolbar-pdf-left .dropdown > .btn[disabled],
+.toolbar-pdf-left .dropdown > .btn[disabled]:active {
+  background-color: var(--bs-btn-bg);
+  color: var(--bs-btn-color);
+  opacity: 1;
+  pointer-events: auto;
+  cursor: not-allowed;
+}
+
+.toolbar-pdf-left .dropdown > .compile-button {
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+  font-size: var(--font-size-02);
+}
+
+.toolbar-pdf-left .dropdown > .compile-dropdown-toggle {
+  width: 26px;
+  padding: var(--spacing-01);
+}
+
+.toolbar-pdf-left,
+.toolbar-pdf-right,
+.toolbar-pdf-controls {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+}
+
+.toolbar-pdf-controls {
+  margin-right: var(--spacing-02);
+  justify-content: flex-end;
+  flex: 1 1 100%;
+}
+
+.toolbar-pdf-right {
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.toolbar-pdf-orphan {
+  color: var(--toolbar-btn-color);
+}
+
+.toolbar-pdf-orphan-btn,
+.toolbar-pdf-orphan {
+  margin-left: var(--spacing-02);
+}
+
+/* The split dropdown toggle, from components/dropdown-menu.scss ---------- */
+
+.dropdown-button-toggle {
+  border-bottom-left-radius: 0;
+  border-top-left-radius: 0;
+  padding-right: var(--spacing-05);
+  padding-left: var(--spacing-05);
+  margin-left: 0;
+}
+
+.dropdown-button-toggle.btn-primary,
+.dropdown-button-toggle.btn-danger {
+  border-left: 1px solid rgb(30 37 48 / 16%);
+}
+
+.dropdown-button-toggle.btn-secondary {
+  border-left: 1px solid var(--neutral-60);
+}
+
+.dropdown-button-toggle[disabled],
+.dropdown-button-toggle[aria-disabled='true'] {
+  border-left: 1px solid var(--neutral-10);
+}
+
+.btn.pdf-toolbar-btn {
+  display: inline-block;
+  color: var(--toolbar-btn-color);
+  background-color: transparent;
+  padding: 0 var(--spacing-01);
+  line-height: 1;
+  height: 24px;
+  border-radius: var(--border-radius-base);
+  text-decoration: none;
+}
+
+.btn.pdf-toolbar-btn:hover,
+.btn.pdf-toolbar-btn:active,
+.btn.pdf-toolbar-btn:focus {
+  color: var(--toolbar-btn-color);
+}
+
+.btn.pdf-toolbar-btn:hover:not(:disabled) {
+  background-color: var(--pdf-toolbar-btn-hover-color);
+}
+
+.btn.pdf-toolbar-btn:active {
+  background-color: transparent;
+}
+
+.btn.pdf-toolbar-btn .button-content {
+  align-self: center;
+}
+
+.btn.pdf-toolbar-btn .badge {
+  font-size: 60%;
+}
+
+.btn.pdf-toolbar-btn.log-btn {
+  border: none;
+}
+
+.btn.pdf-toolbar-btn.log-btn.active {
+  color: var(--white);
+  background-color: var(--link-color);
+  box-shadow: none;
+  opacity: 0.65;
+}
+
+.btn.pdf-toolbar-btn.log-btn.active:hover:not(:disabled) {
+  background-color: transparent;
+  color: var(--toolbar-btn-color);
+}
+
+.btn.pdf-toolbar-btn.log-btn:focus {
+  outline: none;
+}
+
+.btn.pdf-toolbar-btn.theme-toggle-btn {
+  border: none;
+  border-radius: var(--border-radius-full);
+}
+
+.btn.pdf-toolbar-btn.theme-toggle-btn.active {
+  color: var(--white);
+  background-color: var(--green-70);
+}
+
+.btn.pdf-toolbar-btn.theme-toggle-btn.active:hover {
+  background-color: var(--green-60);
+}
+
+.btn.pdf-toolbar-btn.theme-toggle-btn:focus {
+  outline: none;
+}
+
+.pdf {
+  background-color: var(--pdf-bg);
+}
+
+.pdf.pdf-dark-mode {
+  --pdf-bg: var(--bg-dark-secondary);
+}
+
+.pdf.pdf-dark-mode .pdfjs-viewer {
+  --canvas-box-shadow: none;
+}
+
+.pdf.pdf-dark-mode .pdfjs-viewer .page {
+  filter: invert(95%) hue-rotate(180deg) brightness(90%) contrast(90%);
+}
+
+.pdf-viewer,
+.pdf-errors,
+.pdf-uncompiled {
+  position: absolute;
+  inset: 0;
+  top: var(--toolbar-small-height);
+}
+
+.pdf-viewer {
+  isolation: isolate;
+}
+
+.pdf-viewer iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.pdf-viewer .pdfjs-viewer {
+  position: absolute;
+  inset: 0;
+
+  --canvas-box-shadow: 0 0 10px rgb(0 0 0 / 50%);
+
+  background-color: transparent;
+  overflow: scroll;
+}
+
+.pdf-viewer .pdfjs-viewer .canvasWrapper > canvas,
+.pdf-viewer .pdfjs-viewer div.pdf-canvas {
+  background: white;
+  box-shadow: var(--canvas-box-shadow);
+}
+
+.pdf-viewer .pdfjs-viewer div.pdf-canvas.pdfng-empty {
+  background-color: var(--white);
+}
+
+.pdf-viewer .pdfjs-viewer div.pdf-canvas.pdfng-loading {
+  background-color: var(--white);
+}
+
+.pdf-viewer .pdfjs-viewer .page-container {
+  margin: var(--spacing-05) auto;
+  padding: 0 var(--spacing-05);
+  box-sizing: content-box;
+  user-select: none;
+}
+
+.pdf-viewer .pdfjs-viewer .page {
+  display: block; /* prevent the .loading class (display:inline-flex) from affecting PDF.js page state */
+  box-sizing: content-box;
+  margin: var(--spacing-05) auto;
+  box-shadow:
+    0 5px 5px 0 #23282f0d,
+    0 3px 14px 0 #23282f08,
+    0 8px 10px 0 #23282f14;
+  border: none;
+}
+
+/* The pane has its own loading state; pdf.js's page spinner is suppressed. */
+.pdf-viewer .pdfjs-viewer .page.loadingIcon::after {
+  display: none;
+}
+
+.pdf-viewer .pdfjs-viewer .pdfjs-viewer-inner {
+  position: absolute;
+  overflow-y: scroll;
+  width: 100%;
+  height: 100%;
+  -webkit-font-smoothing: initial;
+  -moz-osx-font-smoothing: initial;
+  view-transition-name: pdf-viewer;
+}
+
+/* fix review-panel overflow issue */
+.pdf-viewer .pdfjs-viewer .pdfjs-viewer-inner .pdfViewer {
+  min-height: 100%;
+}
+
+.pdf-viewer .pdfjs-viewer:focus-within {
+  outline: none;
+}
+
+/* Avoid slowdown in Safari when text layers are reset on selection change */
+.pdf-viewer .pdfjs-viewer .textLayer {
+  will-change: transform;
+}
+
+/* Avoid multiple small layers within annotation layer */
+.pdf-viewer .pdfjs-viewer .annotationLayer {
+  will-change: transform;
+}
+
+/* Avoids https://github.com/mozilla/pdf.js/issues/13840 in Chrome */
+.pdf-viewer .pdfjs-viewer .textLayer br::selection {
+  background: transparent;
+}
+
+.pdf-viewer .progress-thin {
+  position: absolute;
+  top: -2px;
+  height: 3px;
+  left: 0;
+  right: 0;
+}
+
+.pdf-viewer .progress-thin .progress-bar {
+  height: 100%;
+  background-color: var(--link-color);
+}
+
+::view-transition-old(pdf-viewer),
+::view-transition-new(pdf-viewer) {
+  animation-duration: 0.25s;
+}
+
+.pdfjs-viewer-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.pdfjs-zoom-controls {
+  display: inline-flex;
+  border-left: 1px solid rgb(125 125 125 / 30%);
+}
+
+.pdfjs-toolbar-buttons {
+  display: flex;
+  gap: var(--spacing-04);
+  margin-left: var(--spacing-04);
+  margin-right: var(--spacing-04);
+}
+
+.pdfjs-toolbar-buttons .btn {
+  border-radius: var(--border-radius-base) !important;
+}
+
+.pdfjs-toolbar-button {
+  padding: var(--spacing-01) !important;
+  display: flex;
+  align-items: center;
+}
+
+.pdfjs-zoom-dropdown-button {
+  width: 60px;
+  text-align: right;
+  font-weight: normal;
+}
+
+.pdfjs-custom-zoom-menu-item {
+  display: block;
+  pointer-events: initial !important;
+}
+
+.pdfjs-custom-zoom-menu-item:hover {
+  background-color: initial !important;
+  color: initial !important;
+  cursor: initial !important;
+}
+
+.pdfjs-page-number-input {
+  color: var(--toolbar-btn-color);
+  font-size: var(--font-size-02);
+  padding-right: var(--spacing-04);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-02);
+}
+
+.pdfjs-page-number-input input {
+  background-color: var(--bg-primary-themed);
+  color: var(--content-primary-themed);
+  border: 1px solid var(--border-primary-themed);
+  width: 32px;
+  height: 24px;
+  border-radius: var(--border-radius-base);
+  text-align: center;
+}
+
+.pdfjs-viewer-controls-small {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-04);
+}
+
+.pdfjs-toolbar-popover-button {
+  padding: var(--spacing-01) !important;
+}
+
+.pdfjs-toolbar-popover {
+  background-color: var(--editor-toolbar-bg);
+  border-radius: var(--border-radius-base);
+}
+
+.pdfjs-toolbar-popover .popover-arrow {
+  display: none;
+}
+
+.pdfjs-toolbar-popover button {
+  background-color: transparent;
+  color: var(--toolbar-btn-color);
+}
+
+.pdfjs-toolbar-popover .popover-body {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-04) 0;
+}
+
+/* The new viewer UI has overflow on the inner element,
+   so disable the overflow on the outer element */
+.pdf-viewer .pdfjs-viewer.pdfjs-viewer-outer {
+  overflow: hidden;
+}
+
+:fullscreen .pdfViewer {
+  min-height: auto !important;
+}
+
+:fullscreen .pdfjs-viewer-inner {
+  overflow-y: hidden !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.synctex-controls {
+  margin-right: calc(var(--spacing-04) * -1);
+  position: absolute;
+  z-index: 6;
+  padding: 0;
+  top: 68px;
+}
+
+.synctex-control:not(.detach-synctex-control) {
+  align-items: center;
+  background-color: rgb(73 83 101 / 80%);
+  border-color: transparent;
+  border-radius: var(--border-radius-full);
+  color: var(--content-primary-dark);
+  display: flex !important;
+  height: var(--synctex-control-size);
+  justify-content: center;
+  margin-bottom: var(--spacing-05);
+  padding: 0;
+  transition: background 0.15s ease;
+  width: var(--synctex-control-size);
+}
+
+.synctex-control:not(.detach-synctex-control):focus:not(:focus-visible) {
+  outline: none;
+}
+
+.synctex-control:not(.detach-synctex-control):active {
+  background-color: rgb(73 83 101 / 80%);
+  color: var(--content-primary-dark);
+}
+
+.synctex-control .synctex-control-icon {
+  font-size: var(--font-size-06);
+  font-weight: normal;
+}
+
+.keyboard-tooltip .tooltip-inner {
+  max-width: none;
+}
+
+#dropdown-files-logs-pane-list {
+  overflow-y: auto;
+
+  /* This keeps the dropdown menu inside the Logs div.
+     "spacing-11" is there to compensate the button height and the margin around the logs. */
+  max-height: calc(100vh - (var(--toolbar-small-height) + var(--toolbar-height) + var(--spacing-11)));
+}
+
+#dropdown-files-logs-pane-list .dropdown-header {
+  white-space: nowrap;
+}
+
+.pdf-preview-messages {
+  position: absolute;
+  right: var(--spacing-06);
+  left: var(--spacing-06);
+  top: var(--spacing-10);
+  z-index: 1;
+}
+
+.synctex-error-toast-content {
+  display: flex;
+  gap: 20px;
+}
+
+/* Logs, from pages/editor/logs.scss --------------------------------------- */
+
+.error-logs {
+  overflow-y: auto;
+  background-color: var(--bg-secondary-themed);
+  color: var(--content-primary-themed);
+  flex: 1;
+
+  --link-color: var(--link-ui-themed);
+  --link-hover-color: var(--link-ui-hover-themed);
+  --link-visited-color: var(--link-ui-visited-themed);
+}
+
+.error-logs .icon-button,
+.error-logs .icon-button-small {
+  --bs-btn-color: var(--content-secondary-themed);
+  --bs-btn-bg: transparent;
+  --bs-btn-border-color: transparent;
+  --bs-btn-hover-color: var(--content-secondary-themed);
+  --bs-btn-hover-bg: var(--bg-secondary-themed);
+  --bs-btn-hover-border-color: transparent;
+  --bs-btn-active-color: var(--content-secondary-themed);
+  --bs-btn-active-bg: var(--bg-secondary-themed);
+  --bs-btn-active-border-color: transparent;
+  --bs-btn-border-width: 0;
+}
+
+.error-logs-tabs {
+  display: flex;
+  background-color: var(--bg-primary-themed);
+}
+
+.error-logs-tab-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-04);
+  color: var(--content-secondary-themed);
+  padding: var(--spacing-03) var(--spacing-04);
+  font-size: var(--font-size-02);
+  border: 0;
+  background: none;
+  border-bottom: 3px solid transparent;
+}
+
+.error-logs-tab-header[aria-selected='true'] {
+  color: var(--content-primary-themed);
+  border-bottom: 3px solid var(--bg-accent-01);
+}
+
+.error-logs-tab-count {
+  background-color: var(--bg-secondary-themed);
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--spacing-02);
+}
+
+.new-logs-pane {
+  position: absolute;
+  inset: 0;
+  z-index: 11; /* above the PDF viewer + controls */
+  top: var(--toolbar-small-height);
+  background-color: var(--bg-secondary-themed);
+  display: flex;
+  flex-direction: column;
+}
+
+.logs-pane-actions {
+  display: flex;
+  flex-wrap: wrap;
+  place-content: flex-end flex-end;
+  padding: var(--spacing-03) 0;
+  flex-grow: 1;
+  align-items: flex-end;
+  gap: var(--spacing-04);
+}
+
+.logs-pane-content {
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-02);
+  gap: var(--spacing-02);
+  min-height: 100%;
+}
+
+.log-entry {
+  background-color: var(--bg-primary-themed);
+  width: 100%;
+  border-radius: var(--border-radius-base);
+  padding: var(--spacing-04);
+}
+
+.log-entry .horizontal-divider {
+  margin: var(--spacing-04) 0;
+  border-top: 1px solid var(--border-divider-themed);
+}
+
+.log-entry-header-card {
+  background-color: var(--bg-primary-themed);
+  width: 100%;
+  display: flex;
+  align-items: center;
+  border: none;
+  flex-wrap: wrap;
+  container-type: inline-size;
+  column-gap: var(--spacing-03);
+}
+
+.log-entry-header-button {
+  all: unset;
+  display: flex;
+  gap: var(--spacing-03);
+  align-items: center;
+  flex: 1;
+  border-radius: var(--border-radius-base);
+  padding: var(--spacing-02) 0;
+  overflow: hidden;
+}
+
+.log-entry-header-button:hover {
+  cursor: pointer;
+}
+
+.log-entry-header-button:hover,
+.log-entry-header-button:focus-visible,
+.log-entry-header-button:active {
+  background-color: var(--bg-secondary-themed);
+}
+
+.log-entry-header-button .log-entry-expand-icon {
+  user-select: none;
+}
+
+.log-entry-header-content {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  gap: var(--spacing-02);
+  flex: 1;
+  overflow: hidden;
+  font-weight: normal;
+}
+
+.log-entry-header-text {
+  font-weight: 600;
+  font-size: var(--font-size-02);
+  line-height: var(--line-height-02);
+  margin-bottom: 0;
+}
+
+.log-entry-header-text-error {
+  color: var(--content-danger-themed);
+}
+
+.log-entry-header-text-warning {
+  color: var(--content-warning-themed);
+}
+
+.log-entry-header-text-info {
+  color: var(--content-info-themed);
+}
+
+.log-entry-header-text-success {
+  color: var(--content-positive-themed);
+}
+
+.log-entry-header-text-raw {
+  color: var(--content-primary-themed);
+}
+
+.log-entry-location {
+  white-space: nowrap;
+  direction: rtl;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  font-size: var(--font-size-01);
+  line-height: var(--line-height-01);
+  color: var(--content-secondary-themed);
+}
+
+.log-entry-header-actions {
+  display: flex;
+}
+
+@container (width <= 250px) {
+  .log-entry-header-actions {
+    padding-left: var(--spacing-06);
+  }
+
+  .log-entry-header-button {
+    min-width: 100%;
+  }
+}
+
+.log-entry-content {
+  --bs-code-color: var(--content-secondary-themed);
+
+  color: var(--content-primary-themed);
+  background-color: var(--bg-primary-themed);
+  padding: 0;
+}
+
+.log-entry-content:empty {
+  display: none;
+}
+
+.log-entry-content-raw {
+  font-size: var(--font-size-01);
+  line-height: var(--line-height-01);
+  color: var(--content-primary-themed);
+  background-color: var(--bg-secondary-themed);
+  padding: var(--spacing-03);
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.log-entry-content-button-container {
+  position: relative;
+  height: 40px;
+  margin-top: 0;
+  transition:
+    margin 0.15s ease-in-out,
+    opacity 0.15s ease-in-out;
+  padding-bottom: var(--spacing-04);
+  text-align: center;
+  background-image: linear-gradient(0deg, var(--bg-secondary-themed) 0%, transparent 100%);
+  border-radius: 0 0 var(--border-radius-base) var(--border-radius-base);
+}
+
+.log-entry-content-button-container-collapsed {
+  margin-top: -40px;
+}
+
+.log-entry-content-raw-container {
+  background-color: var(--bg-secondary-themed);
+  border-radius: var(--border-radius-base);
+  overflow: hidden;
+  margin-top: var(--spacing-03);
+}
+
+.log-entry-formatted-content,
+.log-entry-content-link {
+  font-size: var(--font-size-02);
+  margin-top: var(--spacing-02);
+}
+
+.log-entry-formatted-content:first-of-type,
+.log-entry-content-link:first-of-type {
+  margin-top: 0;
+}
+
+.log-location-tooltip {
+  word-break: break-all;
+}
+
+.log-location-tooltip > .tooltip-inner {
+  max-width: 450px;
+  text-align: left;
+}
+
+.list-no-margin-bottom {
+  margin-bottom: 0;
+}
+
+.error-boundary-alert {
+  padding: var(--spacing-05);
+}
+
+/* The compile button, from pages/editor/compile-button.scss --------------- */
+
+@keyframes pdf-toolbar-stripes {
+  from {
+    background-position: 0 0;
+  }
+
+  to {
+    background-position: 20px 0;
+  }
+}
+
+.btn-striped-animated {
+  background-image: linear-gradient(
+    45deg,
+    rgb(255 255 255 / 15%) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgb(255 255 255 / 15%) 50%,
+    rgb(255 255 255 / 15%) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 20px 20px;
+  background-origin: content-box;
+  animation: pdf-toolbar-stripes 2s linear infinite;
+}
+
+.detach-compile-button[disabled],
+.detach-compile-button[disabled]:active {
+  background-color: var(--bs-btn-bg);
+  color: var(--bs-btn-color);
+  opacity: 1;
+  pointer-events: auto;
+  cursor: not-allowed;
+}
+
+@keyframes compile-button-flash {
+  0%,
+  100% {
+    background: rgb(0 0 0 / 0%);
+  }
+
+  25%,
+  75% {
+    background: rgb(0 0 0 / 20%);
+  }
+}
+
+@keyframes compile-button-bounce {
+  0%,
+  50%,
+  100% {
+    transform: translateY(0);
+  }
+
+  25%,
+  75% {
+    transform: translateY(2px);
+  }
+}
+
+.detach-compile-button-animate {
+  animation-duration: 1.2s;
+  animation-fill-mode: both;
+  animation-timing-function: ease-in-out;
+  animation-name: compile-button-flash;
+}
+
+.detach-compile-button-animate .material-symbols {
+  animation-duration: 0.6s;
+  animation-delay: 0.4s;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.76, 0, 0.24, 1);
+  animation-name: compile-button-bounce;
+}
+
+/* Toasts, from pages/editor/toast.scss and Bootstrap's toast ------------ */
+
+.toast {
+  width: 350px;
+  max-width: 100%;
+  pointer-events: auto;
+  transition: opacity var(--toast-fade-duration, 0.15s) linear;
+}
+
+.toast.fade:not(.show) {
+  opacity: 0;
+}
+
+.toast-container {
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.toast-content {
+  pointer-events: auto;
+}
+
+.toast.showing {
+  opacity: 0;
+}
+
+.global-toasts {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.global-toasts [role='alert'] {
+  z-index: 20;
+}
