@@ -8,14 +8,17 @@
     "build": "next build",
     "start": "next start --port 3200",
     "typecheck": "tsc --noEmit",
-    "prebuild": "node scripts/copy-pdf-worker.mjs",
-    "predev": "node scripts/copy-pdf-worker.mjs"
+    "prebuild": "node scripts/copy-pdf-worker.mjs && node scripts/generate-latex-parser.mjs",
+    "predev": "node scripts/copy-pdf-worker.mjs && node scripts/generate-latex-parser.mjs",
+    "latex-parser": "node scripts/generate-latex-parser.mjs --force",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.18.4",
     "@codemirror/commands": "6.10.1",
+    "@codemirror/lang-markdown": "6.5.0",
+    "@codemirror/lang-python": "6.2.1",
     "@codemirror/language": "6.12.1",
-    "@codemirror/legacy-modes": "^6.4.1",
     "@codemirror/lint": "6.9.2",
     "@codemirror/search": "6.5.8",
     "@codemirror/state": "6.5.4",
@@ -23,6 +26,10 @@
     "@heroui/react": "^2.8.5",
     "@lezer/common": "1.5.0",
     "@lezer/highlight": "1.2.3",
+    "@lezer/lr": "1.4.7",
+    "@lezer/markdown": "1.6.3",
+    "@replit/codemirror-emacs": "6.1.0",
+    "@replit/codemirror-indentation-markers": "6.5.3",
     "@replit/codemirror-vim": "^6.2.1",
     "@tailwindcss/postcss": "^4.3.3",
     "framer-motion": "^11.11.0",
@@ -38,6 +45,8 @@
     "@types/react-dom": "^19.2.7",
     "postcss": "^8.4.47",
     "tailwindcss": "^4.3.3",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "@lezer/generator": "1.8.0",
+    "patch-package": "8.0.0"
   }
 }

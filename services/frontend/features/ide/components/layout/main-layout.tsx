@@ -16,13 +16,11 @@ import { useLayout } from '@/features/ide/contexts/layout-context'
 import { useRailContext } from '@/features/ide/contexts/rail-context'
 import { useEditor } from '@/features/ide/contexts/editor-context'
 import { useAreTabsEnabled } from '@/features/ide/contexts/tabs-context'
-import { useSettings, editorFontStyle } from '@/features/ide/contexts/settings-context'
 import { HorizontalResizeHandle, HorizontalToggler } from '@/features/ide/components/resize/resize-handles'
 import { RailLayout } from '@/features/ide/components/rail/rail'
 import { Toolbar } from '@/features/ide/components/toolbar/toolbar'
 import { TabsContainer } from '@/features/source-editor/tabs/tabs'
-import { SourceEditor } from '@/features/source-editor/editor'
-import { EditorToolbar } from '@/features/source-editor/editor-toolbar'
+import SourceEditor from '@/features/source-editor/components/source-editor'
 import { PdfPane } from '@/features/pdf-preview/pdf-pane'
 import { FileView } from '@/features/file-view/file-view'
 import { HistoryView } from '@/features/history/history-view'
@@ -153,7 +151,6 @@ export function MainLayout() {
  */
 function EditorPanel() {
   const editor = useEditor()
-  const settings = useSettings()
   const tabsEnabled = useAreTabsEnabled()
   const { t } = useTranslation()
 
@@ -174,10 +171,7 @@ function EditorPanel() {
         <div className="ide-redesign-editor-content">
           <PanelGroup autoSaveId="ide-redesign-editor-symbol-palette" direction="vertical">
             <Panel id="ide-redesign-panel-source-editor" order={1} className="ide-redesign-editor-panel">
-              <EditorToolbar />
-              <div className="min-h-0 flex-1" style={editorFontStyle(settings)}>
-                <SourceEditor />
-              </div>
+              <SourceEditor />
             </Panel>
           </PanelGroup>
         </div>

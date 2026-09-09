@@ -1,0 +1,373 @@
+/*
+ * The source editor's chrome: the CodeMirror toolbar row, the Code/Visual
+ * switch and the popovers the toolbar opens. From pages/editor/toolbar.scss;
+ * the styles inside the editor itself live in the CodeMirror themes.
+ */
+
+:root {
+  --toolbar-border-color: var(--neutral-80);
+  --toolbar-header-bg-color: var(--neutral-90);
+  --toolbar-header-btn-border-color: var(--neutral-80);
+  --toolbar-btn-color: var(--white);
+  --toolbar-btn-hover-bg-color: var(--neutral-80);
+  --toolbar-btn-hover-color: var(--white);
+  --toolbar-btn-active-color: var(--white);
+  --toolbar-btn-active-bg-color: var(--green-50);
+  --toolbar-alt-bg-color: var(--neutral-80);
+  --formatting-btn-color: var(--white);
+  --formatting-btn-bg: var(--neutral-80);
+  --formatting-btn-border: var(--neutral-70);
+  --project-name-color: var(--neutral-40);
+  --toolbar-filetree-bg-color: var(--neutral-80);
+  --project-rename-link-color: var(--neutral-40);
+  --project-rename-link-color-hover: var(--neutral-20);
+  --editor-toolbar-bg: var(--neutral-80);
+  --editor-toolbar-popover-border-color: var(--border-primary);
+  --toolbar-dropdown-divider-color: var(--border-dark-divider);
+  --review-panel-width: 0px;
+}
+
+.ide-redesign-main {
+  --toolbar-alt-bg-color: var(--bg-dark-secondary);
+  --toolbar-btn-color: var(--content-primary-dark);
+  --toolbar-btn-hover-bg-color: var(--neutral-80);
+  --toolbar-btn-hover-color: var(--white);
+  --editor-toolbar-bg: var(--bg-dark-primary);
+  --toolbar-filetree-bg-color: var(--neutral-80);
+}
+
+.ide-redesign-main .ol-cm-toolbar-portal {
+  display: flex;
+  align-items: center;
+  background-color: var(--editor-toolbar-bg);
+}
+
+.ide-redesign-main .ol-cm-toolbar-portal .review-panel-header {
+  align-self: flex-start;
+}
+
+.ide-redesign-main .ol-cm-toolbar-wrapper {
+  flex: 1;
+  width: 100%;
+}
+
+.ide-redesign-main .ol-cm-toolbar-wrapper-indented {
+  width: calc(100% - var(--review-panel-width));
+}
+
+[data-theme='light'] {
+  --toolbar-border-color: var(--neutral-20);
+  --toolbar-header-bg-color: var(--white);
+  --toolbar-header-btn-border-color: var(--neutral-20);
+  --toolbar-btn-color: var(--neutral-70);
+  --toolbar-btn-hover-bg-color: var(--neutral-10);
+  --toolbar-btn-hover-color: var(--neutral-70);
+  --toolbar-btn-active-bg-color: var(--green-50);
+  --toolbar-alt-bg-color: var(--white);
+  --formatting-btn-color: var(--neutral-70);
+  --formatting-btn-bg: transparent;
+  --formatting-btn-border: var(--neutral-20);
+  --project-name-color: var(--neutral-70);
+  --toolbar-filetree-bg-color: var(--white);
+  --project-rename-link-color: var(--neutral-70);
+  --project-rename-link-color-hover: var(--neutral-70);
+  --editor-toolbar-bg: var(--white);
+  --editor-toolbar-popover-border-color: rgba(125 125 125 / 20%);
+  --toolbar-dropdown-divider-color: var(--border-divider);
+}
+
+[data-theme='light'] .ide-redesign-main {
+  --toolbar-alt-bg-color: var(--bg-light-secondary);
+  --toolbar-btn-color: var(--content-primary);
+  --toolbar-btn-hover-bg-color: var(--neutral-80);
+  --toolbar-btn-hover-color: var(--white);
+  --editor-toolbar-bg: var(--white);
+  --toolbar-filetree-bg-color: var(--white);
+}
+
+.toolbar-editor {
+  height: var(--toolbar-small-height);
+  background-color: var(--editor-toolbar-bg);
+  padding: 0 5px;
+  overflow: hidden;
+  position: relative;
+  z-index: 10; /* Prevent track changes showing over toolbar */
+}
+
+/* The editor fills its panel; the toolbar and breadcrumbs are CodeMirror panels above the text. */
+.ide-redesign-editor-panel .cm-editor {
+  height: 100%;
+}
+
+.ide-redesign-editor-panel > div {
+  min-height: 0;
+}
+
+/**************************************
+	Toggle Switch
+***************************************/
+
+.toggle-switch {
+  --toggle-switch-height: 26px;
+  --toggle-switch-padding: var(--spacing-01);
+
+  display: inline-flex;
+  align-items: center;
+  height: var(--toggle-switch-height);
+  margin-right: var(--spacing-03);
+  border-radius: var(--border-radius-full);
+  background-color: var(--bg-tertiary-themed);
+  padding: var(--toggle-switch-padding);
+  border: 0;
+  min-width: 0;
+}
+
+.toggle-switch-label {
+  display: inline-block;
+  float: left;
+  font-weight: normal;
+  height: calc(var(--toggle-switch-height) - 2 * var(--toggle-switch-padding));
+  text-align: center;
+  margin: 0;
+  cursor: pointer;
+  user-select: none;
+  color: var(--content-secondary-themed);
+  border-radius: var(--border-radius-full);
+  transition:
+    color 0.12s ease-out,
+    background-color 0.12s ease-out,
+    box-shadow 0.12s ease-out;
+  overflow: hidden;
+}
+
+.toggle-switch-label span {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+  padding: 0 var(--spacing-08);
+  background-size: 200% 100%;
+  background-position: 0 0;
+  transition: background-position 0.12s ease-out;
+  font-size: var(--font-size-02);
+  font-weight: bold;
+}
+
+.toggle-switch-input {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.toggle-switch-input:disabled + .toggle-switch-label {
+  cursor: not-allowed;
+}
+
+.toggle-switch-input:checked + .toggle-switch-label {
+  color: var(--white);
+  background-color: var(--bg-accent-01);
+  border-radius: var(--border-radius-full);
+  box-shadow: 0 2px 4px rgb(30 37 48 / 16%);
+}
+
+.toggle-switch-input:checked + .toggle-switch-label span {
+  background-position: -100% 0;
+}
+
+.toggle-switch-input:checked:nth-child(2) + .toggle-switch-label span {
+  background-position: 100% 0;
+}
+
+.editor-toggle-switch {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.editor-toggle-switch::before {
+  content: '';
+  display: block;
+  width: 1px;
+  height: 16px;
+  background-color: var(--toolbar-dropdown-divider-color);
+  margin-right: var(--spacing-02);
+}
+
+.editor-toggle-switch .toggle-switch-label span {
+  background: none;
+  transition: background 0.12s ease-out;
+}
+
+.editor-toggle-switch .toggle-switch-label:first-of-type span {
+  padding-left: var(--spacing-04);
+}
+
+.editor-toggle-switch .toggle-switch-label:last-of-type span {
+  padding-right: var(--spacing-04);
+  border-right: none;
+}
+
+/**************************************
+	Popovers (Bootstrap)
+***************************************/
+
+.ol-overlay {
+  z-index: 1070;
+}
+
+.popover {
+  --bs-popover-zindex: 1070;
+  --bs-popover-max-width: 276px;
+  --bs-popover-font-size: var(--font-size-02);
+  --bs-popover-bg: var(--bg-light-primary);
+  --bs-popover-border-width: 1px;
+  --bs-popover-border-color: var(--border-primary);
+  --bs-popover-border-radius: var(--border-radius-base);
+  --bs-popover-box-shadow: 0 0.5rem 1rem rgb(0 0 0 / 15%);
+  --bs-popover-body-padding-x: var(--spacing-05);
+  --bs-popover-body-padding-y: var(--spacing-05);
+  --bs-popover-body-color: var(--content-primary);
+
+  position: relative;
+  display: block;
+  max-width: var(--bs-popover-max-width);
+  font-family: var(--font-family-sans-serif, inherit);
+  font-size: var(--bs-popover-font-size);
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: start;
+  text-decoration: none;
+  text-shadow: none;
+  text-transform: none;
+  letter-spacing: normal;
+  word-break: normal;
+  white-space: normal;
+  word-spacing: normal;
+  line-break: auto;
+  word-wrap: break-word;
+  background-color: var(--bs-popover-bg);
+  background-clip: padding-box;
+  border: var(--bs-popover-border-width) solid var(--bs-popover-border-color);
+  border-radius: var(--bs-popover-border-radius);
+  box-shadow: var(--bs-popover-box-shadow);
+}
+
+.popover .popover-arrow {
+  display: none;
+}
+
+.popover-body {
+  padding: var(--bs-popover-body-padding-y) var(--bs-popover-body-padding-x);
+  color: var(--bs-popover-body-color);
+}
+
+/**************************************
+	List group (Bootstrap)
+***************************************/
+
+.list-group {
+  --bs-list-group-color: var(--content-primary);
+  --bs-list-group-bg: var(--bg-light-primary);
+  --bs-list-group-border-color: var(--border-primary);
+  --bs-list-group-border-width: 1px;
+  --bs-list-group-border-radius: var(--border-radius-base);
+  --bs-list-group-item-padding-x: var(--spacing-05);
+  --bs-list-group-item-padding-y: var(--spacing-04);
+  --bs-list-group-action-hover-bg: var(--bg-light-secondary);
+  --bs-list-group-active-color: var(--content-primary);
+  --bs-list-group-active-bg: var(--bg-light-secondary);
+
+  display: flex;
+  flex-direction: column;
+  padding-left: 0;
+  margin-bottom: 0;
+  border-radius: var(--bs-list-group-border-radius);
+}
+
+.list-group-item {
+  position: relative;
+  display: block;
+  padding: var(--bs-list-group-item-padding-y) var(--bs-list-group-item-padding-x);
+  color: var(--bs-list-group-color);
+  text-decoration: none;
+  background-color: var(--bs-list-group-bg);
+  border: var(--bs-list-group-border-width) solid var(--bs-list-group-border-color);
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.list-group-item:first-child {
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
+}
+
+.list-group-item:last-child {
+  border-bottom-right-radius: inherit;
+  border-bottom-left-radius: inherit;
+}
+
+.list-group-item + .list-group-item {
+  border-top-width: 0;
+}
+
+.list-group-item-action {
+  width: 100%;
+  text-align: inherit;
+}
+
+.list-group-item-action:hover,
+.list-group-item-action:focus {
+  z-index: 1;
+  background-color: var(--bs-list-group-action-hover-bg);
+}
+
+.list-group-item.active {
+  z-index: 2;
+  color: var(--bs-list-group-active-color);
+  background-color: var(--bs-list-group-active-bg);
+}
+
+.list-group-item.disabled,
+.list-group-item[aria-disabled='true'] {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+/**************************************
+	Button group (Bootstrap)
+***************************************/
+
+.btn-group {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.btn-group > .btn {
+  position: relative;
+  flex: 1 1 auto;
+}
+
+.btn-group > .btn:not(:first-child) {
+  margin-left: calc(-1 * var(--bs-border-width, 1px));
+}
+
+/* The search form's option buttons are labels styled as buttons. */
+.ol-cm-search-form .btn-default {
+  --bs-btn-color: var(--content-secondary-themed);
+  --bs-btn-bg: transparent;
+  --bs-btn-border-color: transparent;
+}
+
+/* CodeMirror's own panel container, holding the toolbar and breadcrumbs. */
+.cm-panels {
+  z-index: 10;
+}

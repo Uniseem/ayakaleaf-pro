@@ -8,6 +8,7 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
+COPY patches ./patches
 # npm rather than the monorepo's yarn: this package is built alone, and its
 # lockfile is its own. `ci` rather than `install` so a build installs the
 # versions that were tested, and fails rather than resolving new ones.

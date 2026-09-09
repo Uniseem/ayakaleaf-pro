@@ -50,6 +50,11 @@ function interpolate(text: string, values?: Values): string {
   })
 }
 
+/** Whether a string exists for this key. */
+export function exists(key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(strings, key)
+}
+
 /** The string for a key, with values filled in. */
 export function t(key: string, values?: Values): string {
   return interpolate(lookup(key, values), values)

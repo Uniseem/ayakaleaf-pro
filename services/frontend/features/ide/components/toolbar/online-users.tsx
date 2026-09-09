@@ -31,7 +31,12 @@ export function OnlineUsers() {
         const entry = entryById(user.docId)
         if (entry) {
           editor.open(entry)
-          window.dispatchEvent(new CustomEvent('ide:goto-line', { detail: { docId: user.docId, line: user.row + 1 } }))
+          const row = user.row
+          const docId = user.docId
+          // the document is opened first; the jump waits until it is in the editor
+          window.setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('ide:goto-line', { detail: { docId, line: row, column: user.column ?? 0 } }))
+          }, entry.id === editor.current?.id ? 0 : 500)
         }
       }
     },

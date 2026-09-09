@@ -24,6 +24,9 @@ import { CommandRegistryProvider } from '@/features/ide/contexts/command-registr
 import { RailProvider } from '@/features/ide/contexts/rail-context'
 import { TabsProvider } from '@/features/ide/contexts/tabs-context'
 import { SiteProvider, type SiteValue } from '@/features/ide/contexts/site-context'
+import { OutlineProvider } from '@/features/ide/contexts/outline-context'
+import { MetadataProvider } from '@/features/ide/contexts/metadata-context'
+import { EditorPropertiesProvider } from '@/features/ide/contexts/editor-properties-context'
 import { MainLayout } from '@/features/ide/components/layout/main-layout'
 import { SettingsModal } from '@/features/settings/settings-modal'
 
@@ -47,6 +50,9 @@ export function IdePage({ user, view, site }: IdePageProps) {
                 <EditorProvider>
                   <ReviewProvider>
                     <CommandRegistryProvider>
+                      <EditorPropertiesProvider>
+                        <MetadataProvider>
+                          <OutlineProvider>
                       <RailProvider>
                         <TabsProvider>
                           <div id="ide-root" className="ide-shell">
@@ -55,6 +61,9 @@ export function IdePage({ user, view, site }: IdePageProps) {
                           </div>
                         </TabsProvider>
                       </RailProvider>
+                          </OutlineProvider>
+                        </MetadataProvider>
+                      </EditorPropertiesProvider>
                     </CommandRegistryProvider>
                   </ReviewProvider>
                 </EditorProvider>

@@ -12,6 +12,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { usePersistedState } from '@/lib/hooks'
+import { tabsEvents, TAB_USER_EDIT_EVENT } from '@/features/source-editor/extensions/tabs-listener'
 import type { FileEntry } from '@/lib/editor'
 import { useProject } from './project-context'
 import { useEditor } from './editor-context'
@@ -230,6 +231,16 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     },
     [setOpenTabs]
   )
+
+  // An edit makes the tab permanent, the way a double click does.
+  useEffect(() => {
+    if (!tabsEnabled || !openEntityId) {
+      return
+    }
+    const listener = () => makeTabPermanent(openEntityId)
+    tabsEvents.addEventListener(TAB_USER_EDIT_EVENT, listener)
+    return () => tabsEvents.removeEventListener(TAB_USER_EDIT_EVENT, listener)
+  }, [tabsEnabled, openEntityId, makeTabPermanent])
 
   // Whatever is open has a tab; a single click's tab replaces the last one.
   useEffect(() => {

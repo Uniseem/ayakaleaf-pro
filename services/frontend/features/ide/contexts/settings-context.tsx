@@ -33,7 +33,7 @@ export type UserSettings = {
   overallTheme: OverallTheme
   editorTheme: string
   fontSize: number
-  fontFamily: 'monospace' | 'lucida' | 'opendyslexic'
+  fontFamily: 'monaco' | 'lucida' | 'opendyslexicmono'
   lineHeight: 'compact' | 'normal' | 'wide'
   keybindings: Keybindings
   autoComplete: boolean
@@ -60,7 +60,7 @@ export const defaultSettings: UserSettings = {
   overallTheme: 'light',
   editorTheme: 'textmate',
   fontSize: 12,
-  fontFamily: 'monospace',
+  fontFamily: 'monaco',
   lineHeight: 'normal',
   keybindings: 'default',
   autoComplete: true,
@@ -132,8 +132,10 @@ export function SettingsProvider({
     document.documentElement.style.colorScheme = settings.overallTheme
   }, [settings.overallTheme])
 
+  // Defaults underneath whatever was stored, so a setting added after the
+  // stored copy was written still has a value.
   const value = useMemo<SettingsValue>(
-    () => ({ ...settings, set, setMany, reset }),
+    () => ({ ...defaultSettings, ...settings, fontFamily: legacyFontFamily(settings.fontFamily), set, setMany, reset }),
     [settings, set, setMany, reset]
   )
 
@@ -142,6 +144,23 @@ export function SettingsProvider({
       {children}
     </SettingsContext.Provider>
   )
+}
+
+/** Names stored before the font families took the original's names. */
+function legacyFontFamily(value: string | undefined): UserSettings['fontFamily'] {
+  switch (value) {
+    case 'monospace':
+    case 'monaco':
+    case undefined:
+      return 'monaco'
+    case 'opendyslexic':
+    case 'opendyslexicmono':
+      return 'opendyslexicmono'
+    case 'lucida':
+      return 'lucida'
+    default:
+      return 'monaco'
+  }
 }
 
 export function useSettings(): SettingsValue {
@@ -155,9 +174,9 @@ export function useSettings(): SettingsValue {
 /** The CSS the editor needs for the chosen font and spacing. */
 export function editorFontStyle(settings: UserSettings): React.CSSProperties {
   const families: Record<UserSettings['fontFamily'], string> = {
-    monospace: "'Source Code Pro', 'Menlo', 'Consolas', monospace",
-    lucida: "'Lucida Console', 'Monaco', monospace",
-    opendyslexic: "'OpenDyslexic Mono', 'Source Code Pro', monospace",
+    monaco: "Monaco, Menlo, 'Ubuntu Mono', Consolas, monospace",
+    lucida: "'Lucida Console', 'Source Code Pro', monospace",
+    opendyslexicmono: "'OpenDyslexic Mono', monospace",
   }
   const heights: Record<UserSettings['lineHeight'], number> = {
     compact: 1.33,

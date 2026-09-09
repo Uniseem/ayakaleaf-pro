@@ -5,3 +5,14 @@ tsconfig.tsbuildinfo
 
 # Copied from node_modules by scripts/copy-pdf-worker.mjs at build time.
 /public/pdf.worker.min.mjs
+
+# Generated from latex.grammar by scripts/generate-latex-parser.mjs
+/features/source-editor/lezer-latex/latex.mjs
+/features/source-editor/lezer-latex/latex.terms.mjs
+
+features/source-editor/lezer-latex/latex.d.mts
+features/source-editor/lezer-latex/latex.terms.d.mts
+features/source-editor/lezer-bibtex/bibtex.mjs
+features/source-editor/lezer-bibtex/bibtex.terms.mjs
+features/source-editor/lezer-bibtex/bibtex.d.mts
+features/source-editor/lezer-bibtex/bibtex.terms.d.mts

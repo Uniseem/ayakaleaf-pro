@@ -42,9 +42,9 @@ const CHOICES: Array<{
     key: 'fontFamily',
     label: 'Font',
     options: [
-      { value: 'monospace', label: 'Monospace' },
-      { value: 'lucida', label: 'Lucida' },
-      { value: 'opendyslexic', label: 'OpenDyslexic' },
+      { value: 'monaco', label: 'Monaco / Menlo / Consolas' },
+      { value: 'lucida', label: 'Lucida / Source Code Pro' },
+      { value: 'opendyslexicmono', label: 'OpenDyslexic Mono' },
     ],
   },
   {
@@ -177,10 +177,10 @@ export function EditorSettings() {
             style={{
               fontSize: `${settings.fontSize}px`,
               fontFamily:
-                settings.fontFamily === 'monospace'
-                  ? "'Source Code Pro', monospace"
+                settings.fontFamily === 'monaco'
+                  ? "Monaco, Menlo, 'Ubuntu Mono', Consolas, monospace"
                   : settings.fontFamily === 'lucida'
-                    ? "'Lucida Console', monospace"
+                    ? "'Lucida Console', 'Source Code Pro', monospace"
                     : "'OpenDyslexic Mono', monospace",
               lineHeight:
                 settings.lineHeight === 'compact'

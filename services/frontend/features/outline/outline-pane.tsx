@@ -10,22 +10,15 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { useTranslation } from '@/lib/i18n'
-import { usePersistedState, useEventListener } from '@/lib/hooks'
 import MaterialIcon from '@/components/ol/material-icon'
 import { Tooltip } from '@/components/ol/tooltip'
-import { useEditor } from '@/features/ide/contexts/editor-context'
-import { analyse } from '@/features/source-editor/analyse'
+import { useOutlineContext } from '@/features/ide/contexts/outline-context'
 
 export type OutlineItemData = {
   level: number
   title: string
   line: number
   children?: OutlineItemData[]
-}
-
-/** Whether a file is one the outline can read. */
-function isValidTeXFile(name: string) {
-  return /\.(tex|txt|ltx|rtex|rnw|latex|bib|md|rmd)$/i.test(name)
 }
 
 /** Nests a flat list of headings by level. */
@@ -53,44 +46,12 @@ function getChildrenLines(children?: OutlineItemData[]): number[] {
   return (children || []).reduce<number[]>((lines, child) => lines.concat(getChildrenLines(child.children), child.line), [])
 }
 
-export function useOutlineState() {
-  const { current } = useEditor()
-  const [outlineExpanded, setOutlineExpanded] = usePersistedState('file_outline.expanded', true)
-  const canShowOutline = Boolean(current && isValidTeXFile(current.name))
-
-  const toggleOutlineExpanded = useCallback(() => setOutlineExpanded(value => !value), [setOutlineExpanded])
-  const expandOutline = useCallback(() => setOutlineExpanded(true), [setOutlineExpanded])
-  const collapseOutline = useCallback(() => setOutlineExpanded(false), [setOutlineExpanded])
-
-  return { canShowOutline, outlineExpanded, toggleOutlineExpanded, expandOutline, collapseOutline }
-}
+export const useOutlineState = useOutlineContext
 
 export const OutlineContainer = memo(function OutlineContainer() {
-  const { current } = useEditor()
-  const { canShowOutline, outlineExpanded, toggleOutlineExpanded } = useOutlineState()
-  const [highlightedLine, setHighlightedLine] = useState(-1)
+  const { flatOutline, highlightedLine, jumpToLine, canShowOutline, outlineExpanded, toggleOutlineExpanded } = useOutlineContext()
 
-  useEventListener(
-    'ide:cursor-line' as keyof WindowEventMap,
-    useCallback((event: Event) => {
-      setHighlightedLine(Number((event as CustomEvent<{ line: number }>).detail.line))
-    }, [])
-  )
-
-  const outline = useMemo(() => {
-    if (!current) {
-      return []
-    }
-    const sections = analyse(current.content).sections
-    return nestOutline(sections.map(section => ({ level: section.level, title: section.title || '', line: section.line + 1 })))
-  }, [current])
-
-  const jumpToLine = useCallback((line: number, syncToPdf: boolean) => {
-    window.dispatchEvent(new CustomEvent('ide:goto-line', { detail: { line: line - 1 } }))
-    if (syncToPdf) {
-      window.dispatchEvent(new CustomEvent('ide:sync-to-pdf'))
-    }
-  }, [])
+  const outline = useMemo(() => (flatOutline ? nestOutline(flatOutline.items) : []), [flatOutline])
 
   return (
     <div className="outline-container">
@@ -99,6 +60,7 @@ export const OutlineContainer = memo(function OutlineContainer() {
         isTexFile={canShowOutline}
         jumpToLine={jumpToLine}
         highlightedLine={highlightedLine}
+        isPartial={flatOutline?.partial}
         expanded={outlineExpanded}
         toggleExpanded={toggleOutlineExpanded}
       />
