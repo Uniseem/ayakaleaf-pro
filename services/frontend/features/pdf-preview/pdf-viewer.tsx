@@ -68,6 +68,13 @@ type PageSize = { width: number; height: number }
 // A page is drawn before it reaches the viewport, so scrolling shows no gap.
 const AHEAD = '400px'
 
+// The pages drawn without waiting to be asked. An observer says when a page
+// is worth drawing, but it says nothing until the browser has laid the page
+// out and is producing frames -- and a viewer that shows nothing at all until
+// then is broken in exactly the case that matters, which is the first one.
+// Most documents that get looked at are short, so this is usually all of it.
+const EAGER = 3
+
 export function PdfViewer({
   url,
   zoom,
@@ -295,7 +302,7 @@ function PdfPage({
   const wrapper = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const text = useRef<HTMLDivElement>(null)
-  const [near, setNear] = useState(false)
+  const [near, setNear] = useState(number <= EAGER)
 
   const width = Math.floor(size.width * scale)
   const height = Math.floor(size.height * scale)
