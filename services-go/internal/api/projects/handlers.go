@@ -20,15 +20,29 @@ type Seeder interface {
 	SeedNewProject(ctx context.Context, project *Project, ownerID bson.ObjectID) error
 }
 
+// Forgetter is told when a project goes, so that what refers to it can stop.
+//
+// An interface rather than a call, for the same reason Seeder is: tags are not
+// this package's business, and it should not import them to say goodbye.
+type Forgetter interface {
+	ForgetProject(ctx context.Context, projectID bson.ObjectID) error
+}
+
 // Service is the projects API.
 type Service struct {
-	store  *Store
-	seeder Seeder
+	store     *Store
+	seeder    Seeder
+	forgetter Forgetter
 }
 
 // NewService builds it.
 func NewService(store *Store, seeder Seeder) *Service {
 	return &Service{store: store, seeder: seeder}
+}
+
+// OnDelete registers what to tell when a project is deleted.
+func (s *Service) OnDelete(forgetter Forgetter) {
+	s.forgetter = forgetter
 }
 
 // List answers with every project somebody can see.
@@ -193,6 +207,12 @@ func (s *Service) Delete(w http.ResponseWriter, r *http.Request) error {
 	}
 	if err := s.store.Delete(r.Context(), id); err != nil {
 		return apierr.Internal.WithCause(err)
+	}
+	// Every tag that pointed at it now points at nothing. Not fatal if it
+	// fails -- the project is already gone, and a tag holding a dead id shows
+	// as a count that is one too high, not as a broken page.
+	if s.forgetter != nil {
+		_ = s.forgetter.ForgetProject(r.Context(), id)
 	}
 	return httpapi.NoContent(w)
 }

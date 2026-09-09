@@ -27,6 +27,7 @@ import (
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/oauth"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projects"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/settings"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/tags"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/tokens"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/users"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/session"
@@ -49,6 +50,7 @@ type Server struct {
 	github    *githubsync.Service
 	chat      *chat.Service
 	prefs     *settings.UserService
+	tags      *tags.Service
 	origins   []string
 }
 
@@ -101,6 +103,7 @@ func New(opts Options) *Server {
 		auth:     auth.New(opts.Users, opts.Sessions, opts.Settings),
 		chat:     chat.New(opts.Projects, opts.Users, opts.ChatURL),
 		prefs:    settings.NewUserService(opts.Database),
+		tags:     tags.New(opts.Database),
 		origins:  opts.AllowedOrigins,
 	}
 	server.documents = documents.NewService(
@@ -108,6 +111,8 @@ func New(opts Options) *Server {
 	// A new project is given its first file by the documents service, so the
 	// two are wired together here rather than knowing about each other.
 	server.projects = projects.NewService(opts.Projects, server.documents)
+	// A deleted project has to come off everybody's tags.
+	server.projects.OnDelete(server.tags)
 	server.compile = compile.NewService(
 		opts.Projects, opts.Documents, opts.Compiler, opts.Settings, opts.History)
 	server.tokens = tokens.NewService(opts.Tokens)
@@ -187,6 +192,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/projects/{id}/folders", h(s.documents.CreateFolder))
 	mux.HandleFunc("POST /api/projects/{id}/entries/{entryId}/rename", h(s.documents.Rename))
 	mux.HandleFunc("DELETE /api/projects/{id}/entries/{entryId}", h(s.documents.Delete))
+	mux.HandleFunc("POST /api/projects/{id}/clone", h(s.documents.Clone))
 	mux.HandleFunc("POST /api/projects/{id}/entries/{entryId}/move", h(s.documents.Move))
 	mux.HandleFunc("POST /api/projects/{id}/root-doc", h(s.documents.SetRootDoc))
 	mux.HandleFunc("POST /api/projects/{id}/uploads", h(s.documents.Upload))
@@ -227,6 +233,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/projects/{id}/github", h(s.github.UnlinkProject))
 
 	// The admin pages.
+	mux.HandleFunc("GET /api/tags", h(s.tags.List))
+	mux.HandleFunc("POST /api/tags", h(s.tags.Create))
+	mux.HandleFunc("POST /api/tags/{tagId}", h(s.tags.Update))
+	mux.HandleFunc("DELETE /api/tags/{tagId}", h(s.tags.Delete))
+	mux.HandleFunc("POST /api/tags/{tagId}/projects/{projectId}", h(s.tags.AddProject))
+	mux.HandleFunc("DELETE /api/tags/{tagId}/projects/{projectId}", h(s.tags.RemoveProject))
+
 	mux.HandleFunc("GET /api/settings", h(s.prefs.Get))
 	mux.HandleFunc("POST /api/settings", h(s.prefs.Set))
 	mux.HandleFunc("POST /api/settings/password", h(s.auth.ChangePassword))
