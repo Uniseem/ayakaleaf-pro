@@ -16,6 +16,7 @@
  */
 
 import type { SocketClient } from '@/lib/socketio'
+import { newTrackingSeed } from '@/lib/ranges'
 import { apply, compose, diffToOp, transform, transformPosition, type Op } from './ot'
 
 export type DocSessionEvents = {
@@ -41,11 +42,10 @@ export class DocSession {
    * change it causes is not read back as something somebody typed. */
   private applying = false
   /**
-   * The seed the server stamps tracked changes with, or null for an ordinary
-   * edit. Setting it is what "suggesting" means: the same operation is sent,
-   * and the server records it instead of applying it.
+   * Whether edits are suggestions. Setting it is what "suggesting" means: the
+   * same operation is sent, and the server records it instead of applying it.
    */
-  private trackingSeed: string | null = null
+  private tracking = false
 
   constructor(
     private readonly socket: SocketClient,
@@ -89,12 +89,12 @@ export class DocSession {
   }
 
   /** Turns suggesting on or off for this document. */
-  setTracking(seed: string | null) {
-    this.trackingSeed = seed
+  setTracking(on: boolean) {
+    this.tracking = on
   }
 
-  get tracking(): boolean {
-    return this.trackingSeed !== null
+  get suggesting(): boolean {
+    return this.tracking
   }
 
   /** Whether anything is waiting to reach the server. */
@@ -219,8 +219,13 @@ export class DocSession {
       op: sending,
       v: atVersion,
     }
-    if (this.trackingSeed !== null) {
-      update.meta = { tc: this.trackingSeed }
+    if (this.tracking) {
+      // A fresh seed for every operation. The server stamps each tracked
+      // change with the seed plus a counter that restarts at one for every
+      // update it processes -- so a seed reused across operations gives every
+      // change the same id, and accepting one accepts all of them. Found
+      // exactly that way: two suggestions, accept the first, both vanish.
+      update.meta = { tc: newTrackingSeed() }
     }
 
     this.socket

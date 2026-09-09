@@ -69,7 +69,7 @@ export type EditorValue = {
    * decision, and the review context is built on top of this one -- having
    * this one reach up for it would be a circle.
    */
-  setTracking: (seed: string | null) => void
+  setTracking: (on: boolean) => void
 
   /**
    * Re-reads the open document from the server.
@@ -222,10 +222,10 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
   // Held so that a document opened later starts in the mode already chosen,
   // rather than reverting to editing until somebody touches the control.
-  const tracking = useRef<string | null>(null)
-  const setTracking = useCallback((seed: string | null) => {
-    tracking.current = seed
-    session.current?.setTracking(seed)
+  const tracking = useRef(false)
+  const setTracking = useCallback((on: boolean) => {
+    tracking.current = on
+    session.current?.setTracking(on)
   }, [])
 
   const reload = useCallback(async () => {

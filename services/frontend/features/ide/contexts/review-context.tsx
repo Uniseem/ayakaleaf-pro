@@ -19,16 +19,10 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from 'react'
-import {
-  acceptChanges as acceptOnServer,
-  getRanges,
-  newTrackingSeed,
-  type Ranges,
-} from '@/lib/ranges'
+import { acceptChanges as acceptOnServer, getRanges, type Ranges } from '@/lib/ranges'
 import { messageFor } from '@/lib/api'
 import { usePersistedState } from '@/lib/hooks'
 import { useProject } from './project-context'
@@ -39,8 +33,8 @@ export type ReviewMode = 'editing' | 'suggesting' | 'viewing'
 export type ReviewValue = {
   mode: ReviewMode
   setMode: (mode: ReviewMode) => void
-  /** The seed to stamp suggestions with, or null when not suggesting. */
-  trackingSeed: string | null
+  /** Whether edits are being recorded as suggestions. */
+  suggesting: boolean
 
   ranges: Ranges
   loading: boolean
@@ -68,20 +62,18 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // One seed for the session, so a run of typing is one tracked change rather
-  // than one per keystroke.
-  const seed = useRef<string>(newTrackingSeed())
-
   // Somebody who cannot write cannot edit or suggest, whatever was remembered.
   const mode: ReviewMode = canWrite ? stored : 'viewing'
   const docId = editor.current?.id ?? null
-  const trackingSeed = mode === 'suggesting' ? seed.current : null
+  const suggesting = mode === 'suggesting'
 
-  // Told to the open document, so the next edit is stamped or not.
+  // Told to the open document, so the next edit is stamped or not. The seed
+  // itself is made per operation by the session: one per session would give
+  // every tracked change the same id.
   const { setTracking } = editor
   useEffect(() => {
-    setTracking(trackingSeed)
-  }, [setTracking, trackingSeed])
+    setTracking(suggesting)
+  }, [setTracking, suggesting])
 
   const refresh = useCallback(async () => {
     if (!docId) {
@@ -162,7 +154,7 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
     () => ({
       mode,
       setMode: setStored,
-      trackingSeed,
+      suggesting,
       ranges,
       loading,
       error,
@@ -170,7 +162,7 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
       accept,
       reject,
     }),
-    [mode, setStored, trackingSeed, ranges, loading, error, refresh, accept, reject]
+    [mode, setStored, suggesting, ranges, loading, error, refresh, accept, reject]
   )
 
   return <ReviewContext.Provider value={value}>{children}</ReviewContext.Provider>
