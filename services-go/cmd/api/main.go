@@ -128,6 +128,8 @@ func main() {
 		// gives it, which is not the address people type into a browser.
 		GitBaseURL:     config.Env("GIT_BRIDGE_CALLBACK_BASE_URL", "http://ayakaleaf"),
 		GitSecret:      gitSecret(),
+		ChatURL:        serviceURL("CHAT", "3010"),
+		Database:       db,
 		AllowedOrigins: allowedOrigins(siteSettings),
 	})
 

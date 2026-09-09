@@ -401,3 +401,41 @@ func itoa(n int) string {
 	}
 	return digits
 }
+
+// ChangePassword replaces the password on the signed-in account.
+//
+// It lives here rather than with the other settings because it is not a
+// setting: it is the credential this package exists to check, and the rule for
+// what a password may be is the policy this package already holds.
+func (s *Service) ChangePassword(w http.ResponseWriter, r *http.Request) error {
+	user, err := httpapi.RequireUser(r.Context())
+	if err != nil {
+		return err
+	}
+	var in struct {
+		CurrentPassword string `json:"currentPassword"`
+		NewPassword     string `json:"newPassword"`
+	}
+	if err := httpapi.Decode(r, &in); err != nil {
+		return err
+	}
+
+	// Proved by the old password, not by holding the session. A session left
+	// open on a shared machine should not be enough to lock its owner out of
+	// their own account.
+	if _, err := s.users.Authenticate(r.Context(), user.Email, in.CurrentPassword); err != nil {
+		return apierr.Forbidden.WithField("currentPassword").
+			WithMessage("That is not your current password.")
+	}
+	if err := s.validPassword(in.NewPassword); err != nil {
+		return err
+	}
+	if in.NewPassword == in.CurrentPassword {
+		return apierr.BadRequest.WithField("newPassword").
+			WithMessage("That is the password you already have.")
+	}
+	if err := s.users.SetPassword(r.Context(), user.ID, in.NewPassword); err != nil {
+		return apierr.Internal.WithCause(err)
+	}
+	return httpapi.NoContent(w)
+}

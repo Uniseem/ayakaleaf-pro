@@ -29,6 +29,9 @@ var (
 	// ErrForbidden is returned when somebody may see a project but not do this
 	// to it.
 	ErrForbidden = errors.New("not allowed")
+	// ErrNameTaken is returned when a move or a rename would put two things
+	// with the same name in one folder.
+	ErrNameTaken = errors.New("name already taken")
 )
 
 // Access is what somebody may do with a project.

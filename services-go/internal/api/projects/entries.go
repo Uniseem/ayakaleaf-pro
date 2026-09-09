@@ -310,3 +310,144 @@ func ValidName(name string) error {
 	}
 	return nil
 }
+
+// MoveEntry puts something in a different folder.
+//
+// A pull from the old parent and a push to the new one, in one update: two
+// updates would leave the entry in neither folder if the second failed, and
+// the tree is the only record that it exists at all.
+//
+// It refuses to move a folder into itself or into anything it contains, which
+// would detach that whole subtree from the root and lose it.
+func (s *Store) MoveEntry(
+	ctx context.Context,
+	project *Project,
+	id bson.ObjectID,
+	folderID bson.ObjectID,
+) (int64, error) {
+	entry, found := project.Find(id)
+	if !found {
+		return 0, ErrNotFound
+	}
+	if entry.Parent == folderID {
+		return 0, ErrNotFound
+	}
+
+	target, ok := project.FolderByID(folderID)
+	if !ok {
+		return 0, ErrNotFound
+	}
+	targetPath, ok := project.FolderPath(folderID)
+	if !ok {
+		return 0, ErrNotFound
+	}
+	_, oldParentPath, ok := project.EntryPath(id)
+	if !ok {
+		return 0, ErrNotFound
+	}
+
+	if entry.Kind == EntryFolder {
+		// Everything under the folder being moved, including itself.
+		if folderID == id {
+			return 0, ErrNotFound
+		}
+		inside := false
+		walkFolders(project, id, func(child Folder) {
+			if child.ID == folderID {
+				inside = true
+			}
+		})
+		if inside {
+			return 0, ErrNotFound
+		}
+	}
+
+	if target.Taken(entry.Name) {
+		return 0, ErrNameTaken
+	}
+
+	field := map[EntryKind]string{
+		EntryDoc:    "docs",
+		EntryFile:   "fileRefs",
+		EntryFolder: "folders",
+	}[entry.Kind]
+
+	// The whole sub-document has to be carried across, not just the id: a
+	// folder brings its contents and a file brings its hash.
+	var pushed any
+	switch entry.Kind {
+	case EntryDoc:
+		pushed = DocRef{ID: entry.ID, Name: entry.Name}
+	case EntryFile:
+		ref, ok := project.fileRef(id)
+		if !ok {
+			return 0, ErrNotFound
+		}
+		pushed = ref
+	case EntryFolder:
+		folder, ok := project.FolderByID(id)
+		if !ok {
+			return 0, ErrNotFound
+		}
+		pushed = folder
+	}
+
+	return s.applyTreeChange(ctx, project.ID, bson.M{
+		"$pull": bson.M{oldParentPath + "." + field: bson.M{"_id": id}},
+		"$push": bson.M{targetPath + "." + field: pushed},
+	})
+}
+
+// walkFolders visits every folder inside the one named, itself included.
+func walkFolders(project *Project, id bson.ObjectID, visit func(Folder)) {
+	start, ok := project.FolderByID(id)
+	if !ok {
+		return
+	}
+	var descend func(Folder)
+	descend = func(folder Folder) {
+		visit(folder)
+		for _, child := range folder.Folders {
+			descend(child)
+		}
+	}
+	descend(start)
+}
+
+// fileRef reads a binary file's whole entry, which a move has to carry over.
+func (p *Project) fileRef(id bson.ObjectID) (FileRef, bool) {
+	var found FileRef
+	var ok bool
+	var search func(Folder)
+	search = func(folder Folder) {
+		for _, file := range folder.FileRefs {
+			if file.ID == id {
+				found, ok = file, true
+				return
+			}
+		}
+		for _, child := range folder.Folders {
+			search(child)
+		}
+	}
+	for _, root := range p.RootFolder {
+		search(root)
+	}
+	return found, ok
+}
+
+// FolderPathName is where a folder is in the project as somebody would write
+// it, with '/' between folders and no leading slash. The root folder is "".
+//
+// Distinct from FolderPath, which answers with the path inside the stored
+// document and is for building an update.
+func (p *Project) FolderPathName(id bson.ObjectID) (string, bool) {
+	if root, ok := p.RootFolderID(); ok && root == id {
+		return "", true
+	}
+	entry, ok := p.Find(id)
+	if !ok || entry.Kind != EntryFolder {
+		return "", false
+	}
+	return entry.Path, true
+}

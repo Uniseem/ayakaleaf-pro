@@ -668,3 +668,26 @@ func capitalise(text string) string {
 	}
 	return strings.ToUpper(text[:1]) + text[1:]
 }
+
+// readable reads the project for a request that only looks at it.
+//
+// The same as writable without the write check: someone with read-only access
+// may open a file, and refusing that would make a shared project unreadable.
+func (s *Service) readable(r *http.Request) (*projects.Project, *users.User, error) {
+	user, err := httpapi.RequireUser(r.Context())
+	if err != nil {
+		return nil, nil, err
+	}
+	id, err := bson.ObjectIDFromHex(r.PathValue("id"))
+	if err != nil {
+		return nil, nil, apierr.NotFound
+	}
+	project, _, err := s.projects.Get(r.Context(), id, user.ID)
+	if errors.Is(err, projects.ErrNotFound) {
+		return nil, nil, apierr.NotFound
+	}
+	if err != nil {
+		return nil, nil, apierr.Internal.WithCause(err)
+	}
+	return project, user, nil
+}

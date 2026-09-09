@@ -14,7 +14,10 @@ import type { FileEntry } from '@/lib/editor'
 import { extensionOf } from '@/features/file-tree/tree'
 import { useProject } from '@/features/ide/contexts/project-context'
 
-const IMAGES = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif'])
+// What the API will serve inline. SVG is deliberately absent: it is a
+// document that can carry script, so the API sends it as bytes to save rather
+// than as something the browser renders on this origin.
+const IMAGES = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp', 'ico'])
 
 function readableSize(bytes?: number): string {
   if (bytes === undefined) {
@@ -84,7 +87,9 @@ export function FileView({
         ) : (
           <div className="text-center">
             <p className="text-sm text-default-600">
-              This file cannot be shown here.
+              {extension === 'svg'
+                ? 'SVG files are downloaded rather than shown, because they can carry script.'
+                : 'This file cannot be shown here.'}
             </p>
             <p className="mt-1 text-xs text-default-400">
               {extension ? `.${extension}` : 'No extension'} ·{' '}

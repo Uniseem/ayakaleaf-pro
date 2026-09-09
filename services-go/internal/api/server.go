@@ -17,6 +17,7 @@ import (
 
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/apierr"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/auth"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/chat"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/compile"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/documents"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/gitbridge"
@@ -29,6 +30,7 @@ import (
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/tokens"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/users"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/session"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // Server holds everything the routes are served from.
@@ -45,6 +47,8 @@ type Server struct {
 	tokens    *tokens.Service
 	git       *gitbridge.Service
 	github    *githubsync.Service
+	chat      *chat.Service
+	prefs     *settings.UserService
 	origins   []string
 }
 
@@ -75,6 +79,13 @@ type Options struct {
 	// GitSecret signs the download links handed to it.
 	GitBaseURL string
 	GitSecret  string
+	// ChatURL is where the chat service is, for the messages people leave on
+	// a project. This service is the only thing between it and a browser: it
+	// has no idea who may read a project.
+	ChatURL string
+	// Database is needed for the per-person settings, which live on the user
+	// document rather than in a store of their own.
+	Database *mongo.Database
 	// AllowedOrigins are the addresses a browser may send a state-changing
 	// request from. The site's own is enough unless something else embeds it.
 	AllowedOrigins []string
@@ -88,6 +99,8 @@ func New(opts Options) *Server {
 		sessions: opts.Sessions,
 		settings: opts.Settings,
 		auth:     auth.New(opts.Users, opts.Sessions, opts.Settings),
+		chat:     chat.New(opts.Projects, opts.Users, opts.ChatURL),
+		prefs:    settings.NewUserService(opts.Database),
 		origins:  opts.AllowedOrigins,
 	}
 	server.documents = documents.NewService(
@@ -174,7 +187,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/projects/{id}/folders", h(s.documents.CreateFolder))
 	mux.HandleFunc("POST /api/projects/{id}/entries/{entryId}/rename", h(s.documents.Rename))
 	mux.HandleFunc("DELETE /api/projects/{id}/entries/{entryId}", h(s.documents.Delete))
+	mux.HandleFunc("POST /api/projects/{id}/entries/{entryId}/move", h(s.documents.Move))
 	mux.HandleFunc("POST /api/projects/{id}/root-doc", h(s.documents.SetRootDoc))
+	mux.HandleFunc("POST /api/projects/{id}/uploads", h(s.documents.Upload))
+	mux.HandleFunc("GET /api/projects/{id}/files/{fileId}", h(s.documents.ReadFile))
+	mux.HandleFunc("GET /api/projects/{id}/search", h(s.documents.Search))
+	mux.HandleFunc("GET /api/projects/{id}/messages", h(s.chat.List))
+	mux.HandleFunc("POST /api/projects/{id}/messages", h(s.chat.Send))
 	mux.HandleFunc("POST /api/projects/{id}/compile", h(s.compile.Compile))
 	mux.HandleFunc("POST /api/projects/{id}/compile/stop", h(s.compile.Stop))
 
@@ -208,6 +227,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/projects/{id}/github", h(s.github.UnlinkProject))
 
 	// The admin pages.
+	mux.HandleFunc("GET /api/settings", h(s.prefs.Get))
+	mux.HandleFunc("POST /api/settings", h(s.prefs.Set))
+	mux.HandleFunc("POST /api/settings/password", h(s.auth.ChangePassword))
+
 	mux.HandleFunc("GET /api/admin/settings", h(s.getSettings))
 	mux.HandleFunc("POST /api/admin/settings", h(s.putSettings))
 
