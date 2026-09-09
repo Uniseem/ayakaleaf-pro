@@ -40,6 +40,12 @@ export class DocSession {
   /** Set while a remote operation is being written into the editor, so the
    * change it causes is not read back as something somebody typed. */
   private applying = false
+  /**
+   * The seed the server stamps tracked changes with, or null for an ordinary
+   * edit. Setting it is what "suggesting" means: the same operation is sent,
+   * and the server records it instead of applying it.
+   */
+  private trackingSeed: string | null = null
 
   constructor(
     private readonly socket: SocketClient,
@@ -80,6 +86,15 @@ export class DocSession {
 
   get atVersion(): number {
     return this.version
+  }
+
+  /** Turns suggesting on or off for this document. */
+  setTracking(seed: string | null) {
+    this.trackingSeed = seed
+  }
+
+  get tracking(): boolean {
+    return this.trackingSeed !== null
   }
 
   /** Whether anything is waiting to reach the server. */
@@ -196,11 +211,20 @@ export class DocSession {
     const sending = this.inflight
     const atVersion = this.version
 
+    // `meta.tc` is what makes this a suggestion rather than an edit: the
+    // server records the operation as a tracked change instead of applying it
+    // to the text. The operation itself is identical either way.
+    const update: Record<string, unknown> = {
+      doc: this.docId,
+      op: sending,
+      v: atVersion,
+    }
+    if (this.trackingSeed !== null) {
+      update.meta = { tc: this.trackingSeed }
+    }
+
     this.socket
-      .request('applyOtUpdate', [
-        this.docId,
-        { doc: this.docId, op: sending, v: atVersion },
-      ])
+      .request('applyOtUpdate', [this.docId, update])
       .then(() => {
         // Accepted. It is now part of what the server has, so it folds into
         // the agreed text and the version moves on.

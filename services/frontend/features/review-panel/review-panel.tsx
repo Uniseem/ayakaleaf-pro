@@ -33,6 +33,8 @@ import {
 import { nameOf } from '@/lib/chat'
 import { messageFor } from '@/lib/api'
 import { useProject } from '@/features/ide/contexts/project-context'
+import { useReview } from '@/features/ide/contexts/review-context'
+import { changeLength, isInsertion } from '@/lib/ranges'
 
 export function ReviewPanel() {
   const { projectId, canWrite, canReview } = useProject()
@@ -107,6 +109,8 @@ export function ReviewPanel() {
           {error}
         </p>
       ) : null}
+
+      <TrackedChanges />
 
       <ScrollShadow className="min-h-0 flex-1">
         {loading ? (
@@ -261,4 +265,128 @@ export function ReviewPanel() {
       </ScrollShadow>
     </div>
   )
+}
+
+
+/**
+ * The suggestions waiting on this document.
+ *
+ * Above the comment threads rather than mixed in with them: a suggestion is
+ * something to decide about and a comment is something to answer, and a list
+ * that mixes the two makes both easy to lose.
+ */
+function TrackedChanges() {
+  const review = useReview()
+  const { canWrite } = useProject()
+  const [busy, setBusy] = useState(false)
+
+  const changes = review.ranges.changes
+  if (changes.length === 0) {
+    return null
+  }
+
+  const run = async (work: () => Promise<unknown>) => {
+    setBusy(true)
+    try {
+      await work()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="border-b border-[var(--border-divider)]">
+      <header className="flex items-center gap-2 px-3 py-2">
+        <span className="text-[12px] font-semibold uppercase leading-4 tracking-wide text-[var(--content-secondary)]">
+          Suggestions ({changes.length})
+        </span>
+        {canWrite ? (
+          <div className="ml-auto flex gap-1">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void run(() => review.accept(changes.map(c => c.id)))}
+              className="rounded-[4px] px-1.5 py-0.5 text-[11px] leading-4 text-[var(--content-positive)] hover:bg-[var(--hover-interaction)] disabled:opacity-50"
+            >
+              Accept all
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void run(() => review.reject(changes.map(c => c.id)))}
+              className="rounded-[4px] px-1.5 py-0.5 text-[11px] leading-4 text-[var(--content-danger)] hover:bg-[var(--hover-interaction)] disabled:opacity-50"
+            >
+              Reject all
+            </button>
+          </div>
+        ) : null}
+      </header>
+
+      <ul className="max-h-56 overflow-auto">
+        {changes.map(change => {
+          const added = isInsertion(change)
+          const text = added ? change.op.i : (change.op as { d: string }).d
+          return (
+            <li
+              key={change.id}
+              className="flex items-start gap-2 px-3 py-2 text-[12px] leading-4"
+            >
+              <span
+                className={`mt-px shrink-0 font-medium ${
+                  added ? 'text-[var(--content-positive)]' : 'text-[var(--content-danger)]'
+                }`}
+              >
+                {added ? 'Added' : 'Removed'}
+              </span>
+              <span
+                className={`min-w-0 flex-1 truncate font-mono ${
+                  added ? '' : 'line-through'
+                }`}
+                title={text}
+              >
+                {oneLine(text).slice(0, 120)}
+              </span>
+              <span className="shrink-0 text-[var(--content-secondary)]">
+                {changeLength(change)}
+              </span>
+              {canWrite ? (
+                <span className="flex shrink-0 gap-0.5">
+                  <button
+                    type="button"
+                    aria-label="Accept"
+                    title="Accept"
+                    disabled={busy}
+                    onClick={() => void run(() => review.accept([change.id]))}
+                    className="flex h-5 w-5 items-center justify-center rounded-[4px] text-[var(--content-positive)] hover:bg-[var(--hover-interaction)] disabled:opacity-50"
+                  >
+                    ✓
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Reject"
+                    title="Reject"
+                    disabled={busy}
+                    onClick={() => void run(() => review.reject([change.id]))}
+                    className="flex h-5 w-5 items-center justify-center rounded-[4px] text-[var(--content-danger)] hover:bg-[var(--hover-interaction)] disabled:opacity-50"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ) : null}
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
+
+/**
+ * A change's text on one line.
+ *
+ * A suggestion can span paragraphs, and a list row that grows to fit one
+ * pushes every other row off the screen. The pilcrow stands in for the break.
+ */
+function oneLine(text: string): string {
+  return text.split('\n').join('¶')
 }

@@ -26,6 +26,7 @@ import { LayoutProvider, useLayout } from '@/features/ide/contexts/layout-contex
 import { CompileProvider } from '@/features/ide/contexts/compile-context'
 import { ConnectionProvider } from '@/features/ide/contexts/connection-context'
 import { EditorProvider, useEditor } from '@/features/ide/contexts/editor-context'
+import { ReviewProvider } from '@/features/ide/contexts/review-context'
 import { SettingsProvider, useSettings, editorFontStyle } from '@/features/ide/contexts/settings-context'
 import { SourceEditor } from '@/features/source-editor/editor'
 import { PdfPane } from '@/features/pdf-preview/pdf-pane'
@@ -50,7 +51,9 @@ export function IdePage({
           <LayoutProvider>
             <CompileProvider>
               <EditorProvider>
-                <IdeShell userName={displayName(user)} />
+                <ReviewProvider>
+                  <IdeShell userName={displayName(user)} />
+                </ReviewProvider>
               </EditorProvider>
             </CompileProvider>
           </LayoutProvider>

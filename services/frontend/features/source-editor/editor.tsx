@@ -72,6 +72,8 @@ import { vim } from '@replit/codemirror-vim'
 import { latexCompletions } from './completion'
 import { latexDiagnostics } from './lint'
 import { analyse } from './analyse'
+import { rejectionChanges, setTrackedChanges, trackedChanges } from './tracked-changes'
+import { useReview } from '@/features/ide/contexts/review-context'
 
 /**
  * The smallest single change that turns one string into another.
@@ -204,6 +206,7 @@ export function SourceEditor() {
   const { markEdited, startCompile } = useCompile()
   const settings = useSettings()
   const { reportPosition } = useConnection()
+  const review = useReview()
 
   const host = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -232,6 +235,10 @@ export function SourceEditor() {
     },
     [change, markEdited]
   )
+
+  // Viewing is read-only whatever the person's access is: it is a mode they
+  // chose, and an editor that ignores it is one that loses their place.
+  const writable = editable && review.mode !== 'viewing'
 
   // Kept in a ref so the extension closes over something stable: rebuilding
   // the view when the callback changes would lose the cursor on every render.
@@ -275,6 +282,7 @@ export function SourceEditor() {
       highlightSelectionMatches(),
       search({ top: true }),
       lintGutter(),
+      trackedChanges(),
       StreamLanguage.define(stex),
       syntaxHighlighting(latexHighlight),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
@@ -360,7 +368,7 @@ export function SourceEditor() {
           doc: current.content,
           extensions: [
             ...extensions,
-            compartments.editable.of(EditorView.editable.of(editable)),
+            compartments.editable.of(EditorView.editable.of(writable)),
             compartments.wrapping.of(EditorView.lineWrapping),
             compartments.completion.of(
               settings.autoComplete
@@ -402,7 +410,7 @@ export function SourceEditor() {
   }, [
     current,
     revision,
-    editable,
+    writable,
     extensions,
     compartments,
     settings.autoComplete,
@@ -510,6 +518,33 @@ export function SourceEditor() {
     }
   }, [])
 
+  // The tracked changes the editor should be showing.
+  useEffect(() => {
+    const editor = viewRef.current
+    if (editor) {
+      editor.dispatch({ effects: setTrackedChanges.of(review.ranges.changes) })
+    }
+  }, [review.ranges])
+
+  // Undoing a suggestion is an ordinary edit, so it is made here rather than
+  // asked of the server: it then transforms against whatever anybody else is
+  // doing, like any other edit would.
+  useEffect(() => {
+    const reject = (event: Event) => {
+      const editor = viewRef.current
+      const detail = (event as CustomEvent<{ changes: Parameters<typeof rejectionChanges>[0] }>).detail
+      if (!editor || !detail) {
+        return
+      }
+      const changes = rejectionChanges(detail.changes, editor.state.doc.length)
+      if (changes.length > 0) {
+        editor.dispatch({ changes })
+      }
+    }
+    window.addEventListener('ide:reject-changes', reject)
+    return () => window.removeEventListener('ide:reject-changes', reject)
+  }, [])
+
   // Settings that can change without a reload.
   useEffect(() => {
     const editor = viewRef.current
@@ -518,7 +553,7 @@ export function SourceEditor() {
     }
     editor.dispatch({
       effects: [
-        compartments.editable.reconfigure(EditorView.editable.of(editable)),
+        compartments.editable.reconfigure(EditorView.editable.of(writable)),
         compartments.completion.reconfigure(
           settings.autoComplete ? autocompletion({ override: [latexCompletions] }) : []
         ),
@@ -529,7 +564,7 @@ export function SourceEditor() {
       ],
     })
   }, [
-    editable,
+    writable,
     settings.autoComplete,
     settings.syntaxValidation,
     settings.keybindings,

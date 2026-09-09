@@ -194,6 +194,11 @@ body {
   --cm-tooltip-background: #ffffff;
   --cm-tooltip-border: #d0d5dd;
 
+  --tracked-insert-background: #eaf6ef;
+  --tracked-insert-border: #098842;
+  --tracked-delete-background: #f9f1f1;
+  --tracked-delete-foreground: #b83a33;
+
   --cm-command: #1e6b41;
   --cm-comment: #677283;
   --cm-string: #b83a33;
@@ -216,6 +221,11 @@ body {
   --cm-selected: #2f3a4c;
   --cm-tooltip-background: #2f3a4c;
   --cm-tooltip-border: #495365;
+
+  --tracked-insert-background: rgba(9, 136, 66, 0.22);
+  --tracked-insert-border: #53b57f;
+  --tracked-delete-background: rgba(184, 58, 51, 0.22);
+  --tracked-delete-foreground: #e59d9a;
 
   --cm-command: #86caa5;
   --cm-comment: #8d96a5;

@@ -203,6 +203,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/projects/{id}/documents", h(s.documents.Create))
 	mux.HandleFunc("GET /api/projects/{id}/documents/{docId}", h(s.documents.Get))
 	mux.HandleFunc("POST /api/projects/{id}/documents/{docId}", h(s.documents.SetContent))
+	mux.HandleFunc("GET /api/projects/{id}/documents/{docId}/changes", h(s.documents.Changes))
+	mux.HandleFunc("POST /api/projects/{id}/documents/{docId}/changes/accept", h(s.documents.AcceptChanges))
 	mux.HandleFunc("POST /api/projects/{id}/folders", h(s.documents.CreateFolder))
 	mux.HandleFunc("POST /api/projects/{id}/entries/{entryId}/rename", h(s.documents.Rename))
 	mux.HandleFunc("DELETE /api/projects/{id}/entries/{entryId}", h(s.documents.Delete))

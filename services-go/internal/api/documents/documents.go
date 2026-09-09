@@ -134,3 +134,37 @@ func (c *Client) Flush(ctx context.Context, projectID bson.ObjectID) error {
 	}
 	return nil
 }
+
+// AcceptChanges marks tracked changes as accepted.
+//
+// Accepting is the server's business, not the client's: the change ids have to
+// be removed from the document's ranges under the same lock that edits take,
+// or an accept racing an edit loses one of them.
+func (c *Client) AcceptChanges(
+	ctx context.Context,
+	projectID, docID bson.ObjectID,
+	changeIDs []string,
+) error {
+	body, err := json.Marshal(map[string]any{"change_ids": changeIDs})
+	if err != nil {
+		return err
+	}
+	endpoint := fmt.Sprintf("%s/project/%s/doc/%s/change/accept",
+		c.baseURL, projectID.Hex(), docID.Hex())
+	request, err := http.NewRequestWithContext(
+		ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Content-Type", "application/json")
+
+	response, err := c.http.Do(request)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode >= 300 {
+		return fmt.Errorf("document-updater answered %s", response.Status)
+	}
+	return nil
+}

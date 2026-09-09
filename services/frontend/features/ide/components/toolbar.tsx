@@ -11,13 +11,20 @@
  * the middle, and what you do to the project on the right.
  */
 
-import { Tooltip } from '@heroui/react'
+import {
+  Dropdown,
+  DropdownItem,
+  DropdownMenu,
+  DropdownTrigger,
+  Tooltip,
+} from '@heroui/react'
 import Link from 'next/link'
 import { useState } from 'react'
 import { useProject } from '@/features/ide/contexts/project-context'
 import { useLayout } from '@/features/ide/contexts/layout-context'
 import { useEditor } from '@/features/ide/contexts/editor-context'
 import { useConnection } from '@/features/ide/contexts/connection-context'
+import { useReview, type ReviewMode } from '@/features/ide/contexts/review-context'
 import { ShareModal } from '@/features/sharing/share-modal'
 import { WordCountModal } from '@/features/word-count/word-count-modal'
 import { MenuBar } from './menu-bar'
@@ -93,6 +100,8 @@ export function Toolbar({ userName }: { userName: string }) {
 
       <div className="flex-1" />
 
+      <ModeSelector />
+
       <ConnectionBadge />
 
       <Tooltip content="History" delay={400} closeDelay={0}>
@@ -127,6 +136,70 @@ export function Toolbar({ userName }: { userName: string }) {
       <WordCountModal isOpen={counting} onClose={() => setCounting(false)} />
       <span className="sr-only">{userName}</span>
     </header>
+  )
+}
+
+/**
+ * Whether edits are made, suggested, or not made at all.
+ *
+ * Beside the actions rather than buried in a menu, because it changes what
+ * typing does: somebody who does not know which mode they are in cannot
+ * predict the next thing they do.
+ */
+function ModeSelector() {
+  const review = useReview()
+  const { canWrite } = useProject()
+
+  if (!canWrite) {
+    return null
+  }
+
+  const modes: { key: ReviewMode; label: string; hint: string }[] = [
+    { key: 'editing', label: 'Editing', hint: 'Changes go straight into the document' },
+    { key: 'suggesting', label: 'Suggesting', hint: 'Changes are recorded for somebody to accept' },
+    { key: 'viewing', label: 'Viewing', hint: 'Read only' },
+  ]
+  const current = modes.find(each => each.key === review.mode) ?? modes[0]
+
+  return (
+    <Dropdown placement="bottom-end">
+      <DropdownTrigger>
+        <button
+          type="button"
+          className="flex h-7 items-center gap-1 rounded-[4px] px-2 text-[14px] leading-5 text-[var(--content-primary)] hover:bg-[var(--hover-interaction)]"
+        >
+          <PencilIcon />
+          {current?.label}
+          <Caret />
+        </button>
+      </DropdownTrigger>
+      <DropdownMenu
+        aria-label="Editing mode"
+        onAction={key => review.setMode(String(key) as ReviewMode)}
+      >
+        {modes.map(mode => (
+          <DropdownItem key={mode.key} description={mode.hint}>
+            {mode.label}
+          </DropdownItem>
+        ))}
+      </DropdownMenu>
+    </Dropdown>
+  )
+}
+
+function PencilIcon() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <path d="M11.2 2.8a1.6 1.6 0 0 1 2.3 2.3L6 12.6l-3 .7.7-3z" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function Caret() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+      <path d="m4 6 4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 }
 

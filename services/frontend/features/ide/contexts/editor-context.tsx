@@ -62,6 +62,15 @@ export type EditorValue = {
   /** Closes one, and moves to a neighbour if it was the one in front. */
   closeTab: (id: string) => void
 
+  /**
+   * Turns suggesting on for the open document, or off with null.
+   *
+   * Set from outside because whether edits are suggestions is a review
+   * decision, and the review context is built on top of this one -- having
+   * this one reach up for it would be a circle.
+   */
+  setTracking: (seed: string | null) => void
+
   /** Whether anything is waiting to reach the server. */
   unsaved: boolean
   /** Whether edits can be made at all right now. */
@@ -144,6 +153,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
           docSession.leave()
           return
         }
+        docSession.setTracking(tracking.current)
         session.current = docSession
         joined.current = currentId
         setText(content)
@@ -201,6 +211,14 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   )
 
   const close = useCallback(() => setCurrentFile(null), [])
+
+  // Held so that a document opened later starts in the mode already chosen,
+  // rather than reverting to editing until somebody touches the control.
+  const tracking = useRef<string | null>(null)
+  const setTracking = useCallback((seed: string | null) => {
+    tracking.current = seed
+    session.current?.setTracking(seed)
+  }, [])
 
   const closeTab = useCallback(
     (id: string) => {
@@ -314,6 +332,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       rememberPosition,
       openTabs: openTabs.filter(id => Boolean(entryById(id))),
       closeTab,
+      setTracking,
       unsaved,
       // Read-only access cannot edit, and neither can anybody whose
       // connection is down: there is nowhere for the edit to go.
@@ -334,6 +353,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     rememberPosition,
     openTabs,
     closeTab,
+    setTracking,
     unsaved,
     canWrite,
     connected,
