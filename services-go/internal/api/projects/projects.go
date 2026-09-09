@@ -352,3 +352,45 @@ func (s *Store) Touch(ctx context.Context, id, userID bson.ObjectID) error {
 	})
 	return err
 }
+
+// GrantAccess puts somebody on one of a project's access lists.
+//
+// $addToSet rather than $push: granting twice is what a double click is, and
+// the same person twice on one list would show as two collaborators.
+func (s *Store) GrantAccess(ctx context.Context, id, userID bson.ObjectID, privilege string) error {
+	field := "collaberator_refs"
+	if privilege == "readOnly" {
+		field = "readOnly_refs"
+	}
+	_, err := s.projects.UpdateByID(ctx, id, bson.M{
+		"$addToSet": bson.M{field: userID},
+		"$set":      bson.M{"lastUpdated": time.Now().UTC()},
+	})
+	return err
+}
+
+// RemoveAccess takes somebody off every access list a project has.
+//
+// Every list, including the two token ones. Removing a person from the
+// collaborators while a link they have already used still admits them is not a
+// removal -- it is a removal that looks like one and is not.
+func (s *Store) RemoveAccess(ctx context.Context, id, userID bson.ObjectID) error {
+	_, err := s.projects.UpdateByID(ctx, id, bson.M{
+		"$pull": bson.M{
+			"collaberator_refs":            userID,
+			"readOnly_refs":                userID,
+			"tokenAccessReadAndWrite_refs": userID,
+			"tokenAccessReadOnly_refs":     userID,
+		},
+		"$set": bson.M{"lastUpdated": time.Now().UTC()},
+	})
+	return err
+}
+
+// SetPublicAccessLevel turns link sharing on or off.
+func (s *Store) SetPublicAccessLevel(ctx context.Context, id bson.ObjectID, level string) error {
+	_, err := s.projects.UpdateByID(ctx, id, bson.M{
+		"$set": bson.M{"publicAccesLevel": level, "lastUpdated": time.Now().UTC()},
+	})
+	return err
+}

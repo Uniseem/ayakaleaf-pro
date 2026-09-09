@@ -27,6 +27,7 @@ import { useLayout } from '@/features/ide/contexts/layout-context'
 import { useEditor } from '@/features/ide/contexts/editor-context'
 import { useSettings } from '@/features/ide/contexts/settings-context'
 import { useConnection } from '@/features/ide/contexts/connection-context'
+import { ShareModal } from '@/features/sharing/share-modal'
 
 export function Toolbar({ userName }: { userName: string }) {
   const project = useProject()
@@ -37,6 +38,7 @@ export function Toolbar({ userName }: { userName: string }) {
 
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(project.project.name)
+  const [sharing, setSharing] = useState(false)
 
   return (
     <header className="flex h-11 shrink-0 items-center gap-2 border-b border-divider bg-background px-2">
@@ -94,6 +96,15 @@ export function Toolbar({ userName }: { userName: string }) {
       <ConnectionBadge />
 
       <div className="flex-1" />
+
+      <Button
+        size="sm"
+        variant="flat"
+        className="h-8"
+        onPress={() => setSharing(true)}
+      >
+        Share
+      </Button>
 
       <Button
         size="sm"
@@ -254,6 +265,8 @@ export function Toolbar({ userName }: { userName: string }) {
           </DropdownSection>
         </DropdownMenu>
       </Dropdown>
+
+      <ShareModal isOpen={sharing} onClose={() => setSharing(false)} />
     </header>
   )
 }

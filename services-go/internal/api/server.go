@@ -27,6 +27,7 @@ import (
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/oauth"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projects"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/settings"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/sharing"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/tags"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/tokens"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/users"
@@ -51,6 +52,7 @@ type Server struct {
 	chat      *chat.Service
 	prefs     *settings.UserService
 	tags      *tags.Service
+	sharing   *sharing.Service
 	origins   []string
 }
 
@@ -104,6 +106,7 @@ func New(opts Options) *Server {
 		chat:     chat.New(opts.Projects, opts.Users, opts.ChatURL),
 		prefs:    settings.NewUserService(opts.Database),
 		tags:     tags.New(opts.Database),
+		sharing:  sharing.New(opts.Projects, opts.Users, opts.Database),
 		origins:  opts.AllowedOrigins,
 	}
 	server.documents = documents.NewService(
@@ -193,6 +196,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/projects/{id}/entries/{entryId}/rename", h(s.documents.Rename))
 	mux.HandleFunc("DELETE /api/projects/{id}/entries/{entryId}", h(s.documents.Delete))
 	mux.HandleFunc("POST /api/projects/{id}/clone", h(s.documents.Clone))
+	mux.HandleFunc("GET /api/projects/{id}/sharing", h(s.sharing.List))
+	mux.HandleFunc("POST /api/projects/{id}/sharing/invites", h(s.sharing.Invite))
+	mux.HandleFunc("DELETE /api/projects/{id}/sharing/invites/{inviteId}", h(s.sharing.RevokeInvite))
+	mux.HandleFunc("POST /api/projects/{id}/sharing/members/{userId}", h(s.sharing.SetPrivilege))
+	mux.HandleFunc("DELETE /api/projects/{id}/sharing/members/{userId}", h(s.sharing.Remove))
+	mux.HandleFunc("POST /api/projects/{id}/sharing/public", h(s.sharing.SetPublicAccess))
+	mux.HandleFunc("POST /api/invites/{token}/accept", h(s.sharing.Accept))
 	mux.HandleFunc("POST /api/projects/{id}/entries/{entryId}/move", h(s.documents.Move))
 	mux.HandleFunc("POST /api/projects/{id}/root-doc", h(s.documents.SetRootDoc))
 	mux.HandleFunc("POST /api/projects/{id}/uploads", h(s.documents.Upload))
