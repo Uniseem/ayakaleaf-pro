@@ -34,10 +34,24 @@ func main() {
 		}
 	}
 
+	// The blob buckets must name the same places the history store writes to,
+	// or every file this service is asked for is one it cannot find. They had
+	// no defaults, which meant an unconfigured deployment looked for blobs in
+	// a bucket called "" -- so no figure in any project could be fetched, and
+	// every compile that used one silently produced a document with the image
+	// missing.
+	//
+	// The defaults match cmd/history's. Anything that overrides one has to
+	// override both, which is why they are spelled out here rather than left
+	// empty.
 	stores := filestore.Stores{
 		TemplateFiles: os.Getenv("TEMPLATE_FILES_BUCKET_NAME"),
-		ProjectBlobs:  os.Getenv("OVERLEAF_EDITOR_PROJECT_BLOBS_BUCKET"),
-		GlobalBlobs:   os.Getenv("OVERLEAF_EDITOR_BLOBS_BUCKET"),
+		ProjectBlobs: config.Env("OVERLEAF_EDITOR_PROJECT_BLOBS_BUCKET",
+			config.Env("OVERLEAF_HISTORY_PROJECT_BLOBS_BUCKET",
+				"/var/lib/overleaf/data/history/overleaf-project-blobs")),
+		GlobalBlobs: config.Env("OVERLEAF_EDITOR_BLOBS_BUCKET",
+			config.Env("OVERLEAF_HISTORY_BLOBS_BUCKET",
+				"/var/lib/overleaf/data/history/overleaf-global-blobs")),
 	}
 
 	store, err := buildPersistor(backend)

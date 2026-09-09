@@ -246,10 +246,22 @@ func (c *Client) Flush(ctx context.Context, projectID string) error {
 }
 
 // ReadBlob reads the bytes of a file out of the blob store.
+//
+// From history-v1, and not from the address BlobURL gives out. Those are two
+// different stores: history-v1 keeps a small blob in Mongo and only spills a
+// large one to the object store, and filestore -- which BlobURL points at --
+// can only see the object store. Reading through filestore therefore finds
+// nothing for most uploaded files, which is every figure anybody adds.
+//
+// Authenticated the same way UploadBlob is, because it is the same service.
 func (c *Client) ReadBlob(ctx context.Context, historyID, hash string) (io.ReadCloser, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BlobURL(historyID, hash), nil)
+	url := c.historyV1 + "/projects/" + historyID + "/blobs/" + hash
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
+	}
+	if c.v1User != "" {
+		request.SetBasicAuth(c.v1User, c.v1Pass)
 	}
 	response, err := c.http.Do(request)
 	if err != nil {
@@ -261,7 +273,7 @@ func (c *Client) ReadBlob(ctx context.Context, historyID, hash string) (io.ReadC
 	}
 	if response.StatusCode >= 300 {
 		_ = response.Body.Close()
-		return nil, fmt.Errorf("filestore answered %s", response.Status)
+		return nil, fmt.Errorf("history-v1 answered %s", response.Status)
 	}
 	return response.Body, nil
 }
