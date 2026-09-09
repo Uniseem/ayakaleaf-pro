@@ -28,11 +28,17 @@ type RailEntry = {
   badge?: number
 }
 
-export function Rail() {
-  const layout = useLayout()
+/**
+ * The panels, and which button opens each.
+ *
+ * A hook rather than a constant because two components need the same list --
+ * the strip of buttons and the panel beside it -- and they are separate so
+ * that the strip can sit outside the resizable group and keep its width.
+ */
+function useRailEntries(): RailEntry[] {
   const settings = useSettings()
 
-  const entries: RailEntry[] = [
+  return [
     {
       key: 'file-tree',
       title: 'Files',
@@ -75,11 +81,14 @@ export function Rail() {
       panel: <ChatPane />,
     },
   ]
+}
 
-  const open = entries.find(entry => entry.key === layout.railTab)
+/** The strip of buttons. Always visible, whether a panel is open or not. */
+export function RailTabs() {
+  const layout = useLayout()
+  const entries = useRailEntries()
 
   return (
-    <>
       <nav
         className="flex w-11 shrink-0 flex-col items-center gap-1 border-r border-divider bg-default-50 py-2"
         aria-label="Panels"
@@ -114,13 +123,22 @@ export function Rail() {
           </Tooltip>
         ))}
       </nav>
+  )
+}
 
-      {open ? (
-        <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
-          {open.panel}
-        </div>
-      ) : null}
-    </>
+/** Whichever panel the strip has open. */
+export function RailPanel() {
+  const layout = useLayout()
+  const entries = useRailEntries()
+  const open = entries.find(entry => entry.key === layout.railTab)
+
+  if (!open) {
+    return null
+  }
+  return (
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden border-r border-divider bg-background">
+      {open.panel}
+    </div>
   )
 }
 
