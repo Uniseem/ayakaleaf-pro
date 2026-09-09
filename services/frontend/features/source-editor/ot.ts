@@ -49,97 +49,214 @@ export function apply(text: string, op: Op): string {
 }
 
 /**
- * Rewrites `op` to apply after `other` has been applied.
+ * Adds a component to an operation, merging it into the previous one when the
+ * two are adjacent inserts or adjacent deletes.
+ *
+ * Not an optimisation. transformX below relies on knowing whether transforming
+ * one component produced none, one, or several, and without merging it would
+ * see "several" for a pair that is really one edit, and recurse where it
+ * should not.
+ */
+function appendComponent(op: Op, component: Component): Op {
+  if (lengthOf(component) === 0) {
+    return op
+  }
+  const last = op[op.length - 1]
+  if (!last) {
+    return [...op, component]
+  }
+
+  if (isInsert(last) && isInsert(component)) {
+    if (last.p <= component.p && component.p <= last.p + last.i.length) {
+      const at = component.p - last.p
+      const merged = last.i.slice(0, at) + component.i + last.i.slice(at)
+      return [...op.slice(0, -1), { p: last.p, i: merged }]
+    }
+  } else if (!isInsert(last) && !isInsert(component)) {
+    if (component.p <= last.p && last.p <= component.p + component.d.length) {
+      const at = last.p - component.p
+      const merged =
+        component.d.slice(0, at) + last.d + component.d.slice(at)
+      return [...op.slice(0, -1), { p: component.p, d: merged }]
+    }
+  }
+  return [...op, component]
+}
+
+/**
+ * Rewrites `op` so that it means the same thing after `other` has been applied.
  *
  * `side` decides what happens when two inserts land on the same position:
  * exactly one of the two clients must yield, or they would each place
  * themselves first and the documents would differ by a swap. 'left' goes
  * first.
+ *
+ * A one-against-one transform is the component rule below. Anything larger
+ * goes through transformX, because transforming each component of one against
+ * each component of the other in turn is *not* correct: the components of an
+ * operation are positioned against the text its earlier components produced,
+ * so transforming the second one has to account for what happened to the
+ * first. Getting this wrong is not a rare edge case -- pasting over a
+ * selection is a delete and an insert in one operation.
  */
 export function transform(op: Op, other: Op, side: 'left' | 'right'): Op {
-  let result = op
-  for (const component of other) {
-    result = transformAgainst(result, component, side)
+  if (other.length === 0) {
+    return op
   }
-  return result
+  if (op.length === 1 && other.length === 1) {
+    const first = op[0]
+    const second = other[0]
+    if (first && second) {
+      return transformComponent(first, second, side)
+    }
+  }
+  if (side === 'left') {
+    return transformX(op, other)[0]
+  }
+  return transformX(other, op)[1]
 }
 
-function transformAgainst(op: Op, other: Component, side: 'left' | 'right'): Op {
-  const out: Op = []
-  for (const component of op) {
-    out.push(...transformComponent(component, other, side))
+/**
+ * Transforms two whole operations against each other.
+ *
+ * Answers with the pair that converges: applying left then the new right
+ * reaches the same text as applying right then the new left. Ported from the
+ * server's implementation, which is the only definition that matters -- this
+ * has to agree with it exactly.
+ */
+function transformX(leftOp: Op, rightOp: Op): [Op, Op] {
+  let left = leftOp
+  let newRight: Op = []
+
+  for (const rc of rightOp) {
+    let rightComponent: Component | null = rc
+    let newLeft: Op = []
+
+    let k = 0
+    while (k < left.length) {
+      const leftComponent = left[k]
+      if (!leftComponent || !rightComponent) {
+        break
+      }
+      for (const piece of transformComponent(leftComponent, rightComponent, 'left')) {
+        newLeft = appendComponent(newLeft, piece)
+      }
+      const next = transformComponent(rightComponent, leftComponent, 'right')
+      k++
+
+      if (next.length === 1) {
+        rightComponent = next[0] ?? null
+      } else if (next.length === 0) {
+        // Cancelled out entirely, so the rest of the left operation is
+        // untouched by it.
+        for (const rest of left.slice(k)) {
+          newLeft = appendComponent(newLeft, rest)
+        }
+        rightComponent = null
+      } else {
+        // It split. The remainder of the left operation has to be transformed
+        // against all the pieces, which is the same problem again.
+        const [restLeft, restRight] = transformX(left.slice(k), next)
+        for (const piece of restLeft) {
+          newLeft = appendComponent(newLeft, piece)
+        }
+        for (const piece of restRight) {
+          newRight = appendComponent(newRight, piece)
+        }
+        rightComponent = null
+      }
+
+      if (rightComponent === null) {
+        break
+      }
+    }
+
+    if (rightComponent !== null) {
+      newRight = appendComponent(newRight, rightComponent)
+    }
+    left = newLeft
   }
-  return out
+
+  return [left, newRight]
 }
 
+/**
+ * Transforms one component against one other.
+ *
+ * This is where the rules live, and every one of them has to match the
+ * server's. A disagreement is two documents that drift apart with nobody
+ * told.
+ */
 function transformComponent(
   component: Component,
   other: Component,
   side: 'left' | 'right'
 ): Op {
-  if (isInsert(other)) {
-    const at = other.p
-    const shift = other.i.length
-
-    if (isInsert(component)) {
-      // A tie is broken by side, and only a tie: the whole point is that both
-      // clients decide the same way.
-      const after =
-        component.p > at || (component.p === at && side === 'right')
-      return [{ p: after ? component.p + shift : component.p, i: component.i }]
-    }
-
-    // A delete with an insert landing inside it splits into two: the inserted
-    // text was not part of what was being deleted and must survive.
-    if (at <= component.p) {
-      return [{ p: component.p + shift, d: component.d }]
-    }
-    if (at >= component.p + component.d.length) {
-      return [component]
-    }
-    const cut = at - component.p
-    return [
-      { p: component.p, d: component.d.slice(0, cut) },
-      { p: component.p + shift + cut, d: component.d.slice(cut) },
-    ]
-  }
-
-  // `other` is a delete.
-  const at = other.p
-  const gone = other.d.length
-
   if (isInsert(component)) {
-    if (component.p <= at) {
-      return [component]
-    }
-    if (component.p >= at + gone) {
-      return [{ p: component.p - gone, i: component.i }]
-    }
-    // Inserted into text that has since been deleted: it goes where that text
-    // was. Keeping it is right -- somebody typed it.
-    return [{ p: at, i: component.i }]
+    // An insert only ever moves; it never splits and never disappears.
+    return [{ p: movePosition(component.p, other, side === 'right'), i: component.i }]
   }
 
-  // Two deletes. Whatever they both removed is already gone, so this one keeps
-  // only the part the other did not take.
-  const start = Math.max(component.p, at)
-  const end = Math.min(component.p + component.d.length, at + gone)
-  if (start >= end) {
-    // No overlap.
-    return [
-      {
-        p: component.p > at ? component.p - gone : component.p,
-        d: component.d,
-      },
-    ]
+  if (isInsert(other)) {
+    // A delete with an insert landing inside it splits around the inserted
+    // text, which was not part of what was being deleted.
+    const out: Op = []
+    let text = component.d
+    if (component.p < other.p) {
+      out.push({ p: component.p, d: text.slice(0, other.p - component.p) })
+      text = text.slice(other.p - component.p)
+    }
+    if (text.length > 0) {
+      // Positioned as if the piece above has already been applied, because
+      // the components of one operation apply in order.
+      out.push({ p: component.p + other.i.length, d: text })
+    }
+    return out
   }
-  const before = component.d.slice(0, start - component.p)
-  const after = component.d.slice(end - component.p)
-  const remaining = before + after
+
+  // Two deletes.
+  const otherEnd = other.p + other.d.length
+  if (component.p >= otherEnd) {
+    return [{ p: component.p - other.d.length, d: component.d }]
+  }
+  if (component.p + component.d.length <= other.p) {
+    return [component]
+  }
+
+  // They overlap. Only the part the other did not take is still there.
+  let remaining = ''
+  if (component.p < other.p) {
+    remaining += component.d.slice(0, other.p - component.p)
+  }
+  if (component.p + component.d.length > otherEnd) {
+    remaining += component.d.slice(otherEnd - component.p)
+  }
   if (remaining === '') {
     return []
   }
-  return [{ p: Math.min(component.p, at), d: remaining }]
+  return [{ p: movePosition(component.p, other, false), d: remaining }]
+}
+
+/**
+ * Where a position ends up after one component is applied.
+ *
+ * `insertAfter` is what breaks a tie between an insert at exactly this
+ * position and this position itself.
+ */
+function movePosition(position: number, component: Component, insertAfter: boolean): number {
+  if (isInsert(component)) {
+    if (component.p < position || (component.p === position && insertAfter)) {
+      return position + component.i.length
+    }
+    return position
+  }
+  if (position <= component.p) {
+    return position
+  }
+  if (position <= component.p + component.d.length) {
+    return component.p
+  }
+  return position - component.d.length
 }
 
 /**
