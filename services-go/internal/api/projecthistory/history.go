@@ -84,8 +84,8 @@ func (s *Service) Updates(w http.ResponseWriter, r *http.Request) error {
 	query.Set("min_count", "20")
 
 	var answer struct {
-		Updates             []json.RawMessage `json:"updates"`
-		NextBeforeTimestamp int64             `json:"nextBeforeTimestamp,omitempty"`
+		Updates             []map[string]any `json:"updates"`
+		NextBeforeTimestamp int64            `json:"nextBeforeTimestamp,omitempty"`
 	}
 	if err := s.call(r.Context(),
 		fmt.Sprintf("/project/%s/updates?%s", project.ID.Hex(), query.Encode()),
@@ -93,10 +93,58 @@ func (s *Service) Updates(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
+	s.nameAuthors(r.Context(), answer.Updates)
+
 	return httpapi.JSON(w, http.StatusOK, map[string]any{
 		"updates":    answer.Updates,
 		"nextBefore": answer.NextBeforeTimestamp,
 	})
+}
+
+// nameAuthors turns the user ids in each update into people.
+//
+// The history stores who made a change as an id, which is right -- a name
+// copied in at the time would be the name that person had then. Resolving it
+// here rather than in the client means one request instead of one per author,
+// and it is the same lookup the chat endpoints do.
+func (s *Service) nameAuthors(ctx context.Context, updates []map[string]any) {
+	known := map[string]map[string]any{}
+
+	for _, update := range updates {
+		meta, ok := update["meta"].(map[string]any)
+		if !ok {
+			continue
+		}
+		raw, ok := meta["users"].([]any)
+		if !ok {
+			continue
+		}
+		people := make([]any, 0, len(raw))
+		for _, each := range raw {
+			id, ok := each.(string)
+			if !ok {
+				// Already an object, or something unexpected: pass it through
+				// rather than dropping who made the change.
+				people = append(people, each)
+				continue
+			}
+			if found, seen := known[id]; seen {
+				people = append(people, found)
+				continue
+			}
+			person := map[string]any{"id": id}
+			if oid, err := bson.ObjectIDFromHex(id); err == nil {
+				if user, err := s.users.ByID(ctx, oid); err == nil {
+					person["email"] = user.Email
+					person["first_name"] = user.FirstName
+					person["last_name"] = user.LastName
+				}
+			}
+			known[id] = person
+			people = append(people, person)
+		}
+		meta["users"] = people
+	}
 }
 
 // Diff answers with how one file changed between two versions.
