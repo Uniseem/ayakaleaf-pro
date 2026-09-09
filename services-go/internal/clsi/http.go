@@ -102,7 +102,13 @@ func (s *Service) syncFromCode(w http.ResponseWriter, r *http.Request) {
 		s.refuse(w, r, err)
 		return
 	}
-	answerJSON(w, http.StatusOK, map[string]any{"pdf": parseSyncOutput(output, "Page", "h", "v", "W", "H")})
+	answerJSON(w, http.StatusOK, map[string]any{"pdf": parseSyncOutput(output,
+		syncField{"Page", "page"},
+		syncField{"h", "h"},
+		syncField{"v", "v"},
+		syncField{"W", "width"},
+		syncField{"H", "height"},
+	)})
 }
 
 // syncFromPDF is which line of the source a place in the PDF came from.
@@ -119,7 +125,11 @@ func (s *Service) syncFromPDF(w http.ResponseWriter, r *http.Request) {
 		s.refuse(w, r, err)
 		return
 	}
-	answerJSON(w, http.StatusOK, map[string]any{"code": parseSyncOutput(output, "Input", "Line", "Column")})
+	answerJSON(w, http.StatusOK, map[string]any{"code": parseSyncOutput(output,
+		syncField{"Input", "file"},
+		syncField{"Line", "line"},
+		syncField{"Column", "column"},
+	)})
 }
 
 // synctex runs the tool that maps between the two.
@@ -189,11 +199,26 @@ func (s *Service) refuse(w http.ResponseWriter, r *http.Request, err error) {
 	}
 }
 
+// syncField is one of synctex's own field names and what to call it here.
+//
+// The two differ because synctex tells position from size by case alone: h
+// and v are where something is, W and H are how large it is. Anything that
+// folds case loses half of that, so the names it prints are matched exactly
+// and renamed once, here.
+type syncField struct {
+	from string
+	to   string
+}
+
 // parseSyncOutput reads the fields synctex prints as "Name:value" lines.
-func parseSyncOutput(output string, fields ...string) []map[string]any {
-	wanted := map[string]bool{}
+//
+// One position per record, and a record ends where a field it already has
+// appears again -- synctex prints no other separator, and a line that is
+// typeset more than once produces several.
+func parseSyncOutput(output string, fields ...syncField) []map[string]any {
+	wanted := map[string]string{}
 	for _, field := range fields {
-		wanted[field] = true
+		wanted[field.from] = field.to
 	}
 
 	var records []map[string]any
@@ -205,17 +230,18 @@ func parseSyncOutput(output string, fields ...string) []map[string]any {
 			continue
 		}
 		name, value := line[:colon], line[colon+1:]
-		if !wanted[name] {
+		key, ok := wanted[name]
+		if !ok {
 			continue
 		}
-		if _, repeated := current[strings.ToLower(name)]; repeated {
+		if _, repeated := current[key]; repeated {
 			records = append(records, current)
 			current = map[string]any{}
 		}
 		if number, err := strconv.ParseFloat(value, 64); err == nil {
-			current[strings.ToLower(name)] = number
+			current[key] = number
 		} else {
-			current[strings.ToLower(name)] = value
+			current[key] = value
 		}
 	}
 	if len(current) > 0 {

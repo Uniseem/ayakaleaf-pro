@@ -279,11 +279,11 @@ func (c *Client) SyncFromCode(
 		c.baseURL, projectID.Hex(), userID.Hex(), url.QueryEscape(file), line, column)
 	var answer struct {
 		PDF []struct {
-			Page float64 `json:"Page"`
-			H    float64 `json:"h"`
-			V    float64 `json:"v"`
-			W    float64 `json:"W"`
-			H2   float64 `json:"H"`
+			Page   float64 `json:"page"`
+			H      float64 `json:"h"`
+			V      float64 `json:"v"`
+			Width  float64 `json:"width"`
+			Height float64 `json:"height"`
 		} `json:"pdf"`
 	}
 	if err := c.get(ctx, endpoint, &answer); err != nil {
@@ -292,7 +292,8 @@ func (c *Client) SyncFromCode(
 	positions := make([]PDFPosition, 0, len(answer.PDF))
 	for _, each := range answer.PDF {
 		positions = append(positions, PDFPosition{
-			Page: each.Page, H: each.H, V: each.V, Width: each.W, Height: each.H2,
+			Page: each.Page, H: each.H, V: each.V,
+			Width: each.Width, Height: each.Height,
 		})
 	}
 	return positions, nil
@@ -308,9 +309,9 @@ func (c *Client) SyncFromPDF(
 		c.baseURL, projectID.Hex(), userID.Hex(), page, h, v)
 	var answer struct {
 		Code []struct {
-			Input  string  `json:"Input"`
-			Line   float64 `json:"Line"`
-			Column float64 `json:"Column"`
+			File   string  `json:"file"`
+			Line   float64 `json:"line"`
+			Column float64 `json:"column"`
 		} `json:"code"`
 	}
 	if err := c.get(ctx, endpoint, &answer); err != nil {
@@ -319,7 +320,7 @@ func (c *Client) SyncFromPDF(
 	positions := make([]CodePosition, 0, len(answer.Code))
 	for _, each := range answer.Code {
 		positions = append(positions, CodePosition{
-			File:   each.Input,
+			File:   each.File,
 			Line:   int(each.Line),
 			Column: int(each.Column),
 		})
