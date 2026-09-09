@@ -122,7 +122,49 @@ export function RailTabs() {
             </button>
           </Tooltip>
         ))}
+
+        <div className="flex-1" />
+
+        <Tooltip content="Keyboard shortcuts" placement="right" delay={400} closeDelay={0}>
+          <button
+            type="button"
+            aria-label="Keyboard shortcuts"
+            onClick={() => window.dispatchEvent(new CustomEvent('ide:shortcuts'))}
+            className="flex h-8 w-8 items-center justify-center rounded-[4px] text-[var(--content-secondary)] hover:bg-[var(--hover-interaction)] hover:text-[var(--content-primary)]"
+          >
+            <HelpIcon />
+          </button>
+        </Tooltip>
+
+        <Tooltip content="Settings" placement="right" delay={400} closeDelay={0}>
+          <a
+            href="/account"
+            aria-label="Settings"
+            className="flex h-8 w-8 items-center justify-center rounded-[4px] text-[var(--content-secondary)] hover:bg-[var(--hover-interaction)] hover:text-[var(--content-primary)]"
+          >
+            <SettingsIcon />
+          </a>
+        </Tooltip>
       </nav>
+  )
+}
+
+function HelpIcon() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <circle cx="8" cy="8" r="5.6" />
+      <path d="M6.4 6.3a1.7 1.7 0 1 1 2.2 1.9c-.4.2-.6.5-.6.9v.3" strokeLinecap="round" />
+      <circle cx="8" cy="11.4" r="0.7" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+function SettingsIcon() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <circle cx="8" cy="8" r="2.2" />
+      <path d="M8 1.8v1.6M8 12.6v1.6M2.6 8H1M15 8h-1.6M4.2 4.2 3 3M13 13l-1.2-1.2M11.8 4.2 13 3M3 13l1.2-1.2" strokeLinecap="round" />
+    </svg>
   )
 }
 

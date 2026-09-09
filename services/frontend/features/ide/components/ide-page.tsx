@@ -33,6 +33,7 @@ import { FileView } from '@/features/file-view/file-view'
 import { HistoryView } from '@/features/history/history-view'
 import { RailTabs, RailPanel } from './rail'
 import { EditorTabs } from './editor-tabs'
+import { EditorToolbar } from '@/features/source-editor/editor-toolbar'
 import { Toolbar } from './toolbar'
 
 export function IdePage({
@@ -200,9 +201,12 @@ function EditorPane() {
       {editor.currentFile ? (
         <FileView entry={editor.currentFile} onClose={editor.close} />
       ) : (
-        <div className="min-h-0 flex-1" style={editorFontStyle(settings)}>
-          <SourceEditor />
-        </div>
+        <>
+          <EditorToolbar />
+          <div className="min-h-0 flex-1" style={editorFontStyle(settings)}>
+            <SourceEditor />
+          </div>
+        </>
       )}
     </div>
   )
