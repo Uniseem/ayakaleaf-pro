@@ -106,6 +106,55 @@ export function stopCompile(projectId: string): Promise<void> {
   return api<void>(`/api/projects/${projectId}/compile/stop`, { method: 'POST' })
 }
 
+/**
+ * Where in the PDF a line of the source ended up.
+ *
+ * A list, because one line can produce several pieces of the document -- a
+ * line inside a table, or one a package typesets more than once.
+ */
+export function syncFromCode(
+  projectId: string,
+  file: string,
+  line: number,
+  column = 0
+): Promise<{ pdf: PdfPosition[] }> {
+  const query = new URLSearchParams({
+    file,
+    line: String(line),
+    column: String(column),
+  })
+  return api(`/api/projects/${projectId}/sync/code?${query}`)
+}
+
+/** Which line of the source a place in the PDF came from. */
+export function syncFromPdf(
+  projectId: string,
+  page: number,
+  h: number,
+  v: number
+): Promise<{ code: CodePosition[] }> {
+  const query = new URLSearchParams({
+    page: String(page),
+    h: String(h),
+    v: String(v),
+  })
+  return api(`/api/projects/${projectId}/sync/pdf?${query}`)
+}
+
+export type PdfPosition = {
+  page: number
+  h: number
+  v: number
+  width: number
+  height: number
+}
+
+export type CodePosition = {
+  file: string
+  line: number
+  column: number
+}
+
 /** The PDF among what a compile produced, if it made one. */
 export function pdfIn(result: CompileResult | null): OutputFile | undefined {
   return result?.outputFiles?.find(file => file.path === 'output.pdf')

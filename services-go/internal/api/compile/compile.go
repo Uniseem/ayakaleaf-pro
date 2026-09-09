@@ -248,3 +248,104 @@ func (c *Client) WordCount(
 	}
 	return answer.TexCount, nil
 }
+
+// PDFPosition is where in the PDF something is: a rectangle on a page, in TeX
+// points from the top-left corner.
+type PDFPosition struct {
+	Page   float64 `json:"page"`
+	H      float64 `json:"h"`
+	V      float64 `json:"v"`
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
+}
+
+// CodePosition is where in the source something is.
+type CodePosition struct {
+	File   string `json:"file"`
+	Line   int    `json:"line"`
+	Column int    `json:"column"`
+}
+
+// SyncFromCode is where in the PDF a line of the source ended up.
+//
+// The answer is a list because one line can produce several pieces of the
+// document -- a line inside a table, or one that a package typesets twice.
+func (c *Client) SyncFromCode(
+	ctx context.Context,
+	projectID, userID bson.ObjectID,
+	file string, line, column int,
+) ([]PDFPosition, error) {
+	endpoint := fmt.Sprintf("%s/project/%s/user/%s/sync/code?file=%s&line=%d&column=%d",
+		c.baseURL, projectID.Hex(), userID.Hex(), url.QueryEscape(file), line, column)
+	var answer struct {
+		PDF []struct {
+			Page float64 `json:"Page"`
+			H    float64 `json:"h"`
+			V    float64 `json:"v"`
+			W    float64 `json:"W"`
+			H2   float64 `json:"H"`
+		} `json:"pdf"`
+	}
+	if err := c.get(ctx, endpoint, &answer); err != nil {
+		return nil, err
+	}
+	positions := make([]PDFPosition, 0, len(answer.PDF))
+	for _, each := range answer.PDF {
+		positions = append(positions, PDFPosition{
+			Page: each.Page, H: each.H, V: each.V, Width: each.W, Height: each.H2,
+		})
+	}
+	return positions, nil
+}
+
+// SyncFromPDF is which line of the source a place in the PDF came from.
+func (c *Client) SyncFromPDF(
+	ctx context.Context,
+	projectID, userID bson.ObjectID,
+	page int, h, v float64,
+) ([]CodePosition, error) {
+	endpoint := fmt.Sprintf("%s/project/%s/user/%s/sync/pdf?page=%d&h=%f&v=%f",
+		c.baseURL, projectID.Hex(), userID.Hex(), page, h, v)
+	var answer struct {
+		Code []struct {
+			Input  string  `json:"Input"`
+			Line   float64 `json:"Line"`
+			Column float64 `json:"Column"`
+		} `json:"code"`
+	}
+	if err := c.get(ctx, endpoint, &answer); err != nil {
+		return nil, err
+	}
+	positions := make([]CodePosition, 0, len(answer.Code))
+	for _, each := range answer.Code {
+		positions = append(positions, CodePosition{
+			File:   each.Input,
+			Line:   int(each.Line),
+			Column: int(each.Column),
+		})
+	}
+	return positions, nil
+}
+
+// get reads JSON from the compiler.
+func (c *Client) get(ctx context.Context, endpoint string, into any) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return err
+	}
+	response, err := c.http.Do(request)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = response.Body.Close() }()
+	// A position that maps to nothing is an ordinary answer, not a failure:
+	// somebody can click the margin of a page, and a line of the preamble
+	// produces no output at all.
+	if response.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	if response.StatusCode >= 400 {
+		return fmt.Errorf("the compiler answered %d", response.StatusCode)
+	}
+	return json.NewDecoder(response.Body).Decode(into)
+}

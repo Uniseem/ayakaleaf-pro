@@ -7,7 +7,9 @@
     "dev": "next dev --port 3200",
     "build": "next build",
     "start": "next start --port 3200",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prebuild": "node scripts/copy-pdf-worker.mjs",
+    "predev": "node scripts/copy-pdf-worker.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.18.4",
@@ -25,6 +27,7 @@
     "@tailwindcss/postcss": "^4.3.3",
     "framer-motion": "^11.11.0",
     "next": "^15.5.25",
+    "pdfjs-dist": "^5.4.149",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-resizable-panels": "^2.1.7"

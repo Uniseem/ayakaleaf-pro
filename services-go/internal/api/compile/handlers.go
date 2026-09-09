@@ -3,6 +3,7 @@ package compile
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/apierr"
@@ -10,6 +11,7 @@ import (
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/history"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/httpapi"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projects"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/users"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -267,4 +269,86 @@ func (s *Service) WordCount(w http.ResponseWriter, r *http.Request) error {
 			WithMessage("The project could not be counted. Compile it first.")
 	}
 	return httpapi.JSON(w, http.StatusOK, map[string]any{"counts": counts})
+}
+
+// SyncFromCode answers where in the PDF a line of the source ended up.
+//
+// Read access, for the same reason a compile needs no more: this says nothing
+// about the project that its text does not already say.
+func (s *Service) SyncFromCode(w http.ResponseWriter, r *http.Request) error {
+	user, project, err := s.readable(r)
+	if err != nil {
+		return err
+	}
+
+	file := r.URL.Query().Get("file")
+	if file == "" {
+		if root, ok := project.Find(project.RootDocID); ok {
+			file = root.Path
+		} else {
+			file = "main.tex"
+		}
+	}
+	line, err := strconv.Atoi(r.URL.Query().Get("line"))
+	if err != nil || line < 1 {
+		return apierr.BadRequest.WithMessage("A line number is needed.")
+	}
+	column, _ := strconv.Atoi(r.URL.Query().Get("column"))
+
+	positions, err := s.clsi.SyncFromCode(r.Context(), project.ID, user.ID, file, line, column)
+	if err != nil {
+		return apierr.Internal.WithCause(err).
+			WithMessage("The document has not been compiled yet.")
+	}
+	return httpapi.JSON(w, http.StatusOK, map[string]any{"pdf": positions})
+}
+
+// SyncFromPDF answers which line of the source a place in the PDF came from.
+func (s *Service) SyncFromPDF(w http.ResponseWriter, r *http.Request) error {
+	user, project, err := s.readable(r)
+	if err != nil {
+		return err
+	}
+
+	page, err := strconv.Atoi(r.URL.Query().Get("page"))
+	if err != nil || page < 1 {
+		return apierr.BadRequest.WithMessage("A page number is needed.")
+	}
+	h, errH := strconv.ParseFloat(r.URL.Query().Get("h"), 64)
+	v, errV := strconv.ParseFloat(r.URL.Query().Get("v"), 64)
+	if errH != nil || errV != nil {
+		return apierr.BadRequest.WithMessage("A position on the page is needed.")
+	}
+
+	positions, err := s.clsi.SyncFromPDF(r.Context(), project.ID, user.ID, page, h, v)
+	if err != nil {
+		return apierr.Internal.WithCause(err).
+			WithMessage("The document has not been compiled yet.")
+	}
+	// The compiler answers with paths as it sees them, which are relative to
+	// the compile directory and sometimes carry a leading "./".
+	for i := range positions {
+		positions[i].File = strings.TrimPrefix(positions[i].File, "./")
+	}
+	return httpapi.JSON(w, http.StatusOK, map[string]any{"code": positions})
+}
+
+// readable is the access check both sync directions share.
+func (s *Service) readable(r *http.Request) (*users.User, *projects.Project, error) {
+	user, err := httpapi.RequireUser(r.Context())
+	if err != nil {
+		return nil, nil, err
+	}
+	id, err := bson.ObjectIDFromHex(r.PathValue("id"))
+	if err != nil {
+		return nil, nil, apierr.NotFound
+	}
+	project, _, err := s.projects.Get(r.Context(), id, user.ID)
+	if errors.Is(err, projects.ErrNotFound) {
+		return nil, nil, apierr.NotFound
+	}
+	if err != nil {
+		return nil, nil, apierr.Internal.WithCause(err)
+	}
+	return user, project, nil
 }

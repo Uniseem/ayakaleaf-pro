@@ -238,6 +238,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/projects/{id}/compile", h(s.compile.Compile))
 	mux.HandleFunc("POST /api/projects/{id}/compile/stop", h(s.compile.Stop))
 	mux.HandleFunc("GET /api/projects/{id}/wordcount", h(s.compile.WordCount))
+	// Where a line of the source is in the PDF, and the other way round.
+	mux.HandleFunc("GET /api/projects/{id}/sync/code", h(s.compile.SyncFromCode))
+	mux.HandleFunc("GET /api/projects/{id}/sync/pdf", h(s.compile.SyncFromPDF))
 
 	// The tokens somebody uses instead of a password, which today means git.
 	mux.HandleFunc("GET /api/tokens", h(s.tokens.List))

@@ -3,10 +3,10 @@
 /**
  * The compiled document, and what went wrong making it.
  *
- * The PDF is shown in an iframe rather than rendered here. The browser's own
- * viewer already does the things a PDF viewer must do -- text selection,
- * search, printing, zoom that does not blur -- and reimplementing them on a
- * canvas is a large amount of code to arrive somewhere worse.
+ * The PDF is drawn here rather than handed to the browser, because the things
+ * this pane has to do reach inside it: the zoom control is in the toolbar, the
+ * page number has to be readable, and double-clicking a paragraph has to put
+ * the cursor on the line that produced it. See pdf-viewer.tsx.
  *
  * The interesting part of this pane is the other half: what TeX said. A raw
  * log is unreadable, so it is parsed and shown as entries, each of which knows
@@ -25,27 +25,124 @@ import {
   Tooltip,
 } from '@heroui/react'
 import { Button } from '@/components/ui'
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useCompile } from '@/features/ide/contexts/compile-context'
 import { useProject } from '@/features/ide/contexts/project-context'
 import { useEditor } from '@/features/ide/contexts/editor-context'
 import { useLayout } from '@/features/ide/contexts/layout-context'
+import { syncFromCode, syncFromPdf } from '@/lib/editor'
+import {
+  PdfViewer,
+  nextZoom,
+  type PdfViewerHandle,
+  type Zoom,
+} from './pdf-viewer'
 import type { LogEntry } from './log-parser'
 
 export function PdfPane() {
   const compile = useCompile()
   const layout = useLayout()
+  const project = useProject()
+  const editor = useEditor()
+
+  const viewer = useRef<PdfViewerHandle | null>(null)
+  const [zoom, setZoom] = useState<Zoom>('fit-width')
+  const [scale, setScale] = useState(1)
+  const [page, setPage] = useState(1)
+  const [pages, setPages] = useState(0)
+  const [syncError, setSyncError] = useState<string | null>(null)
+
+  /**
+   * A double click in the PDF puts the cursor on the line that made it.
+   *
+   * The file it names is often not the one that is open -- a thesis is a
+   * dozen chapters -- so the file is opened first and the jump follows it.
+   */
+  const jumpToSource = useCallback(
+    async (clickedPage: number, h: number, v: number) => {
+      setSyncError(null)
+      try {
+        const { code } = await syncFromPdf(project.projectId, clickedPage, h, v)
+        const first = code?.[0]
+        if (!first) {
+          setSyncError('Nothing on this page came from the source.')
+          return
+        }
+        const entry = project.files.find(file => file.path === first.file)
+        if (entry && entry.id !== editor.current?.id) {
+          editor.open(entry)
+        }
+        window.dispatchEvent(
+          new CustomEvent('ide:goto-line', { detail: { line: first.line - 1 } })
+        )
+      } catch {
+        setSyncError('The document has not been compiled yet.')
+      }
+    },
+    [project.projectId, project.files, editor]
+  )
+
+  /** And the other direction, asked for by the editor. */
+  useEffect(() => {
+    const show = async (event: Event) => {
+      const detail = (event as CustomEvent<{ file: string; line: number }>).detail
+      if (!detail) {
+        return
+      }
+      setSyncError(null)
+      try {
+        const { pdf } = await syncFromCode(
+          project.projectId,
+          detail.file,
+          detail.line
+        )
+        const first = pdf?.[0]
+        if (!first) {
+          setSyncError('That line does not appear in the PDF.')
+          return
+        }
+        viewer.current?.show(first)
+      } catch {
+        setSyncError('The document has not been compiled yet.')
+      }
+    }
+    window.addEventListener('ide:show-in-pdf', show)
+    return () => window.removeEventListener('ide:show-in-pdf', show)
+  }, [project.projectId])
+
+  // A message about a jump is about that jump, and stops being true the
+  // moment anything else happens.
+  useEffect(() => {
+    if (!syncError) {
+      return
+    }
+    const timer = setTimeout(() => setSyncError(null), 4000)
+    return () => clearTimeout(timer)
+  }, [syncError])
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[var(--bg-light-secondary)]">
-      <PdfToolbar />
+      <PdfToolbar
+        zoom={zoom}
+        scale={scale}
+        setZoom={setZoom}
+        page={page}
+        pages={pages}
+        goToPage={target => viewer.current?.goToPage(target)}
+      />
       <div className="relative min-h-0 flex-1">
         {compile.pdfUrl ? (
-          <iframe
+          <PdfViewer
             key={compile.pdfUrl}
-            src={compile.pdfUrl}
-            title="Compiled PDF"
-            className="h-full w-full border-0 bg-[var(--bg-light-tertiary)]"
+            url={compile.pdfUrl}
+            zoom={zoom}
+            onPageCount={setPages}
+            onCurrentPage={setPage}
+            onScale={setScale}
+            onDoubleClick={(clickedPage, h, v) =>
+              void jumpToSource(clickedPage, h, v)
+            }
+            handle={viewer}
           />
         ) : (
           <EmptyPdf />
@@ -56,6 +153,11 @@ export function PdfPane() {
             Compiling…
           </div>
         ) : null}
+        {syncError ? (
+          <p className="absolute inset-x-0 bottom-0 bg-[var(--bg-dark-secondary)]/90 px-3 py-1.5 text-center text-[12px] leading-4 text-white">
+            {syncError}
+          </p>
+        ) : null}
       </div>
 
       {layout.showLogs ? <LogPane /> : null}
@@ -63,7 +165,21 @@ export function PdfPane() {
   )
 }
 
-function PdfToolbar() {
+function PdfToolbar({
+  zoom,
+  scale,
+  setZoom,
+  page,
+  pages,
+  goToPage,
+}: {
+  zoom: Zoom
+  scale: number
+  setZoom: (zoom: Zoom) => void
+  page: number
+  pages: number
+  goToPage: (page: number) => void
+}) {
   const compile = useCompile()
   const layout = useLayout()
   const [options, setOptions] = useState(false)
@@ -131,6 +247,12 @@ function PdfToolbar() {
       ) : null}
 
       <div className="flex-1" />
+
+      {pages > 0 ? (
+        <PageControl page={page} pages={pages} goToPage={goToPage} />
+      ) : null}
+
+      {pages > 0 ? <ZoomControl zoom={zoom} scale={scale} setZoom={setZoom} /> : null}
 
       {problems > 0 ? (
         <button
@@ -219,6 +341,143 @@ function DownloadIcon() {
     <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
       <path d="M8 2.5v8M5 7.5l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M2.5 12v.5A1.5 1.5 0 0 0 4 14h8a1.5 1.5 0 0 0 1.5-1.5V12" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/**
+ * Which page is on screen, and a way to type another one.
+ *
+ * The number is an input rather than a label because a reader of a long
+ * document knows the page they want, and scrolling to it is the slow way.
+ */
+function PageControl({
+  page,
+  pages,
+  goToPage,
+}: {
+  page: number
+  pages: number
+  goToPage: (page: number) => void
+}) {
+  const [typed, setTyped] = useState<string | null>(null)
+
+  return (
+    <form
+      className="flex items-center gap-1 text-[12px] leading-4 text-[var(--content-secondary)]"
+      onSubmit={event => {
+        event.preventDefault()
+        const wanted = Number(typed)
+        if (Number.isFinite(wanted) && wanted >= 1 && wanted <= pages) {
+          goToPage(Math.floor(wanted))
+        }
+        setTyped(null)
+      }}
+    >
+      <input
+        aria-label="Page"
+        inputMode="numeric"
+        value={typed ?? String(page)}
+        onChange={event => setTyped(event.target.value)}
+        onFocus={event => event.target.select()}
+        onBlur={() => setTyped(null)}
+        className="h-6 w-9 rounded-[4px] border border-[var(--border-divider)] bg-[var(--bg-light-primary)] text-center tabular-nums focus:border-[var(--border-active)] focus:outline-none"
+      />
+      <span>of {pages}</span>
+    </form>
+  )
+}
+
+/**
+ * How large the page is drawn.
+ *
+ * Fit-to-width is the default and the first entry, because it is what almost
+ * everybody wants almost always: a page of A4 at 100% is wider than this pane
+ * ever is, and reading it means scrolling sideways for every line.
+ */
+function ZoomControl({
+  zoom,
+  scale,
+  setZoom,
+}: {
+  zoom: Zoom
+  scale: number
+  setZoom: (zoom: Zoom) => void
+}) {
+  const percent = Math.round((typeof zoom === 'number' ? zoom : scale) * 100)
+
+  return (
+    <div className="flex items-center">
+      <Tooltip content="Zoom out" delay={400}>
+        <button
+          type="button"
+          aria-label="Zoom out"
+          onClick={() => setZoom(nextZoom(scale, -1))}
+          className="flex h-7 w-7 items-center justify-center rounded-[4px] text-[var(--content-secondary)] hover:bg-[var(--hover-interaction)]"
+        >
+          <MinusIcon />
+        </button>
+      </Tooltip>
+
+      <Dropdown placement="bottom-end">
+        <DropdownTrigger>
+          <button
+            type="button"
+            aria-label="Zoom"
+            className="flex h-7 min-w-14 items-center justify-center gap-0.5 rounded-[4px] px-1 text-[12px] leading-4 tabular-nums text-[var(--content-secondary)] hover:bg-[var(--hover-interaction)]"
+          >
+            {percent}%
+            <Caret />
+          </button>
+        </DropdownTrigger>
+        <DropdownMenu
+          aria-label="Zoom"
+          onAction={key => {
+            const chosen = String(key)
+            setZoom(
+              chosen === 'fit-width' || chosen === 'fit-height'
+                ? chosen
+                : Number(chosen)
+            )
+          }}
+        >
+          <DropdownItem key="fit-width">Fit to width</DropdownItem>
+          <DropdownItem key="fit-height">Fit to height</DropdownItem>
+          <DropdownItem key="0.5">50%</DropdownItem>
+          <DropdownItem key="0.75">75%</DropdownItem>
+          <DropdownItem key="1">100%</DropdownItem>
+          <DropdownItem key="1.5">150%</DropdownItem>
+          <DropdownItem key="2">200%</DropdownItem>
+          <DropdownItem key="4">400%</DropdownItem>
+        </DropdownMenu>
+      </Dropdown>
+
+      <Tooltip content="Zoom in" delay={400}>
+        <button
+          type="button"
+          aria-label="Zoom in"
+          onClick={() => setZoom(nextZoom(scale, 1))}
+          className="flex h-7 w-7 items-center justify-center rounded-[4px] text-[var(--content-secondary)] hover:bg-[var(--hover-interaction)]"
+        >
+          <PlusIcon />
+        </button>
+      </Tooltip>
+    </div>
+  )
+}
+
+function MinusIcon() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+      <path d="M3.5 8h9" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+      <path d="M8 3.5v9M3.5 8h9" strokeLinecap="round" />
     </svg>
   )
 }

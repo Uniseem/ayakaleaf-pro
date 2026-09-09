@@ -171,10 +171,31 @@ export function EditorToolbar() {
         ))}
       </div>
 
+      <Tooltip content="Show this line in the PDF" delay={400} closeDelay={0}>
+        <button
+          type="button"
+          aria-label="Show this line in the PDF"
+          onClick={() => command('sync-to-pdf')}
+          className="flex h-6 w-6 items-center justify-center rounded-[4px] text-[var(--content-primary)] hover:bg-[var(--hover-interaction)]"
+        >
+          <SyncIcon />
+        </button>
+      </Tooltip>
+
       <ToolButton label="Search file" onClick={() => command('find')}>
         <SearchIcon />
       </ToolButton>
     </div>
+  )
+}
+
+/** Points from the source to the page, which is the direction of the jump. */
+function SyncIcon() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <path d="M3 3.5h4M3 6.5h4M3 9.5h2.5" strokeLinecap="round" />
+      <path d="M8 8h5M11 5.5 13.5 8 11 10.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 }
 

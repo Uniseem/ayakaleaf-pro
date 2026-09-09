@@ -307,6 +307,15 @@ export function SourceEditor() {
             return true
           },
         },
+        {
+          // The original's shortcut for the same jump.
+          key: 'Mod-.',
+          preventDefault: true,
+          run: () => {
+            window.dispatchEvent(new CustomEvent('ide:sync-to-pdf'))
+            return true
+          },
+        },
         ...closeBracketsKeymap,
         ...defaultKeymap,
         ...searchKeymap,
@@ -445,6 +454,26 @@ export function SourceEditor() {
     window.addEventListener('ide:goto-line', jump)
     return () => window.removeEventListener('ide:goto-line', jump)
   }, [])
+
+  // The other half of the jump: where the cursor is, so the PDF pane can ask
+  // the compiler where that ended up. Only this component knows the line, and
+  // only the PDF pane can scroll to the answer, so the two meet on an event.
+  useEffect(() => {
+    const locate = () => {
+      const editor = viewRef.current
+      if (!editor || !current) {
+        return
+      }
+      const line = editor.state.doc.lineAt(editor.state.selection.main.head)
+      window.dispatchEvent(
+        new CustomEvent('ide:show-in-pdf', {
+          detail: { file: current.path, line: line.number },
+        })
+      )
+    }
+    window.addEventListener('ide:sync-to-pdf', locate)
+    return () => window.removeEventListener('ide:sync-to-pdf', locate)
+  }, [current])
 
   // What the menus ask for. Events rather than calls: the menu bar does not
   // hold the CodeMirror view, and handing it one would tie the two together
