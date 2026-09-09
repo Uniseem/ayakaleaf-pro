@@ -227,6 +227,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/projects/{id}/messages", h(s.chat.Send))
 	mux.HandleFunc("POST /api/projects/{id}/compile", h(s.compile.Compile))
 	mux.HandleFunc("POST /api/projects/{id}/compile/stop", h(s.compile.Stop))
+	mux.HandleFunc("GET /api/projects/{id}/wordcount", h(s.compile.WordCount))
 
 	// The tokens somebody uses instead of a password, which today means git.
 	mux.HandleFunc("GET /api/tokens", h(s.tokens.List))

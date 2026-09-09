@@ -211,3 +211,40 @@ func syncType(incremental bool) string {
 	}
 	return "full"
 }
+
+// WordCount asks the compiler to count what is in a project.
+//
+// The compiler rather than this service, because texcount reads the files as
+// TeX sees them: it follows \input, skips the preamble, and does not count a
+// command name as a word. Counting here would mean reimplementing that, badly.
+//
+// It reads the last compile's directory, so a project that has not been
+// compiled has nothing to count -- which is why the answer can be empty and
+// is not an error.
+func (c *Client) WordCount(
+	ctx context.Context,
+	projectID, userID bson.ObjectID,
+	file string,
+) (map[string]any, error) {
+	endpoint := fmt.Sprintf("%s/project/%s/user/%s/wordcount?file=%s",
+		c.baseURL, projectID.Hex(), userID.Hex(), url.QueryEscape(file))
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	response, err := c.http.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode >= 400 {
+		return nil, fmt.Errorf("the compiler answered %d", response.StatusCode)
+	}
+	var answer struct {
+		TexCount map[string]any `json:"texcount"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&answer); err != nil {
+		return nil, err
+	}
+	return answer.TexCount, nil
+}

@@ -233,3 +233,38 @@ func projectID(r *http.Request) (bson.ObjectID, error) {
 	}
 	return id, nil
 }
+
+// WordCount answers with how long a project is.
+func (s *Service) WordCount(w http.ResponseWriter, r *http.Request) error {
+	user, err := httpapi.RequireUser(r.Context())
+	if err != nil {
+		return err
+	}
+	id, err := bson.ObjectIDFromHex(r.PathValue("id"))
+	if err != nil {
+		return apierr.NotFound
+	}
+	project, _, err := s.projects.Get(r.Context(), id, user.ID)
+	if errors.Is(err, projects.ErrNotFound) {
+		return apierr.NotFound
+	}
+	if err != nil {
+		return apierr.Internal.WithCause(err)
+	}
+
+	file := r.URL.Query().Get("file")
+	if file == "" {
+		if root, ok := project.Find(project.RootDocID); ok {
+			file = root.Path
+		} else {
+			file = "main.tex"
+		}
+	}
+
+	counts, err := s.clsi.WordCount(r.Context(), project.ID, user.ID, file)
+	if err != nil {
+		return apierr.Internal.WithCause(err).
+			WithMessage("The project could not be counted. Compile it first.")
+	}
+	return httpapi.JSON(w, http.StatusOK, map[string]any{"counts": counts})
+}

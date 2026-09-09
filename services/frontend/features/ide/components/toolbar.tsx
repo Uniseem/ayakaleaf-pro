@@ -28,6 +28,7 @@ import { useEditor } from '@/features/ide/contexts/editor-context'
 import { useSettings } from '@/features/ide/contexts/settings-context'
 import { useConnection } from '@/features/ide/contexts/connection-context'
 import { ShareModal } from '@/features/sharing/share-modal'
+import { WordCountModal } from '@/features/word-count/word-count-modal'
 
 export function Toolbar({ userName }: { userName: string }) {
   const project = useProject()
@@ -39,6 +40,7 @@ export function Toolbar({ userName }: { userName: string }) {
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(project.project.name)
   const [sharing, setSharing] = useState(false)
+  const [counting, setCounting] = useState(false)
 
   return (
     <header className="flex h-11 shrink-0 items-center gap-2 border-b border-divider bg-background px-2">
@@ -272,6 +274,9 @@ export function Toolbar({ userName }: { userName: string }) {
             </DropdownItem>
           </DropdownSection>
           <DropdownSection>
+            <DropdownItem key="wordcount" closeOnSelect onPress={() => setCounting(true)}>
+              Word count
+            </DropdownItem>
             <DropdownItem key="settings" href="/account" closeOnSelect>
               Account settings
             </DropdownItem>
@@ -283,6 +288,7 @@ export function Toolbar({ userName }: { userName: string }) {
       </Dropdown>
 
       <ShareModal isOpen={sharing} onClose={() => setSharing(false)} />
+      <WordCountModal isOpen={counting} onClose={() => setCounting(false)} />
     </header>
   )
 }

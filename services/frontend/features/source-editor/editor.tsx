@@ -61,6 +61,7 @@ import { useEditor } from '@/features/ide/contexts/editor-context'
 import { useCompile } from '@/features/ide/contexts/compile-context'
 import { useConnection } from '@/features/ide/contexts/connection-context'
 import { useSettings } from '@/features/ide/contexts/settings-context'
+import { vim } from '@replit/codemirror-vim'
 import { latexCompletions } from './completion'
 import { latexDiagnostics } from './lint'
 import { analyse } from './analyse'
@@ -180,6 +181,7 @@ export function SourceEditor() {
       wrapping: new Compartment(),
       completion: new Compartment(),
       linting: new Compartment(),
+      keys: new Compartment(),
     }),
     []
   )
@@ -329,6 +331,10 @@ export function SourceEditor() {
             compartments.linting.of(
               settings.syntaxValidation ? linter(latexDiagnostics) : []
             ),
+            // Vim must come first in the list to take precedence over the
+            // default keymap, which is why it is its own compartment rather
+            // than part of the keymap above.
+            compartments.keys.of(settings.keybindings === 'vim' ? vim() : []),
           ],
         })
       )
@@ -350,7 +356,16 @@ export function SourceEditor() {
         changes: { from: 0, to: held.length, insert: current.content },
       })
     }
-  }, [current, revision, editable, extensions, compartments, settings.autoComplete, settings.syntaxValidation])
+  }, [
+    current,
+    revision,
+    editable,
+    extensions,
+    compartments,
+    settings.autoComplete,
+    settings.syntaxValidation,
+    settings.keybindings,
+  ])
 
   // Jumping to a line, asked for by the outline and by search. An event
   // rather than a call: neither of them holds the CodeMirror view, and giving
@@ -391,9 +406,16 @@ export function SourceEditor() {
         compartments.linting.reconfigure(
           settings.syntaxValidation ? linter(latexDiagnostics) : []
         ),
+        compartments.keys.reconfigure(settings.keybindings === 'vim' ? vim() : []),
       ],
     })
-  }, [editable, settings.autoComplete, settings.syntaxValidation, compartments])
+  }, [
+    editable,
+    settings.autoComplete,
+    settings.syntaxValidation,
+    settings.keybindings,
+    compartments,
+  ])
 
   if (loading && !current) {
     return (
