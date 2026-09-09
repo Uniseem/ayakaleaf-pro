@@ -1,12 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "ES2022"
-    ],
-    "allowJs": true,
+    "lib": ["dom", "dom.iterable", "ES2022"],
+    "allowJs": false,
     "skipLibCheck": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
@@ -18,40 +14,10 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
+    "plugins": [{ "name": "next" }],
     "baseUrl": ".",
-    "paths": {
-      "@/*": [
-        "./*"
-      ],
-      "@modules/*": [
-        "./modules/*"
-      ],
-      "@ol-types/*": [
-        "./types/*"
-      ],
-      "@overleaf/o-error": [
-        "./libs/o-error"
-      ],
-      "@overleaf/ranges-tracker": [
-        "./libs/ranges-tracker"
-      ],
-      "overleaf-editor-core": [
-        "./libs/overleaf-editor-core"
-      ]
-    }
+    "paths": { "@/*": ["./*"] }
   },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules"
-  ]
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
 }
