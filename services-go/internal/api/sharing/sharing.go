@@ -266,7 +266,10 @@ func (s *Service) Accept(w http.ResponseWriter, r *http.Request) error {
 		return apierr.NotFound.WithMessage("That invitation has expired.")
 	}
 
-	project, _, err := s.projects.Get(r.Context(), invite.ProjectID, user.ID)
+	// Read without an access check: not having access is the entire reason
+	// this request exists. Holding a valid, unexpired invitation is what
+	// authorises it.
+	project, err := s.projects.ByID(r.Context(), invite.ProjectID)
 	if err != nil {
 		return apierr.NotFound.WithMessage("That project no longer exists.")
 	}

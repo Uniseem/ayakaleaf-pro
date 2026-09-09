@@ -394,3 +394,21 @@ func (s *Store) SetPublicAccessLevel(ctx context.Context, id bson.ObjectID, leve
 	})
 	return err
 }
+
+// ByID reads a project without asking whether anybody may see it.
+//
+// Only for a caller that has its own reason to be looking: accepting an
+// invitation is the case this exists for, because the whole point is that the
+// person does not have access yet and is about to be given it. Everything else
+// should use Get, which refuses a project the person cannot see.
+func (s *Store) ByID(ctx context.Context, id bson.ObjectID) (*Project, error) {
+	var project Project
+	err := s.projects.FindOne(ctx, bson.M{"_id": id}).Decode(&project)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &project, nil
+}
