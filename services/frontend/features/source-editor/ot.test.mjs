@@ -12,7 +12,7 @@
  * overlap by one character -- and those are what nobody thinks to write down.
  *
  * Run:
- *   npx tsc features/source-editor/ot.ts --outDir /tmp/ot --module esnext  *     --target es2022 --moduleResolution bundler
+ *   npx tsc features/source-editor/ot.ts --outDir /tmp/ot --module esnext --target es2022 --moduleResolution bundler
  *   cp features/source-editor/ot.test.mjs /tmp/ot && node /tmp/ot/ot.test.mjs
  */
 
@@ -41,7 +41,7 @@ function randomComponent(text) {
   return { p: at, d: text.slice(at, at + length) }
 }
 
-/** A random operation of one or two components. */
+/** A random operation of up to four components. */
 function randomOp(text) {
   const op = []
   let current = text
