@@ -51,6 +51,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("HEAD /api/projects/{id}/blobs/{hash}", s.headBlob)
 	mux.HandleFunc("PUT /api/projects/{id}/blobs/{hash}", s.putBlob)
 	mux.HandleFunc("POST /api/projects/{id}/clone", s.clone)
+	mux.HandleFunc("DELETE /api/projects/{id}", s.destroy)
 
 	mux.HandleFunc("GET /status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -308,4 +309,22 @@ func isText(content []byte) bool {
 		}
 	}
 	return validUTF8(content)
+}
+
+// destroy removes a project's history for good.
+//
+// Reached when the project itself is deleted. There is nothing to undo it
+// with: the point is that the content stops existing, not that it stops being
+// listed.
+func (s *Server) destroy(w http.ResponseWriter, r *http.Request) {
+	historyID := r.PathValue("id")
+	if historyID == "" {
+		s.refuse(w, r, ErrBadRequest)
+		return
+	}
+	if err := s.store.DestroyProject(r.Context(), historyID); err != nil {
+		s.refuse(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

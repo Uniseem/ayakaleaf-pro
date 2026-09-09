@@ -337,3 +337,33 @@ func (c *Client) get(ctx context.Context, url string, into any) error {
 	}
 	return json.NewDecoder(io.LimitReader(response.Body, 256<<20)).Decode(into)
 }
+
+// DestroyProject removes a project's history and every file in it.
+//
+// The history is the largest thing a project owns -- every version of every
+// file, and a copy of every image ever added. When the project goes, this is
+// what would otherwise stay on the disk for good under an id nothing points
+// at any more.
+func (c *Client) DestroyProject(ctx context.Context, historyID string) error {
+	if historyID == "" {
+		// A project whose history was never started has none to remove.
+		return nil
+	}
+	endpoint := c.historyV1 + "/projects/" + historyID
+	request, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
+	if err != nil {
+		return err
+	}
+	if c.v1User != "" {
+		request.SetBasicAuth(c.v1User, c.v1Pass)
+	}
+	response, err := c.http.Do(request)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode >= 300 && response.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("the history service answered %s", response.Status)
+	}
+	return nil
+}

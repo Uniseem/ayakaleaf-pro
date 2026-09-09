@@ -397,3 +397,27 @@ func (s *Service) project(r *http.Request, needWrite bool) (*projects.Project, *
 	}
 	return project, user, nil
 }
+
+// ForgetProject removes the history of a project that has been deleted.
+//
+// Two things, because the history is kept in two places: the queue of updates
+// that have not been summarised yet, and the history itself -- every version
+// of every file the project ever had, and a copy of every image put in it.
+// The second is the one that matters for the disk.
+func (s *Service) ForgetProject(
+	ctx context.Context, projectID bson.ObjectID, historyID string,
+) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodDelete,
+		s.baseURL+"/project/"+projectID.Hex(), nil)
+	if err != nil {
+		return apierr.Internal.WithCause(err)
+	}
+	queueErr := s.do(request, nil)
+	// The history goes even if the queue could not be cleared: what is left
+	// in the queue is small and refers to a project that no longer exists,
+	// and the history is the part that would otherwise be kept for good.
+	if err := s.history.DestroyProject(ctx, historyID); err != nil {
+		return err
+	}
+	return queueErr
+}

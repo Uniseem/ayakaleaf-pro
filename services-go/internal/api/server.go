@@ -125,8 +125,18 @@ func New(opts Options) *Server {
 	server.histories = projecthistory.New(
 		opts.Projects, opts.Users, opts.History, server.documents, opts.ProjectHistoryURL)
 	server.projects = projects.NewService(opts.Projects, server.documents)
-	// A deleted project has to come off everybody's tags.
-	server.projects.OnDelete(server.tags)
+	// Everything a deleted project owns has to go with it. Deleting only the
+	// record that names it leaves the text, the conversation and every
+	// version of every file on the disk for good, under an id nothing points
+	// at -- invisible, which is not the same as gone.
+	server.projects.OnDelete(
+		server.tags,      // it comes off everybody's tags
+		server.documents, // its text
+		server.chat,      // its comments and messages
+		server.histories, // its history, which is the largest part
+		server.sharing,   // the invitations, whose tokens grant access
+	)
+	server.projects.Logs(opts.Log)
 	server.compile = compile.NewService(
 		opts.Projects, opts.Documents, opts.Compiler, opts.Settings, opts.History)
 	server.tokens = tokens.NewService(opts.Tokens)

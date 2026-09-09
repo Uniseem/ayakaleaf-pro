@@ -463,3 +463,11 @@ func (s *Service) commentable(r *http.Request) (*projects.Project, *users.User, 
 	}
 	return project, user, nil
 }
+
+// ForgetProject removes the conversation a deleted project had.
+//
+// The rooms and the messages in them, which nothing else refers to once the
+// project is gone: a comment thread on a paragraph outlives neither.
+func (s *Service) ForgetProject(ctx context.Context, projectID bson.ObjectID, _ string) error {
+	return s.call(ctx, http.MethodDelete, "/project/"+projectID.Hex(), nil, nil)
+}

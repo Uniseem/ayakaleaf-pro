@@ -245,7 +245,9 @@ func (s *Service) changeProject(w http.ResponseWriter, r *http.Request, add bool
 }
 
 // ForgetProject takes a deleted project off everybody's tags.
-func (s *Service) ForgetProject(ctx context.Context, projectID bson.ObjectID) error {
+//
+// A tag knows nothing about history, so the history id is not used here.
+func (s *Service) ForgetProject(ctx context.Context, projectID bson.ObjectID, _ string) error {
 	_, err := s.tags.UpdateMany(ctx,
 		bson.M{"project_ids": projectID},
 		bson.M{"$pull": bson.M{"project_ids": projectID}})

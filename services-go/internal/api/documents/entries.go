@@ -691,3 +691,13 @@ func (s *Service) readable(r *http.Request) (*projects.Project, *users.User, err
 	}
 	return project, user, nil
 }
+
+// ForgetProject removes the text of a project that has been deleted.
+//
+// Deleting the record that names a project leaves its documents in the
+// database under an id nothing points at: unreachable, but every character
+// still stored, and still counted against the disk. Somebody who deletes a
+// project means the writing to be gone.
+func (s *Service) ForgetProject(ctx context.Context, projectID bson.ObjectID, _ string) error {
+	return s.storage.DestroyProject(ctx, projectID)
+}

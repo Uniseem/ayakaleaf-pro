@@ -77,3 +77,25 @@ func (s *Storage) send(ctx context.Context, method, endpoint string, payload []b
 	}
 	return nil
 }
+
+// DestroyProject removes every document a project has, for good.
+//
+// Not the same as deleting one: a deleted document is marked and kept, so it
+// can be listed and restored. This is what happens when the project itself
+// goes and there is nothing left to restore into.
+func (s *Storage) DestroyProject(ctx context.Context, projectID bson.ObjectID) error {
+	endpoint := fmt.Sprintf("%s/project/%s/destroy", s.baseURL, projectID.Hex())
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, nil)
+	if err != nil {
+		return err
+	}
+	response, err := s.http.Do(request)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode >= 300 {
+		return fmt.Errorf("docstore answered %s", response.Status)
+	}
+	return nil
+}

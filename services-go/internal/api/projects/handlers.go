@@ -3,6 +3,7 @@ package projects
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/apierr"
@@ -25,14 +26,23 @@ type Seeder interface {
 // An interface rather than a call, for the same reason Seeder is: tags are not
 // this package's business, and it should not import them to say goodbye.
 type Forgetter interface {
-	ForgetProject(ctx context.Context, projectID bson.ObjectID) error
+	// historyID is the name the history services know the project by, which
+	// is not its own id and is only readable from the record that is about to
+	// go. It is empty for a project whose history was never started.
+	ForgetProject(ctx context.Context, projectID bson.ObjectID, historyID string) error
 }
 
 // Service is the projects API.
 type Service struct {
-	store     *Store
-	seeder    Seeder
-	forgetter Forgetter
+	store  *Store
+	seeder Seeder
+	// forgetters are everything that keeps something of its own about a
+	// project: its documents, its chat, its history, the invitations to it.
+	// A list because a project is not one thing in one collection, and
+	// deleting only the record that names it leaves every byte of the text
+	// on disk under an id nothing points at any more.
+	forgetters []Forgetter
+	log        *slog.Logger
 }
 
 // NewService builds it.
@@ -40,9 +50,14 @@ func NewService(store *Store, seeder Seeder) *Service {
 	return &Service{store: store, seeder: seeder}
 }
 
-// OnDelete registers what to tell when a project is deleted.
-func (s *Service) OnDelete(forgetter Forgetter) {
-	s.forgetter = forgetter
+// OnDelete registers something to tell when a project is deleted.
+func (s *Service) OnDelete(forgetters ...Forgetter) {
+	s.forgetters = append(s.forgetters, forgetters...)
+}
+
+// Logs is where to report what could not be tidied up.
+func (s *Service) Logs(log *slog.Logger) {
+	s.log = log
 }
 
 // List answers with every project somebody can see.
@@ -195,7 +210,7 @@ func (s *Service) Delete(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	_, access, err := s.store.Get(r.Context(), id, user.ID)
+	project, access, err := s.store.Get(r.Context(), id, user.ID)
 	if errors.Is(err, ErrNotFound) {
 		return apierr.NotFound
 	}
@@ -205,14 +220,23 @@ func (s *Service) Delete(w http.ResponseWriter, r *http.Request) error {
 	if !access.CanAdmin() {
 		return apierr.Forbidden.WithMessage("Only the owner can delete a project.")
 	}
+	// What the project owns goes first, and the record that names it last.
+	// The other order loses the way back: the history id and the list of
+	// documents are in that record, and without it there is nothing left to
+	// say which rows belonged to this project rather than to another.
+	//
+	// One that fails does not stop the others or the delete. The person asked
+	// for the project to go; leaving it in place because a chat room could not
+	// be tidied would be answering a different question. What is left behind
+	// is unreachable rather than visible, and is logged.
+	for _, forgetter := range s.forgetters {
+		if err := forgetter.ForgetProject(r.Context(), id, project.HistoryID()); err != nil && s.log != nil {
+			s.log.Error("something a deleted project owned could not be removed",
+				slog.String("projectId", id.Hex()), slog.Any("err", err))
+		}
+	}
 	if err := s.store.Delete(r.Context(), id); err != nil {
 		return apierr.Internal.WithCause(err)
-	}
-	// Every tag that pointed at it now points at nothing. Not fatal if it
-	// fails -- the project is already gone, and a tag holding a dead id shows
-	// as a count that is one too high, not as a broken page.
-	if s.forgetter != nil {
-		_ = s.forgetter.ForgetProject(r.Context(), id)
 	}
 	return httpapi.NoContent(w)
 }

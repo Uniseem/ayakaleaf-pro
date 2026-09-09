@@ -518,3 +518,13 @@ func (s *Service) administrable(r *http.Request) (*projects.Project, *users.User
 	}
 	return project, user, nil
 }
+
+// ForgetProject removes the invitations to a project that has been deleted.
+//
+// An invitation carries a token that grants access by itself. One left behind
+// after its project is gone is a link that answers for something that should
+// no longer exist.
+func (s *Service) ForgetProject(ctx context.Context, projectID bson.ObjectID, _ string) error {
+	_, err := s.invites.DeleteMany(ctx, bson.M{"projectId": projectID})
+	return err
+}
