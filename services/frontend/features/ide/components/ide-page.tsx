@@ -18,6 +18,7 @@ import { displayName, type PublicUser } from '@/lib/auth'
 import { ProjectProvider } from '@/features/ide/contexts/project-context'
 import { LayoutProvider, useLayout } from '@/features/ide/contexts/layout-context'
 import { CompileProvider } from '@/features/ide/contexts/compile-context'
+import { ConnectionProvider } from '@/features/ide/contexts/connection-context'
 import { EditorProvider, useEditor } from '@/features/ide/contexts/editor-context'
 import { SettingsProvider, useSettings, editorFontStyle } from '@/features/ide/contexts/settings-context'
 import { SourceEditor } from '@/features/source-editor/editor'
@@ -36,13 +37,15 @@ export function IdePage({
   return (
     <SettingsProvider>
       <ProjectProvider initial={view}>
-        <LayoutProvider>
-          <CompileProvider>
-            <EditorProvider>
-              <IdeShell userName={displayName(user)} />
-            </EditorProvider>
-          </CompileProvider>
-        </LayoutProvider>
+        <ConnectionProvider>
+          <LayoutProvider>
+            <CompileProvider>
+              <EditorProvider>
+                <IdeShell userName={displayName(user)} />
+              </EditorProvider>
+            </CompileProvider>
+          </LayoutProvider>
+        </ConnectionProvider>
       </ProjectProvider>
     </SettingsProvider>
   )

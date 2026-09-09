@@ -26,6 +26,7 @@ import { useCompile } from '@/features/ide/contexts/compile-context'
 import { useLayout } from '@/features/ide/contexts/layout-context'
 import { useEditor } from '@/features/ide/contexts/editor-context'
 import { useSettings } from '@/features/ide/contexts/settings-context'
+import { useConnection } from '@/features/ide/contexts/connection-context'
 
 export function Toolbar({ userName }: { userName: string }) {
   const project = useProject()
@@ -90,15 +91,7 @@ export function Toolbar({ userName }: { userName: string }) {
         </button>
       )}
 
-      {editor.saving ? (
-        <span className="text-[11px] text-default-400">Saving…</span>
-      ) : editor.unsaved.length > 0 ? (
-        <Tooltip content={editor.unsaved.join(', ')} delay={200}>
-          <span className="text-[11px] text-warning-600">
-            {editor.unsaved.length} unsaved
-          </span>
-        </Tooltip>
-      ) : null}
+      <ConnectionBadge />
 
       <div className="flex-1" />
 
@@ -262,6 +255,69 @@ export function Toolbar({ userName }: { userName: string }) {
         </DropdownMenu>
       </Dropdown>
     </header>
+  )
+}
+
+/**
+ * Whether this editor is actually connected.
+ *
+ * Shown rather than hidden on purpose. An editor that looks the same online
+ * and offline is one that quietly stops saving, and the person finds out when
+ * they close the tab.
+ */
+function ConnectionBadge() {
+  const { state, others } = useConnection()
+  const editor = useEditor()
+
+  if (state === 'connected') {
+    return (
+      <div className="flex items-center gap-2">
+        {editor.unsaved ? (
+          <span className="text-[11px] text-default-400">Saving…</span>
+        ) : null}
+        {others.length > 0 ? (
+          <Tooltip content={others.map(each => each.name).join(', ')} delay={200}>
+            <span className="flex items-center gap-1 text-[11px] text-default-500">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              {others.length} other{others.length === 1 ? '' : 's'}
+            </span>
+          </Tooltip>
+        ) : null}
+      </div>
+    )
+  }
+
+  const label =
+    state === 'failed'
+      ? 'Not connected'
+      : state === 'reconnecting'
+        ? 'Reconnecting…'
+        : state === 'disconnected'
+          ? 'Disconnected'
+          : 'Connecting…'
+
+  return (
+    <Tooltip
+      content={
+        state === 'failed'
+          ? 'Edits cannot be saved. Refresh the page to try again.'
+          : 'Edits cannot be saved until this reconnects.'
+      }
+      delay={200}
+    >
+      <span
+        className={`flex items-center gap-1 text-[11px] ${
+          state === 'failed' ? 'text-danger' : 'text-warning-600'
+        }`}
+      >
+        <span
+          className={`h-1.5 w-1.5 rounded-full ${
+            state === 'failed' ? 'bg-danger' : 'bg-warning'
+          }`}
+        />
+        {label}
+      </span>
+    </Tooltip>
   )
 }
 

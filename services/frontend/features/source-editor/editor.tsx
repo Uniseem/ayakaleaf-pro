@@ -59,7 +59,7 @@ import { searchKeymap, highlightSelectionMatches, search } from '@codemirror/sea
 import { lintGutter, linter, lintKeymap } from '@codemirror/lint'
 import { useEditor } from '@/features/ide/contexts/editor-context'
 import { useCompile } from '@/features/ide/contexts/compile-context'
-import { useProject } from '@/features/ide/contexts/project-context'
+import { useConnection } from '@/features/ide/contexts/connection-context'
 import { useSettings } from '@/features/ide/contexts/settings-context'
 import { latexCompletions } from './completion'
 import { latexDiagnostics } from './lint'
@@ -160,15 +160,17 @@ const baseTheme = EditorView.theme({
 })
 
 export function SourceEditor() {
-  const { current, change, rememberPosition, loading } = useEditor()
+  const { current, change, rememberPosition, loading, editable, revision } = useEditor()
   const { markEdited, startCompile } = useCompile()
-  const { canWrite } = useProject()
   const settings = useSettings()
+  const { reportPosition } = useConnection()
 
   const host = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView | null>(null)
-  // Which document the view currently holds, to tell a switch from an edit.
+  // Which document and which revision the view holds, to tell a switch and
+  // an outside replacement from something that was just typed here.
   const showing = useRef<string | null>(null)
+  const shown = useRef<number>(-1)
 
   // Compartments let one part of the configuration change without rebuilding
   // the rest -- toggling line wrapping must not discard the undo history.
@@ -192,8 +194,24 @@ export function SourceEditor() {
 
   // Kept in a ref so the extension closes over something stable: rebuilding
   // the view when the callback changes would lose the cursor on every render.
-  const handlers = useRef({ onChange, rememberPosition, startCompile })
-  handlers.current = { onChange, rememberPosition, startCompile }
+  // Told where the cursor is, so other people see it. Throttled: a cursor
+  // moving through a paragraph is one useful message, not forty.
+  const lastReport = useRef(0)
+  const report = useCallback(
+    (head: number, state: EditorState) => {
+      const now = Date.now()
+      if (!current || now - lastReport.current < 300) {
+        return
+      }
+      lastReport.current = now
+      const line = state.doc.lineAt(head)
+      reportPosition(current.id, line.number - 1, head - line.from)
+    },
+    [current, reportPosition]
+  )
+
+  const handlers = useRef({ onChange, rememberPosition, startCompile, report })
+  handlers.current = { onChange, rememberPosition, startCompile, report }
 
   const extensions = useMemo<Extension[]>(
     () => [
@@ -254,6 +272,7 @@ export function SourceEditor() {
         if (update.selectionSet || update.geometryChanged) {
           const head = update.state.selection.main.head
           handlers.current.rememberPosition(head, update.view.scrollDOM.scrollTop)
+          handlers.current.report(head, update.state)
         }
       }),
     ],
@@ -292,7 +311,7 @@ export function SourceEditor() {
     if (!editor || !current) {
       return
     }
-    if (showing.current !== current.id) {
+    if (showing.current !== current.id || shown.current !== revision) {
       // A different document: replace the state, so undo history does not
       // cross from one file into another.
       editor.setState(
@@ -300,7 +319,7 @@ export function SourceEditor() {
           doc: current.content,
           extensions: [
             ...extensions,
-            compartments.editable.of(EditorView.editable.of(canWrite)),
+            compartments.editable.of(EditorView.editable.of(editable)),
             compartments.wrapping.of(EditorView.lineWrapping),
             compartments.completion.of(
               settings.autoComplete
@@ -314,6 +333,7 @@ export function SourceEditor() {
         })
       )
       showing.current = current.id
+      shown.current = revision
       const at = Math.min(current.cursor, current.content.length)
       editor.dispatch({
         selection: { anchor: at },
@@ -330,7 +350,7 @@ export function SourceEditor() {
         changes: { from: 0, to: held.length, insert: current.content },
       })
     }
-  }, [current, canWrite, extensions, compartments, settings.autoComplete, settings.syntaxValidation])
+  }, [current, revision, editable, extensions, compartments, settings.autoComplete, settings.syntaxValidation])
 
   // Jumping to a line, asked for by the outline and by search. An event
   // rather than a call: neither of them holds the CodeMirror view, and giving
@@ -364,7 +384,7 @@ export function SourceEditor() {
     }
     editor.dispatch({
       effects: [
-        compartments.editable.reconfigure(EditorView.editable.of(canWrite)),
+        compartments.editable.reconfigure(EditorView.editable.of(editable)),
         compartments.completion.reconfigure(
           settings.autoComplete ? autocompletion({ override: [latexCompletions] }) : []
         ),
@@ -373,7 +393,7 @@ export function SourceEditor() {
         ),
       ],
     })
-  }, [canWrite, settings.autoComplete, settings.syntaxValidation, compartments])
+  }, [editable, settings.autoComplete, settings.syntaxValidation, compartments])
 
   if (loading && !current) {
     return (
