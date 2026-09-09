@@ -57,6 +57,11 @@ export type EditorValue = {
   change: (content: string) => void
   rememberPosition: (cursor: number, scrollTop: number) => void
 
+  /** The files that have been opened, in the order they were opened. */
+  openTabs: string[]
+  /** Closes one, and moves to a neighbour if it was the one in front. */
+  closeTab: (id: string) => void
+
   /** Whether anything is waiting to reach the server. */
   unsaved: boolean
   /** Whether edits can be made at all right now. */
@@ -77,6 +82,10 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     null
   )
   const [currentFile, setCurrentFile] = useState<FileEntry | null>(null)
+  const [openTabs, setOpenTabs] = usePersistedState<string[]>(
+    `ide.openTabs.${projectId}`,
+    []
+  )
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -178,6 +187,9 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       if (entry.kind === 'folder') {
         return
       }
+      setOpenTabs(previous =>
+        previous.includes(entry.id) ? previous : [...previous, entry.id]
+      )
       if (entry.kind === 'file') {
         setCurrentFile(entry)
         return
@@ -185,10 +197,30 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       setCurrentFile(null)
       setCurrentId(entry.id)
     },
-    [setCurrentId]
+    [setCurrentId, setOpenTabs]
   )
 
   const close = useCallback(() => setCurrentFile(null), [])
+
+  const closeTab = useCallback(
+    (id: string) => {
+      setOpenTabs(previous => {
+        const at = previous.indexOf(id)
+        const next = previous.filter(each => each !== id)
+        // Only move if the tab being closed is the one in front. Closing a
+        // background tab should leave you where you are.
+        const showing = currentFile?.id === id || currentId === id
+        if (showing) {
+          const neighbour = next[Math.min(at, next.length - 1)]
+          const entry = neighbour ? entryById(neighbour) : undefined
+          setCurrentFile(entry && entry.kind === 'file' ? entry : null)
+          setCurrentId(entry && entry.kind === 'doc' ? entry.id : null)
+        }
+        return next
+      })
+    },
+    [currentFile, currentId, entryById, setCurrentId, setOpenTabs]
+  )
 
   const change = useCallback(
     (content: string) => {
@@ -234,7 +266,13 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       setCurrentId(null)
       setText('')
     }
-  }, [currentId, files, entryById, setCurrentId])
+    if (files.length > 0) {
+      setOpenTabs(previous => {
+        const kept = previous.filter(id => Boolean(entryById(id)))
+        return kept.length === previous.length ? previous : kept
+      })
+    }
+  }, [currentId, files, entryById, setCurrentId, setOpenTabs])
 
   // Warn before leaving with something unsent. It cannot be awaited, so this
   // is a warning rather than a save.
@@ -274,6 +312,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       close,
       change,
       rememberPosition,
+      openTabs: openTabs.filter(id => Boolean(entryById(id))),
+      closeTab,
       unsaved,
       // Read-only access cannot edit, and neither can anybody whose
       // connection is down: there is nowhere for the edit to go.
@@ -292,6 +332,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     close,
     change,
     rememberPosition,
+    openTabs,
+    closeTab,
     unsaved,
     canWrite,
     connected,

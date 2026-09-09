@@ -6,13 +6,152 @@
 
 @plugin '../hero.ts';
 
-/* Dark is a class on the tree, not a media query: the person's own choice
-   wins over the operating system's. */
-@custom-variant dark (&:is(.dark *));
-
+/*
+ * The design system.
+ *
+ * These are not colours anybody picked here. They are the values in
+ * services/web/frontend/stylesheets/foundations/tokens/*.json, copied exactly,
+ * because the point is to look like that, not like something near it.
+ * A primitive is a raw value; a semantic name says what it is for, and every
+ * component uses the semantic one -- which is what makes a theme possible at
+ * all.
+ */
 @theme {
-  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  /* Primitives -------------------------------------------------------- */
+  --color-neutral-10: #f4f5f6;
+  --color-neutral-20: #e7e9ee;
+  --color-neutral-30: #d0d5dd;
+  --color-neutral-40: #afb5c0;
+  --color-neutral-50: #8d96a5;
+  --color-neutral-60: #677283;
+  --color-neutral-70: #495365;
+  --color-neutral-80: #2f3a4c;
+  --color-neutral-90: #1b222c;
+
+  --color-green-10: #eaf6ef;
+  --color-green-20: #b8dbc8;
+  --color-green-30: #86caa5;
+  --color-green-40: #53b57f;
+  --color-green-50: #098842;
+  --color-green-60: #1e6b41;
+  --color-green-70: #195936;
+
+  --color-blue-10: #f1f4f9;
+  --color-blue-20: #c3d0e3;
+  --color-blue-30: #97b6e5;
+  --color-blue-40: #6597e0;
+  --color-blue-50: #366cbf;
+  --color-blue-60: #28518f;
+  --color-blue-70: #214475;
+
+  --color-red-10: #f9f1f1;
+  --color-red-20: #f5beba;
+  --color-red-30: #e59d9a;
+  --color-red-40: #e36d66;
+  --color-red-50: #b83a33;
+  --color-red-60: #942f2a;
+  --color-red-70: #782722;
+
+  --color-yellow-10: #fcf1e3;
+  --color-yellow-20: #fcc483;
+  --color-yellow-30: #f7a445;
+  --color-yellow-40: #de8014;
+  --color-yellow-50: #8f5514;
+  --color-yellow-60: #7a4304;
+  --color-yellow-70: #633a0b;
+
+  /* Type -------------------------------------------------------------- */
+  --font-sans: var(--font-noto-sans), 'Noto Sans', sans-serif;
+  --font-mono: var(--font-dm-mono), 'DM Mono', monospace;
+
+  --text-01: 12px;
+  --text-02: 14px;
+  --text-03: 16px;
+  --text-04: 18px;
+  --text-05: 20px;
+  --text-06: 24px;
+  --text-07: 30px;
+  --text-08: 36px;
+
+  /* Radius ------------------------------------------------------------ */
+  --radius-base: 4px;
+  --radius-medium: 8px;
+  --radius-large: 16px;
+  --radius-full: 9999px;
+}
+
+/*
+ * The semantic layer, as custom properties rather than @theme entries: these
+ * change with the theme, and a Tailwind theme value cannot.
+ */
+:root {
+  --bg-light-primary: #ffffff;
+  --bg-light-secondary: #f4f5f6;
+  --bg-light-tertiary: #e7e9ee;
+  --bg-light-disabled: #e7e9ee;
+  --bg-dark-primary: #1b222c;
+  --bg-dark-secondary: #2f3a4c;
+  --bg-dark-tertiary: #495365;
+
+  --bg-accent-01: #098842;
+  --bg-accent-02: #1e6b41;
+  --bg-accent-03: #eaf6ef;
+  --bg-danger-01: #b83a33;
+  --bg-danger-02: #942f2a;
+  --bg-danger-03: #f9f1f1;
+  --bg-warning-01: #8f5514;
+  --bg-warning-02: #7a4304;
+  --bg-warning-03: #fcf1e3;
+  --bg-info-01: #366cbf;
+  --bg-info-02: #28518f;
+  --bg-info-03: #f1f4f9;
+
+  --content-primary: #1b222c;
+  --content-secondary: #495365;
+  --content-disabled: #afb5c0;
+  --content-placeholder: #677283;
+  --content-danger: #b83a33;
+  --content-warning: #8f5514;
+  --content-positive: #098842;
+  --content-info: #366cbf;
+  --content-primary-dark: #ffffff;
+
+  --border-primary: #677283;
+  --border-hover: #495365;
+  --border-disabled: #e7e9ee;
+  --border-danger: #b83a33;
+  --border-divider: #e7e9ee;
+  --border-active: #366cbf;
+
+  --link-web: #1e6b41;
+  --link-web-hover: #195936;
+  --link-ui: #366cbf;
+  --link-ui-hover: #28518f;
+
+  --hover-interaction: rgba(27, 34, 44, 0.08);
+  --overlay: rgba(27, 34, 44, 0.8);
+
+  /* The editor's own chrome, measured from the original. */
+  --toolbar-height: 40px;
+  --rail-width: 40px;
+  --rail-panel-width: 185px;
+  --editor-tabs-height: 36px;
+  --file-tree-toolbar-height: 28px;
+
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --bg-light-primary: #1b222c;
+  --bg-light-secondary: #2f3a4c;
+  --bg-light-tertiary: #495365;
+  --content-primary: #ffffff;
+  --content-secondary: #d0d5dd;
+  --content-placeholder: #8d96a5;
+  --border-divider: #2f3a4c;
+  --border-primary: #495365;
+  --hover-interaction: rgba(255, 255, 255, 0.08);
+  color-scheme: dark;
 }
 
 html,
@@ -21,66 +160,71 @@ body {
 }
 
 body {
-  @apply bg-background text-foreground antialiased;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--content-primary);
+  background-color: var(--bg-light-primary);
+  -webkit-font-smoothing: antialiased;
 }
 
 /* A focus ring that is visible on both themes and only for keyboards. */
 :focus-visible {
-  outline: none;
-  @apply ring-2 ring-focus;
+  outline: 2px solid var(--border-active);
+  outline-offset: 1px;
 }
 
 /*
  * The editor's colours.
  *
- * Set as variables rather than in the CodeMirror theme so that switching
- * light to dark is a class on the root element and not a reconfiguration of
- * the editor -- which would cost the cursor and the scroll position.
+ * Variables rather than a CodeMirror theme, so switching light to dark is an
+ * attribute on the root element and not a reconfiguration of the editor --
+ * which would cost the cursor and the scroll position.
  */
 :root {
-  --cm-background: theme(colors.white);
-  --cm-foreground: #1f2933;
-  --cm-caret: #0b6bcb;
-  --cm-selection: #cfe3fb;
-  --cm-selection-match: #e6dcb5;
-  --cm-active-line: #f4f6f8;
-  --cm-gutter-background: #fafbfc;
-  --cm-gutter-foreground: #9aa5b1;
-  --cm-selected: #dbeafe;
+  --cm-background: #ffffff;
+  --cm-foreground: #1b222c;
+  --cm-caret: #098842;
+  --cm-selection: #b8dbc8;
+  --cm-selection-match: #fcc483;
+  --cm-active-line: #f4f5f6;
+  --cm-gutter-background: #ffffff;
+  --cm-gutter-foreground: #8d96a5;
+  --cm-selected: #eaf6ef;
   --cm-tooltip-background: #ffffff;
-  --cm-tooltip-border: #d6dde5;
+  --cm-tooltip-border: #d0d5dd;
 
-  --cm-command: #0b6bcb;
-  --cm-comment: #7b8794;
-  --cm-string: #b4532a;
-  --cm-bracket: #6b7280;
-  --cm-atom: #7c3aed;
-  --cm-number: #b4532a;
-  --cm-variable: #1f2933;
-  --cm-type: #0f766e;
+  --cm-command: #1e6b41;
+  --cm-comment: #677283;
+  --cm-string: #b83a33;
+  --cm-bracket: #495365;
+  --cm-atom: #366cbf;
+  --cm-number: #b83a33;
+  --cm-variable: #1b222c;
+  --cm-type: #28518f;
 }
 
 :root[data-theme='dark'] {
-  --cm-background: #1b1f24;
-  --cm-foreground: #d7dee7;
-  --cm-caret: #7cb7ff;
-  --cm-selection: #2f4767;
-  --cm-selection-match: #4a442a;
-  --cm-active-line: #21262d;
-  --cm-gutter-background: #1b1f24;
-  --cm-gutter-foreground: #5c6773;
-  --cm-selected: #2c3e57;
-  --cm-tooltip-background: #22272e;
-  --cm-tooltip-border: #363c45;
+  --cm-background: #1b222c;
+  --cm-foreground: #e7e9ee;
+  --cm-caret: #53b57f;
+  --cm-selection: #495365;
+  --cm-selection-match: #7a4304;
+  --cm-active-line: #2f3a4c;
+  --cm-gutter-background: #1b222c;
+  --cm-gutter-foreground: #677283;
+  --cm-selected: #2f3a4c;
+  --cm-tooltip-background: #2f3a4c;
+  --cm-tooltip-border: #495365;
 
-  --cm-command: #7cb7ff;
-  --cm-comment: #6e7a88;
-  --cm-string: #e5946b;
-  --cm-bracket: #98a2b3;
-  --cm-atom: #c4a3f5;
-  --cm-number: #e5946b;
-  --cm-variable: #d7dee7;
-  --cm-type: #5eead4;
+  --cm-command: #86caa5;
+  --cm-comment: #8d96a5;
+  --cm-string: #e59d9a;
+  --cm-bracket: #afb5c0;
+  --cm-atom: #97b6e5;
+  --cm-number: #e59d9a;
+  --cm-variable: #e7e9ee;
+  --cm-type: #c3d0e3;
 }
 
 /* The editor fills its pane and scrolls inside it, never the page. */

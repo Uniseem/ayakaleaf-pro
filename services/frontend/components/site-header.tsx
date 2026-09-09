@@ -1,26 +1,30 @@
 'use client'
 
+/**
+ * The bar at the top of every page outside the editor.
+ *
+ * 68px tall, white, the site's name at 20px on the left and pill buttons on
+ * the right -- which is what the original is, measured. The editor has its own
+ * 40px toolbar instead; the two are different bars and always have been.
+ */
+
 import {
-  Button,
   Dropdown,
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
-  Navbar,
-  NavbarBrand,
-  NavbarContent,
-  NavbarItem,
 } from '@heroui/react'
 import Link from 'next/link'
 import { displayName, logout, type PublicUser } from '@/lib/auth'
+import { ButtonLink } from './ui'
 
-/**
- * The bar at the top of every signed-in page.
- *
- * The administrator's entries are here rather than on an admin page, because
- * somebody who needs them is usually in the middle of something else.
- */
-export function SiteHeader({ user, siteName }: { user: PublicUser; siteName: string }) {
+export function SiteHeader({
+  user,
+  siteName,
+}: {
+  user: PublicUser | null
+  siteName: string
+}) {
   async function signOut() {
     try {
       const answer = await logout()
@@ -33,44 +37,100 @@ export function SiteHeader({ user, siteName }: { user: PublicUser; siteName: str
   }
 
   return (
-    <Navbar maxWidth="xl" isBordered>
-      <NavbarBrand>
-        <Link href="/projects" className="font-semibold tracking-tight">
-          {siteName}
-        </Link>
-      </NavbarBrand>
+    <nav className="flex h-[68px] shrink-0 items-center gap-2 border-b border-[var(--border-divider)] bg-[var(--bg-light-primary)] px-3">
+      <Link
+        href={user ? '/projects' : '/'}
+        className="text-[20px] leading-7 text-[var(--content-primary)] hover:no-underline"
+      >
+        {siteName}
+      </Link>
 
-      <NavbarContent justify="end">
-        {user.isAdmin ? (
-          <NavbarItem className="hidden sm:flex">
-            <Button as={Link} href="/admin/settings" variant="light" size="sm">
-              Settings
-            </Button>
-          </NavbarItem>
-        ) : null}
-        <NavbarItem>
-          <Dropdown placement="bottom-end">
-            <DropdownTrigger>
-              <Button variant="light" size="sm">
-                {displayName(user)}
-              </Button>
-            </DropdownTrigger>
-            <DropdownMenu aria-label="Account">
-              <DropdownItem key="account" href="/account">
-                Account
-              </DropdownItem>
-              {user.isAdmin ? (
+      <div className="flex-1" />
+
+      {user ? (
+        <>
+          {user.isAdmin ? (
+            <Dropdown placement="bottom-end">
+              <DropdownTrigger>
+                <button
+                  type="button"
+                  className="inline-flex h-9 items-center gap-1 rounded-full px-4 text-[16px] leading-6 text-[var(--content-primary)] hover:bg-[var(--hover-interaction)]"
+                >
+                  Admin
+                  <Caret />
+                </button>
+              </DropdownTrigger>
+              <DropdownMenu aria-label="Admin">
                 <DropdownItem key="settings" href="/admin/settings">
                   Site settings
                 </DropdownItem>
-              ) : null}
-              <DropdownItem key="logout" color="danger" onPress={signOut}>
-                Sign out
+              </DropdownMenu>
+            </Dropdown>
+          ) : null}
+
+          <Dropdown placement="bottom-end">
+            <DropdownTrigger>
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-1 rounded-full border-2 border-[var(--border-primary)] px-4 text-[16px] leading-6 text-[var(--content-primary)] hover:bg-[var(--hover-interaction)]"
+              >
+                Account
+                <Caret />
+              </button>
+            </DropdownTrigger>
+            <DropdownMenu aria-label="Account">
+              <DropdownItem key="name" isReadOnly className="opacity-100">
+                <span className="text-[14px] text-[var(--content-secondary)]">
+                  {displayName(user)}
+                </span>
+              </DropdownItem>
+              <DropdownItem key="account" href="/account">
+                Account settings
+              </DropdownItem>
+              <DropdownItem key="logout" onPress={signOut}>
+                Log out
               </DropdownItem>
             </DropdownMenu>
           </Dropdown>
-        </NavbarItem>
-      </NavbarContent>
-    </Navbar>
+        </>
+      ) : (
+        <>
+          <ButtonLink href="/register" kind="primary">
+            Sign up
+          </ButtonLink>
+          <ButtonLink href="/login" kind="secondary">
+            Log in
+          </ButtonLink>
+        </>
+      )}
+    </nav>
+  )
+}
+
+/** The footer at the bottom of every page outside the editor. */
+export function SiteFooter({ siteName }: { siteName: string }) {
+  return (
+    <footer className="flex shrink-0 items-center gap-4 border-t border-[var(--border-divider)] bg-[var(--bg-light-primary)] px-4 py-3 text-[12px] leading-4 text-[var(--content-secondary)]">
+      <span>
+        © {new Date().getFullYear()} Powered by {siteName}
+      </span>
+      <div className="flex-1" />
+      <a
+        href="https://github.com/Uniseem/ayakaleaf-pro"
+        className="text-[var(--link-web)] hover:text-[var(--link-web-hover)] hover:underline"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Fork on GitHub
+      </a>
+    </footer>
+  )
+}
+
+function Caret() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+      <path d="m4 6 4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 }

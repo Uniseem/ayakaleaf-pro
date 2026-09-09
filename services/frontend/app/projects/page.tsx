@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { SiteHeader } from '@/components/site-header'
+import { SiteFooter, SiteHeader } from '@/components/site-header'
 import { currentUser } from '@/lib/auth'
 import { listProjects, listTags } from '@/lib/projects'
 import { forwardedHeaders } from '@/lib/server'
@@ -25,9 +25,10 @@ export default async function ProjectsPage() {
   ])
 
   return (
-    <>
+    <div className="flex min-h-dvh flex-col">
       <SiteHeader user={user} siteName={name} />
       <ProjectList initial={projects} initialTags={tags} userId={user.id} />
-    </>
+      <SiteFooter siteName={name} />
+    </div>
   )
 }

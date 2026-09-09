@@ -32,6 +32,7 @@ import { PdfPane } from '@/features/pdf-preview/pdf-pane'
 import { FileView } from '@/features/file-view/file-view'
 import { HistoryView } from '@/features/history/history-view'
 import { RailTabs, RailPanel } from './rail'
+import { EditorTabs } from './editor-tabs'
 import { Toolbar } from './toolbar'
 
 export function IdePage({
@@ -193,13 +194,16 @@ function EditorPane() {
   const editor = useEditor()
   const settings = useSettings()
 
-  if (editor.currentFile) {
-    return <FileView entry={editor.currentFile} onClose={editor.close} />
-  }
-
   return (
-    <div className="h-full min-h-0" style={editorFontStyle(settings)}>
-      <SourceEditor />
+    <div className="flex h-full min-h-0 flex-col bg-[var(--bg-light-primary)]">
+      <EditorTabs />
+      {editor.currentFile ? (
+        <FileView entry={editor.currentFile} onClose={editor.close} />
+      ) : (
+        <div className="min-h-0 flex-1" style={editorFontStyle(settings)}>
+          <SourceEditor />
+        </div>
+      )}
     </div>
   )
 }

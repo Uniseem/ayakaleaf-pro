@@ -3,19 +3,17 @@
 /**
  * The lists down the side of the projects page.
  *
- * Two groups: where a project is (everything, yours, shared with you, archived,
- * binned) and what it has been labelled. They are separate because they answer
- * different questions and combining them into one list of "views" makes both
- * harder to scan.
+ * 200px wide, transparent, with the new-project button at the top and the
+ * filters below it as 40px rows that turn green when they are the one you are
+ * on. Tags come after, under a small-caps heading. All measured from the
+ * original rather than chosen.
  */
 
 import {
-  Button,
   Dropdown,
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
-  Input,
   Modal,
   ModalBody,
   ModalContent,
@@ -25,36 +23,35 @@ import {
 import { useState } from 'react'
 import { createTag, deleteTag, renameTag, type Filter, type Tag } from '@/lib/projects'
 import { messageFor } from '@/lib/api'
+import { Button, TextField } from '@/components/ui'
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'All projects' },
   { key: 'owned', label: 'Your projects' },
   { key: 'shared', label: 'Shared with you' },
-  { key: 'archived', label: 'Archived' },
-  { key: 'trashed', label: 'Bin' },
+  { key: 'archived', label: 'Archived projects' },
+  { key: 'trashed', label: 'Trashed projects' },
 ]
 
 /** The colours a tag may be, kept few so a list of them stays readable. */
-const COLOURS = [
-  '#0b6bcb', '#0f766e', '#7c3aed', '#b4532a', '#b91c1c', '#4d7c0f', '#7b8794',
-]
+const COLOURS = ['#098842', '#366cbf', '#b83a33', '#8f5514', '#495365', '#1e6b41', '#28518f']
 
 export function ProjectSidebar({
   filter,
   onFilter,
-  counts,
   tags,
   tagId,
   onTag,
   onChanged,
+  onNewProject,
 }: {
   filter: Filter
   onFilter: (filter: Filter) => void
-  counts: Record<Filter, number>
   tags: Tag[]
   tagId: string | null
   onTag: (id: string | null) => void
   onChanged: () => Promise<void> | void
+  onNewProject: () => void
 }) {
   const [editing, setEditing] = useState<Tag | 'new' | null>(null)
   const [busy, setBusy] = useState(false)
@@ -74,63 +71,55 @@ export function ProjectSidebar({
     }
   }
 
+  const row =
+    'flex w-full items-center gap-2 rounded-[8px] px-3 py-2 text-left text-[16px] leading-6'
+
   return (
-    <aside className="hidden w-56 shrink-0 border-r border-divider p-3 sm:block">
+    <aside className="hidden w-[200px] shrink-0 flex-col gap-4 px-3 py-4 md:flex">
+      <Button className="w-full" onClick={onNewProject}>
+        New project
+      </Button>
+
       <nav aria-label="Filter projects">
-        <ul className="flex flex-col gap-0.5">
-          {FILTERS.map(each => (
-            <li key={each.key}>
-              <button
-                type="button"
-                onClick={() => onFilter(each.key)}
-                className={[
-                  'flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm',
-                  filter === each.key && !tagId
-                    ? 'bg-default-200 font-medium'
-                    : 'hover:bg-default-100',
-                ].join(' ')}
-              >
-                <span>{each.label}</span>
-                <span className="text-xs text-default-400">{counts[each.key]}</span>
-              </button>
-            </li>
-          ))}
+        <ul className="flex flex-col">
+          {FILTERS.map(each => {
+            const active = filter === each.key && !tagId
+            return (
+              <li key={each.key}>
+                <button
+                  type="button"
+                  onClick={() => onFilter(each.key)}
+                  className={`${row} ${
+                    active
+                      ? 'bg-[var(--bg-accent-03)] font-bold text-[var(--link-web)]'
+                      : 'text-[var(--content-secondary)] hover:bg-[var(--hover-interaction)]'
+                  }`}
+                >
+                  {each.label}
+                </button>
+              </li>
+            )
+          })}
         </ul>
       </nav>
 
-      <div className="mt-5">
-        <div className="mb-1 flex items-center justify-between px-2">
-          <span className="text-xs font-semibold uppercase tracking-wide text-default-500">
-            Tags
-          </span>
-          <Button
-            size="sm"
-            variant="light"
-            isIconOnly
-            className="h-6 w-6 min-w-6"
-            aria-label="New tag"
-            onPress={() => setEditing('new')}
-          >
-            +
-          </Button>
-        </div>
-
-        {tags.length === 0 ? (
-          <p className="px-2 py-1 text-xs text-default-400">
-            None yet. A tag is a way to group projects that are not otherwise
-            related.
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-0.5">
-            {tags.map(tag => (
+      <div>
+        <h2 className="px-3 pb-1 text-[12px] font-semibold uppercase leading-4 tracking-wide text-[var(--content-secondary)]">
+          Organize tags
+        </h2>
+        <ul className="flex flex-col">
+          {tags.map(tag => {
+            const active = tagId === tag.id
+            return (
               <li key={tag.id} className="group flex items-center">
                 <button
                   type="button"
-                  onClick={() => onTag(tagId === tag.id ? null : tag.id)}
-                  className={[
-                    'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm',
-                    tagId === tag.id ? 'bg-default-200 font-medium' : 'hover:bg-default-100',
-                  ].join(' ')}
+                  onClick={() => onTag(active ? null : tag.id)}
+                  className={`${row} min-w-0 flex-1 ${
+                    active
+                      ? 'bg-[var(--bg-accent-03)] font-bold text-[var(--link-web)]'
+                      : 'text-[var(--content-secondary)] hover:bg-[var(--hover-interaction)]'
+                  }`}
                 >
                   <span
                     aria-hidden
@@ -138,21 +127,19 @@ export function ProjectSidebar({
                     style={{ backgroundColor: tag.color || COLOURS[0] }}
                   />
                   <span className="truncate">{tag.name}</span>
-                  <span className="ml-auto text-xs text-default-400">
+                  <span className="ml-auto text-[14px] font-normal text-[var(--content-secondary)]">
                     {tag.projectIds.length}
                   </span>
                 </button>
                 <Dropdown placement="bottom-end">
                   <DropdownTrigger>
-                    <Button
-                      isIconOnly
-                      size="sm"
-                      variant="light"
-                      className="h-6 w-6 min-w-6 opacity-0 group-hover:opacity-100 data-[focus-visible=true]:opacity-100"
+                    <button
+                      type="button"
                       aria-label={`Actions for ${tag.name}`}
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[4px] text-[var(--content-secondary)] opacity-0 hover:bg-[var(--hover-interaction)] group-hover:opacity-100 data-[focus-visible=true]:opacity-100"
                     >
                       ⋯
-                    </Button>
+                    </button>
                   </DropdownTrigger>
                   <DropdownMenu
                     aria-label={`Actions for ${tag.name}`}
@@ -165,15 +152,25 @@ export function ProjectSidebar({
                     }}
                   >
                     <DropdownItem key="rename">Rename</DropdownItem>
-                    <DropdownItem key="delete" color="danger" className="text-danger">
+                    <DropdownItem key="delete" className="text-[var(--content-danger)]">
                       Delete tag
                     </DropdownItem>
                   </DropdownMenu>
                 </Dropdown>
               </li>
-            ))}
-          </ul>
-        )}
+            )
+          })}
+        </ul>
+        <button
+          type="button"
+          onClick={() => setEditing('new')}
+          className="mt-1 flex items-center gap-1.5 px-3 py-1 text-[16px] leading-6 text-[var(--link-web)] hover:underline"
+        >
+          <span aria-hidden className="text-[18px] leading-none">
+            +
+          </span>
+          New tag
+        </button>
       </div>
 
       {editing ? (
@@ -213,7 +210,7 @@ function TagDialog({
   onConfirm: (name: string, colour: string) => void
 }) {
   const [name, setName] = useState(tag?.name ?? '')
-  const [colour, setColour] = useState(tag?.color ?? COLOURS[0] ?? '#0b6bcb')
+  const [colour, setColour] = useState(tag?.color ?? COLOURS[0] ?? '#098842')
 
   return (
     <Modal isOpen onClose={onCancel} size="sm">
@@ -226,12 +223,19 @@ function TagDialog({
             }
           }}
         >
-          <ModalHeader>{tag ? 'Rename tag' : 'New tag'}</ModalHeader>
-          <ModalBody>
-            <Input autoFocus label="Name" value={name} onValueChange={setName} />
+          <ModalHeader className="text-[20px] font-bold">
+            {tag ? 'Rename tag' : 'New tag'}
+          </ModalHeader>
+          <ModalBody className="gap-4">
+            <TextField
+              autoFocus
+              label="Name"
+              value={name}
+              onChange={event => setName(event.target.value)}
+            />
             <div>
-              <span className="mb-1 block text-xs text-default-500">Colour</span>
-              <div className="flex gap-1.5">
+              <span className="mb-1 block text-[14px] font-medium leading-5">Colour</span>
+              <div className="flex gap-2">
                 {COLOURS.map(each => (
                   <button
                     key={each}
@@ -239,22 +243,23 @@ function TagDialog({
                     aria-label={`Colour ${each}`}
                     aria-pressed={colour === each}
                     onClick={() => setColour(each)}
-                    className={[
-                      'h-6 w-6 rounded-full border-2',
-                      colour === each ? 'border-foreground' : 'border-transparent',
-                    ].join(' ')}
+                    className={`h-6 w-6 rounded-full border-2 ${
+                      colour === each ? 'border-[var(--content-primary)]' : 'border-transparent'
+                    }`}
                     style={{ backgroundColor: each }}
                   />
                 ))}
               </div>
             </div>
-            {error ? <p className="text-sm text-danger">{error}</p> : null}
+            {error ? (
+              <p className="text-[14px] text-[var(--content-danger)]">{error}</p>
+            ) : null}
           </ModalBody>
           <ModalFooter>
-            <Button variant="light" onPress={onCancel} isDisabled={busy}>
+            <Button kind="ghost" onClick={onCancel} disabled={busy}>
               Cancel
             </Button>
-            <Button color="primary" type="submit" isLoading={busy} isDisabled={!name.trim()}>
+            <Button type="submit" loading={busy} disabled={!name.trim()}>
               {tag ? 'Rename' : 'Create'}
             </Button>
           </ModalFooter>

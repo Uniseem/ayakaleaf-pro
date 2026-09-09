@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, Input } from '@heroui/react'
+import { Button, TextField } from '@/components/ui'
 import { useState, type FormEvent } from 'react'
 import { fieldFor } from '@/lib/api'
 import { register } from '@/lib/auth'
@@ -38,38 +38,32 @@ export function RegisterForm({ minPasswordLength }: { minPasswordLength: number 
   return (
     <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <FormError error={error} />
-      <Input
+      <TextField
         label="Email"
         type="email"
         value={email}
-        onValueChange={setEmail}
+        onChange={event => setEmail(event.target.value)}
         autoComplete="username"
-        isRequired
+        placeholder="email@example.com"
+        required
         autoFocus
-        isInvalid={badField === 'email'}
-        variant="bordered"
+        error={badField === 'email' ? ' ' : null}
       />
-      <Input
+      <TextField
         label="Password"
         type="password"
         value={password}
-        onValueChange={setPassword}
+        onChange={event => setPassword(event.target.value)}
         autoComplete="new-password"
-        isRequired
-        isInvalid={badField === 'password' || tooShort}
-        description={`At least ${minPasswordLength} characters.`}
-        errorMessage={tooShort ? `At least ${minPasswordLength} characters.` : undefined}
-        variant="bordered"
+        required
+        hint={`At least ${minPasswordLength} characters.`}
+        error={tooShort ? `At least ${minPasswordLength} characters.` : null}
       />
-      <Button
-        type="submit"
-        color="primary"
-        isLoading={busy}
-        isDisabled={tooShort}
-        fullWidth
-      >
-        {busy ? 'Creating your account' : 'Create account'}
-      </Button>
+      <div>
+        <Button type="submit" loading={busy} disabled={tooShort}>
+          {busy ? 'Creating your account' : 'Create account'}
+        </Button>
+      </div>
     </form>
   )
 }

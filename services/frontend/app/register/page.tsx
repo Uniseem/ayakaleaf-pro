@@ -1,18 +1,20 @@
-import { Link } from '@heroui/react'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { AuthCard } from '@/components/auth-card'
 import { ProviderButtons } from '@/components/provider-buttons'
 import { authStatus, currentUser } from '@/lib/auth'
 import { forwardedHeaders } from '@/lib/server'
+import { siteName } from '@/lib/site'
 import { RegisterForm } from './register-form'
 
 export const metadata = { title: 'Create an account' }
 
 export default async function RegisterPage() {
   const headers = await forwardedHeaders()
-  const [user, status] = await Promise.all([
+  const [user, status, name] = await Promise.all([
     currentUser(headers).catch(() => null),
     authStatus(headers),
+    siteName(headers),
   ])
 
   if (user) {
@@ -23,8 +25,16 @@ export default async function RegisterPage() {
     return (
       <AuthCard
         title="Sign up is closed"
-        subtitle="Ask an administrator for an account."
-        footer={<Link href="/login" size="sm">Back to sign in</Link>}
+        siteName={name}
+        notice="Ask an administrator for an account."
+        footer={
+          <Link
+            href="/login"
+            className="text-[var(--link-web)] underline underline-offset-2 hover:text-[var(--link-web-hover)]"
+          >
+            Back to log in
+          </Link>
+        }
       >
         <ProviderButtons providers={status.providers} />
       </AuthCard>
@@ -34,9 +44,10 @@ export default async function RegisterPage() {
   return (
     <AuthCard
       title={status.firstUser ? 'Set up this site' : 'Create an account'}
-      subtitle={
+      siteName={name}
+      notice={
         status.firstUser
-          ? 'Nobody has an account here yet. The account you create now becomes the administrator.'
+          ? 'Nobody has an account here yet. The account you create now becomes the administrator, and you will be signed in and taken to the settings.'
           : status.allowedDomains.length > 0
             ? `Sign up is limited to these email domains: ${status.allowedDomains.join(', ')}`
             : undefined
@@ -44,7 +55,13 @@ export default async function RegisterPage() {
       footer={
         status.firstUser ? null : (
           <>
-            Already have an account? <Link href="/login" size="sm">Sign in</Link>
+            Already have an account?{' '}
+            <Link
+              href="/login"
+              className="text-[var(--link-web)] underline underline-offset-2 hover:text-[var(--link-web-hover)]"
+            >
+              Log in
+            </Link>
           </>
         )
       }

@@ -13,7 +13,18 @@
  * which file and line it came from and can put the cursor there.
  */
 
-import { Button, Chip, ScrollShadow, Spinner, Tab, Tabs, Tooltip } from '@heroui/react'
+import {
+  Dropdown,
+  DropdownItem,
+  DropdownMenu,
+  DropdownTrigger,
+  ScrollShadow,
+  Spinner,
+  Tab,
+  Tabs,
+  Tooltip,
+} from '@heroui/react'
+import { Button } from '@/components/ui'
 import { useMemo, useState } from 'react'
 import { useCompile } from '@/features/ide/contexts/compile-context'
 import { useProject } from '@/features/ide/contexts/project-context'
@@ -25,10 +36,8 @@ export function PdfPane() {
   const compile = useCompile()
   const layout = useLayout()
 
-  const problems = compile.errors.length + compile.warnings.length
-
   return (
-    <div className="flex h-full min-h-0 flex-col bg-default-50">
+    <div className="flex h-full min-h-0 flex-col bg-[var(--bg-light-secondary)]">
       <PdfToolbar />
       <div className="relative min-h-0 flex-1">
         {compile.pdfUrl ? (
@@ -36,42 +45,20 @@ export function PdfPane() {
             key={compile.pdfUrl}
             src={compile.pdfUrl}
             title="Compiled PDF"
-            className="h-full w-full border-0 bg-default-100"
+            className="h-full w-full border-0 bg-[var(--bg-light-tertiary)]"
           />
         ) : (
           <EmptyPdf />
         )}
         {compile.compiling ? (
-          <div className="absolute inset-x-0 top-0 flex items-center justify-center gap-2 bg-default-100/90 py-1.5 text-xs text-default-600">
+          <div className="absolute inset-x-0 top-0 flex items-center justify-center gap-2 bg-[var(--bg-light-secondary)]/90 py-1.5 text-[12px] leading-4 text-[var(--content-secondary)]">
             <Spinner size="sm" />
             Compiling…
           </div>
         ) : null}
       </div>
 
-      {layout.showLogs ? (
-        <LogPane />
-      ) : problems > 0 ? (
-        <button
-          type="button"
-          onClick={layout.toggleLogs}
-          className="flex items-center justify-between border-t border-divider px-3 py-2 text-left text-xs hover:bg-default-100"
-        >
-          <span className="flex items-center gap-2">
-            {compile.errors.length > 0 ? (
-              <Chip size="sm" color="danger" variant="flat">
-                {compile.errors.length} error{compile.errors.length === 1 ? '' : 's'}
-              </Chip>
-            ) : null}
-            {compile.warnings.length > 0 ? (
-              <Chip size="sm" color="warning" variant="flat">
-                {compile.warnings.length} warning{compile.warnings.length === 1 ? '' : 's'}
-              </Chip>
-            ) : null}
-          </span>
-          <span className="text-default-500">Show log</span>
-        </button>
-      ) : null}
+      {layout.showLogs ? <LogPane /> : null}
     </div>
   )
 }
@@ -79,66 +66,160 @@ export function PdfPane() {
 function PdfToolbar() {
   const compile = useCompile()
   const layout = useLayout()
+  const [options, setOptions] = useState(false)
+
+  const problems = compile.errors.length + compile.warnings.length
 
   return (
-    <div className="flex items-center gap-1 border-b border-divider px-2 py-1.5">
-      <Button
-        size="sm"
-        color="primary"
-        onPress={compile.compiling ? compile.stop : compile.startCompile}
-        className="h-7"
-      >
-        {compile.compiling ? 'Stop' : 'Recompile'}
-      </Button>
+    <div className="flex h-10 shrink-0 items-center gap-2 border-b border-[var(--border-divider)] bg-[var(--bg-light-primary)] px-2">
+      {/* One pill split in two: the action on the left, its settings on the
+          right. The original's shape, and it keeps the common case one click
+          away while the options stay reachable. */}
+      <div className="flex items-stretch">
+        <button
+          type="button"
+          onClick={compile.compiling ? compile.stop : compile.startCompile}
+          className="inline-flex h-6 items-center rounded-l-full bg-[var(--bg-accent-01)] px-4 text-[14px] font-semibold leading-5 text-white hover:bg-[var(--bg-accent-02)]"
+        >
+          {compile.compiling ? 'Stop' : 'Recompile'}
+        </button>
+        <Dropdown
+          placement="bottom-start"
+          isOpen={options}
+          onOpenChange={setOptions}
+        >
+          <DropdownTrigger>
+            <button
+              type="button"
+              aria-label="Compile options"
+              className="inline-flex h-6 items-center rounded-r-full border-l border-white/25 bg-[var(--bg-accent-01)] px-2 text-white hover:bg-[var(--bg-accent-02)]"
+            >
+              <Caret />
+            </button>
+          </DropdownTrigger>
+          <DropdownMenu aria-label="Compile options" closeOnSelect={false}>
+            <DropdownItem
+              key="auto"
+              onPress={() => compile.setAutoCompile(!compile.autoCompile)}
+              endContent={<Tick on={compile.autoCompile} />}
+            >
+              Compile automatically
+            </DropdownItem>
+            <DropdownItem
+              key="draft"
+              description="Skips images, which is faster"
+              onPress={() => compile.setDraft(!compile.draft)}
+              endContent={<Tick on={compile.draft} />}
+            >
+              Draft mode
+            </DropdownItem>
+            <DropdownItem
+              key="stop"
+              onPress={() => compile.setStopOnFirstError(!compile.stopOnFirstError)}
+              endContent={<Tick on={compile.stopOnFirstError} />}
+            >
+              Stop on first error
+            </DropdownItem>
+          </DropdownMenu>
+        </Dropdown>
+      </div>
 
       {compile.stale && !compile.compiling ? (
-        <span className="text-xs text-warning-600">Changed since last build</span>
+        <span className="text-[12px] leading-4 text-[var(--content-warning)]">
+          Changed since last build
+        </span>
       ) : null}
 
       <div className="flex-1" />
 
-      {compile.errors.length > 0 ? (
-        <Chip size="sm" color="danger" variant="flat">
-          {compile.errors.length}
-        </Chip>
-      ) : null}
-      {compile.warnings.length > 0 ? (
-        <Chip size="sm" color="warning" variant="flat">
-          {compile.warnings.length}
-        </Chip>
+      {problems > 0 ? (
+        <button
+          type="button"
+          onClick={layout.toggleLogs}
+          className="flex h-7 items-center gap-1.5 rounded-[4px] px-2 text-[12px] leading-4 hover:bg-[var(--hover-interaction)]"
+        >
+          {compile.errors.length > 0 ? (
+            <span className="text-[var(--content-danger)]">
+              {compile.errors.length} error{compile.errors.length === 1 ? '' : 's'}
+            </span>
+          ) : null}
+          {compile.warnings.length > 0 ? (
+            <span className="text-[var(--content-warning)]">
+              {compile.warnings.length} warning{compile.warnings.length === 1 ? '' : 's'}
+            </span>
+          ) : null}
+        </button>
       ) : null}
 
       <Tooltip content={layout.showLogs ? 'Hide log' : 'Show log'} delay={400}>
-        <Button
-          size="sm"
-          variant="light"
-          isIconOnly
-          className="h-7 w-7 min-w-7"
+        <button
+          type="button"
           aria-label="Toggle the log"
-          onPress={layout.toggleLogs}
+          onClick={layout.toggleLogs}
+          className={`flex h-7 w-7 items-center justify-center rounded-[4px] ${
+            layout.showLogs
+              ? 'bg-[var(--bg-accent-03)] text-[var(--link-web)]'
+              : 'text-[var(--content-secondary)] hover:bg-[var(--hover-interaction)]'
+          }`}
         >
           <LogIcon />
-        </Button>
+        </button>
       </Tooltip>
 
       {compile.pdfUrl ? (
+        <Tooltip content="Download PDF" delay={400}>
+          <a
+            href={compile.pdfUrl}
+            download
+            aria-label="Download the PDF"
+            className="flex h-7 w-7 items-center justify-center rounded-[4px] text-[var(--content-secondary)] hover:bg-[var(--hover-interaction)]"
+          >
+            <DownloadIcon />
+          </a>
+        </Tooltip>
+      ) : null}
+
+      {compile.pdfUrl ? (
         <Tooltip content="Open in a new tab" delay={400}>
-          <Button
-            as="a"
+          <a
             href={compile.pdfUrl}
             target="_blank"
             rel="noreferrer"
-            size="sm"
-            variant="light"
-            isIconOnly
-            className="h-7 w-7 min-w-7"
             aria-label="Open the PDF in a new tab"
+            className="flex h-7 w-7 items-center justify-center rounded-[4px] text-[var(--content-secondary)] hover:bg-[var(--hover-interaction)]"
           >
             <ExternalIcon />
-          </Button>
+          </a>
         </Tooltip>
       ) : null}
     </div>
+  )
+}
+
+function Tick({ on }: { on: boolean }) {
+  return on ? (
+    <svg viewBox="0 0 16 16" className="h-4 w-4 text-[var(--content-positive)]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="m3.5 8.5 3 3 6-7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ) : (
+    <span className="h-4 w-4" />
+  )
+}
+
+function Caret() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="m4 6 4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function DownloadIcon() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <path d="M8 2.5v8M5 7.5l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M2.5 12v.5A1.5 1.5 0 0 0 4 14h8a1.5 1.5 0 0 0 1.5-1.5V12" strokeLinecap="round" />
+    </svg>
   )
 }
 
@@ -149,7 +230,7 @@ function EmptyPdf() {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
         <p className="text-sm text-danger">{compile.error}</p>
-        <Button size="sm" variant="flat" onPress={compile.startCompile}>
+        <Button size="sm" kind="secondary" onClick={compile.startCompile}>
           Try again
         </Button>
       </div>
@@ -171,7 +252,7 @@ function EmptyPdf() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
       <p className="text-sm text-default-500">No PDF yet.</p>
-      <Button size="sm" color="primary" onPress={compile.startCompile}>
+      <Button size="sm" onClick={compile.startCompile}>
         Compile
       </Button>
     </div>
@@ -220,16 +301,14 @@ function LogPane() {
           <Tab key="raw" title="Raw log" />
         </Tabs>
         <div className="flex-1" />
-        <Button
-          size="sm"
-          variant="light"
-          isIconOnly
-          className="h-6 w-6 min-w-6"
+        <button
+          type="button"
           aria-label="Hide the log"
-          onPress={() => layout.setShowLogs(false)}
+          onClick={() => layout.setShowLogs(false)}
+          className="flex h-6 w-6 items-center justify-center rounded-[4px] text-[var(--content-secondary)] hover:bg-[var(--hover-interaction)]"
         >
           <CloseIcon />
-        </Button>
+        </button>
       </div>
 
       <ScrollShadow className="min-h-0 flex-1">

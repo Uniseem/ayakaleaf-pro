@@ -1,10 +1,11 @@
-import { Link } from '@heroui/react'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { AuthCard } from '@/components/auth-card'
 import { ProviderButtons } from '@/components/provider-buttons'
 import { authStatus, currentUser } from '@/lib/auth'
 import { localPath } from '@/lib/paths'
 import { forwardedHeaders } from '@/lib/server'
+import { siteName } from '@/lib/site'
 import { LoginForm } from './login-form'
 
 export const metadata = { title: 'Sign in' }
@@ -16,9 +17,10 @@ export default async function LoginPage({
 }) {
   const query = await searchParams
   const headers = await forwardedHeaders()
-  const [user, status] = await Promise.all([
+  const [user, status, name] = await Promise.all([
     currentUser(headers).catch(() => null),
     authStatus(headers),
+    siteName(headers),
   ])
 
   if (user) {
@@ -33,11 +35,18 @@ export default async function LoginPage({
 
   return (
     <AuthCard
-      title="Sign in"
+      title="Log in"
+      siteName={name}
       footer={
         status.open ? (
           <>
-            No account yet? <Link href="/register" size="sm">Create one</Link>
+            No account yet?{' '}
+            <Link
+              href="/register"
+              className="text-[var(--link-web)] underline underline-offset-2 hover:text-[var(--link-web-hover)]"
+            >
+              Create one
+            </Link>
           </>
         ) : null
       }
@@ -47,7 +56,7 @@ export default async function LoginPage({
       {query.error ? (
         <div
           role="alert"
-          className="rounded-medium border border-danger-200 bg-danger-50 px-4 py-3 text-small text-danger-700 dark:bg-danger-50/10"
+          className="mb-4 rounded-[4px] bg-[var(--bg-danger-03)] px-4 py-3 text-[14px] leading-5 text-[var(--content-danger)]"
         >
           {query.error}
         </div>

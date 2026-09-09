@@ -34,6 +34,8 @@ import {
   history,
   historyKeymap,
   indentWithTab,
+  redo,
+  undo,
 } from '@codemirror/commands'
 import {
   bracketMatching,
@@ -55,7 +57,12 @@ import {
   closeBracketsKeymap,
   completionKeymap,
 } from '@codemirror/autocomplete'
-import { searchKeymap, highlightSelectionMatches, search } from '@codemirror/search'
+import {
+  highlightSelectionMatches,
+  openSearchPanel,
+  search,
+  searchKeymap,
+} from '@codemirror/search'
 import { lintGutter, linter, lintKeymap } from '@codemirror/lint'
 import { useEditor } from '@/features/ide/contexts/editor-context'
 import { useCompile } from '@/features/ide/contexts/compile-context'
@@ -199,7 +206,7 @@ export function SourceEditor() {
   const { reportPosition } = useConnection()
 
   const host = useRef<HTMLDivElement>(null)
-  const view = useRef<EditorView | null>(null)
+  const viewRef = useRef<EditorView | null>(null)
   // Which document and which revision the view holds, to tell a switch and
   // an outside replacement from something that was just typed here.
   const showing = useRef<string | null>(null)
@@ -315,7 +322,7 @@ export function SourceEditor() {
 
   // Build the view once.
   useEffect(() => {
-    if (!host.current || view.current) {
+    if (!host.current || viewRef.current) {
       return
     }
     const created = new EditorView({
@@ -331,17 +338,17 @@ export function SourceEditor() {
       }),
       parent: host.current,
     })
-    view.current = created
+    viewRef.current = created
     return () => {
       created.destroy()
-      view.current = null
+      viewRef.current = null
       showing.current = null
     }
   }, [extensions, compartments])
 
   // Load a document, or apply an edit that came from elsewhere.
   useEffect(() => {
-    const editor = view.current
+    const editor = viewRef.current
     if (!editor || !current) {
       return
     }
@@ -408,7 +415,7 @@ export function SourceEditor() {
   // one to them would tie three components together for one jump.
   useEffect(() => {
     const jump = (event: Event) => {
-      const editor = view.current
+      const editor = viewRef.current
       const detail = (event as CustomEvent<{ line: number }>).detail
       if (!editor || !detail) {
         return
@@ -427,9 +434,85 @@ export function SourceEditor() {
     return () => window.removeEventListener('ide:goto-line', jump)
   }, [])
 
+  // What the menus ask for. Events rather than calls: the menu bar does not
+  // hold the CodeMirror view, and handing it one would tie the two together
+  // for what is a handful of commands.
+  useEffect(() => {
+    const view = () => viewRef.current
+    const insertAtCursor = (snippet: string) => {
+      const editor = view()
+      if (!editor) {
+        return
+      }
+      const at = editor.state.selection.main
+      editor.dispatch({
+        changes: { from: at.from, to: at.to, insert: snippet },
+        selection: { anchor: at.from + snippet.length },
+      })
+      editor.focus()
+    }
+
+    const handlers: Record<string, (event: Event) => void> = {
+      'ide:insert': event => {
+        const detail = (event as CustomEvent<{ snippet: string }>).detail
+        if (detail) {
+          insertAtCursor(detail.snippet)
+        }
+      },
+      // A wrap puts the selection inside the command's braces, so selecting a
+      // word and choosing Bold does what it looks like it will.
+      'ide:wrap': event => {
+        const detail = (event as CustomEvent<{ snippet: string }>).detail
+        const editor = view()
+        if (!detail || !editor) {
+          return
+        }
+        const at = editor.state.selection.main
+        const selected = editor.state.sliceDoc(at.from, at.to)
+        const brace = detail.snippet.lastIndexOf('{')
+        const text =
+          detail.snippet.slice(0, brace + 1) + selected + detail.snippet.slice(brace + 1)
+        editor.dispatch({
+          changes: { from: at.from, to: at.to, insert: text },
+          selection: { anchor: at.from + brace + 1 + selected.length },
+        })
+        editor.focus()
+      },
+      'ide:undo': () => {
+        const editor = view()
+        if (editor) {
+          undo(editor)
+          editor.focus()
+        }
+      },
+      'ide:redo': () => {
+        const editor = view()
+        if (editor) {
+          redo(editor)
+          editor.focus()
+        }
+      },
+      'ide:find': () => {
+        const editor = view()
+        if (editor) {
+          openSearchPanel(editor)
+        }
+      },
+    }
+
+    for (const [name, handler] of Object.entries(handlers)) {
+      window.addEventListener(name, handler)
+    }
+    return () => {
+      for (const [name, handler] of Object.entries(handlers)) {
+        window.removeEventListener(name, handler)
+      }
+    }
+  }, [])
+
   // Settings that can change without a reload.
   useEffect(() => {
-    const editor = view.current
+    const editor = viewRef.current
     if (!editor) {
       return
     }

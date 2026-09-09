@@ -1,6 +1,7 @@
 'use client'
 
-import { Button, Input } from '@heroui/react'
+import Link from 'next/link'
+import { Button, TextField } from '@/components/ui'
 import { useState, type FormEvent } from 'react'
 import { fieldFor } from '@/lib/api'
 import { login } from '@/lib/auth'
@@ -41,30 +42,40 @@ export function LoginForm({ next }: { next?: string }) {
   return (
     <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <FormError error={error} />
-      <Input
+      <TextField
         label="Email"
         type="email"
         value={email}
-        onValueChange={setEmail}
+        onChange={event => setEmail(event.target.value)}
         autoComplete="username"
-        isRequired
+        placeholder="email@example.com"
+        required
         autoFocus
-        isInvalid={badField === 'email'}
-        variant="bordered"
+        error={badField === 'email' ? ' ' : null}
       />
-      <Input
+      <TextField
         label="Password"
         type="password"
         value={password}
-        onValueChange={setPassword}
+        onChange={event => setPassword(event.target.value)}
         autoComplete="current-password"
-        isRequired
-        isInvalid={badField === 'password'}
-        variant="bordered"
+        required
+        error={badField === 'password' ? ' ' : null}
       />
-      <Button type="submit" color="primary" isLoading={busy} fullWidth>
-        {busy ? 'Signing in' : 'Sign in'}
-      </Button>
+      {/* The button and the link share a row, which is where the original
+          puts them: the form is short enough that a full-width button below
+          a full-width field reads as one more field. */}
+      <div className="flex items-center gap-4">
+        <Button type="submit" loading={busy}>
+          {busy ? 'Logging in' : 'Login'}
+        </Button>
+        <Link
+          href="/password/reset"
+          className="text-[14px] leading-5 text-[var(--link-web)] underline underline-offset-2 hover:text-[var(--link-web-hover)]"
+        >
+          Forgot your password?
+        </Link>
+      </div>
     </form>
   )
 }

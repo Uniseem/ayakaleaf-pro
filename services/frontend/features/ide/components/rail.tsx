@@ -49,9 +49,9 @@ function useRailEntries(): RailEntry[] {
             <FileTree />
           </div>
           {settings.showOutline ? (
-            <div className="flex h-2/5 min-h-[120px] flex-col border-t border-divider">
-              <header className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-default-500">
-                Outline
+            <div className="flex h-2/5 min-h-[120px] flex-col border-t border-[var(--border-divider)]">
+              <header className="flex h-7 shrink-0 items-center px-3 text-[12px] font-semibold uppercase leading-4 tracking-wide text-[var(--content-secondary)]">
+                File outline
               </header>
               <div className="min-h-0 flex-1">
                 <Outline />
@@ -90,7 +90,7 @@ export function RailTabs() {
 
   return (
       <nav
-        className="flex w-11 shrink-0 flex-col items-center gap-1 border-r border-divider bg-default-50 py-2"
+        className="flex w-10 shrink-0 flex-col items-center gap-1 border-r border-[var(--border-divider)] bg-[var(--bg-light-primary)] py-2"
         aria-label="Panels"
       >
         {entries.map(entry => (
@@ -107,15 +107,15 @@ export function RailTabs() {
               aria-pressed={layout.railTab === entry.key}
               onClick={() => layout.toggleRailTab(entry.key)}
               className={[
-                'relative flex h-8 w-8 items-center justify-center rounded-md',
+                'relative flex h-8 w-8 items-center justify-center rounded-[4px]',
                 layout.railTab === entry.key
-                  ? 'bg-default-200 text-foreground'
-                  : 'text-default-500 hover:bg-default-100 hover:text-foreground',
+                  ? 'bg-[var(--bg-accent-03)] text-[var(--link-web-hover)]'
+                  : 'text-[var(--content-secondary)] hover:bg-[var(--hover-interaction)] hover:text-[var(--content-primary)]',
               ].join(' ')}
             >
               {entry.icon}
               {entry.badge ? (
-                <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-medium text-white">
+                <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[var(--bg-danger-01)] px-1 text-[9px] font-medium text-white">
                   {entry.badge > 9 ? '9+' : entry.badge}
                 </span>
               ) : null}
@@ -136,7 +136,7 @@ export function RailPanel() {
     return null
   }
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden border-r border-divider bg-background">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden border-r border-[var(--border-divider)] bg-[var(--bg-light-primary)]">
       {open.panel}
     </div>
   )

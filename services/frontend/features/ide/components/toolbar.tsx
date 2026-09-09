@@ -3,39 +3,28 @@
 /**
  * The bar across the top of the editor.
  *
- * Project identity on the left, what is being done to it in the middle, and
- * the person on the right. The compile button lives here rather than only in
- * the PDF pane so that it is reachable when the PDF pane is closed.
+ * 40px, white, one hairline underneath -- measured from the original, where
+ * this bar is deliberately shorter than the 68px one on every other page: the
+ * editor is a workspace and the chrome gets out of the way.
+ *
+ * Three parts: the way out and the menus on the left, the project's name in
+ * the middle, and what you do to the project on the right.
  */
 
-import {
-  Button,
-  Dropdown,
-  DropdownItem,
-  DropdownMenu,
-  DropdownSection,
-  DropdownTrigger,
-  Input,
-  Switch,
-  Tooltip,
-} from '@heroui/react'
+import { Tooltip } from '@heroui/react'
 import Link from 'next/link'
 import { useState } from 'react'
 import { useProject } from '@/features/ide/contexts/project-context'
-import { useCompile } from '@/features/ide/contexts/compile-context'
 import { useLayout } from '@/features/ide/contexts/layout-context'
 import { useEditor } from '@/features/ide/contexts/editor-context'
-import { useSettings } from '@/features/ide/contexts/settings-context'
 import { useConnection } from '@/features/ide/contexts/connection-context'
 import { ShareModal } from '@/features/sharing/share-modal'
 import { WordCountModal } from '@/features/word-count/word-count-modal'
+import { MenuBar } from './menu-bar'
 
 export function Toolbar({ userName }: { userName: string }) {
   const project = useProject()
-  const compile = useCompile()
   const layout = useLayout()
-  const editor = useEditor()
-  const settings = useSettings()
 
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(project.project.name)
@@ -43,253 +32,128 @@ export function Toolbar({ userName }: { userName: string }) {
   const [counting, setCounting] = useState(false)
 
   return (
-    <header className="flex h-11 shrink-0 items-center gap-2 border-b border-divider bg-background px-2">
-      <Tooltip content="All projects" delay={400}>
-        <Button
-          as={Link}
+    <header className="relative flex h-10 shrink-0 items-center gap-1 border-b border-[var(--border-divider)] bg-[var(--bg-light-primary)] px-2">
+      <Tooltip content="All projects" delay={400} closeDelay={0}>
+        <Link
           href="/projects"
-          size="sm"
-          variant="light"
-          isIconOnly
-          className="h-8 w-8 min-w-8"
           aria-label="Back to all projects"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[4px] text-[var(--content-primary)] hover:bg-[var(--hover-interaction)]"
         >
-          <BackIcon />
-        </Button>
+          <LeafIcon />
+        </Link>
       </Tooltip>
 
-      {renaming ? (
-        <form
-          onSubmit={event => {
-            event.preventDefault()
-            const trimmed = name.trim()
-            if (trimmed && trimmed !== project.project.name) {
-              void project.setName(trimmed)
-            }
-            setRenaming(false)
-          }}
-        >
-          <Input
-            autoFocus
-            size="sm"
-            value={name}
-            onValueChange={setName}
-            onBlur={() => setRenaming(false)}
-            className="w-56"
-            aria-label="Project name"
-          />
-        </form>
-      ) : (
-        <button
-          type="button"
-          className="truncate rounded px-1.5 py-1 text-sm font-medium hover:bg-default-100"
-          onClick={() => {
-            if (project.canWrite) {
-              setName(project.project.name)
-              setRenaming(true)
-            }
-          }}
-          title={project.canWrite ? 'Rename' : project.project.name}
-        >
-          {project.project.name}
-        </button>
-      )}
+      <MenuBar
+        onShare={() => setSharing(true)}
+        onWordCount={() => setCounting(true)}
+        onNewFile={() => window.dispatchEvent(new CustomEvent('ide:new-file'))}
+        onUpload={() => window.dispatchEvent(new CustomEvent('ide:upload'))}
+      />
 
-      <ConnectionBadge />
+      {/* The name sits in the middle of the bar, not after the menus, so it
+          stays put as the menus change width between locales. */}
+      <div className="pointer-events-none absolute left-1/2 hidden -translate-x-1/2 sm:block">
+        {renaming ? (
+          <form
+            className="pointer-events-auto"
+            onSubmit={event => {
+              event.preventDefault()
+              const trimmed = name.trim()
+              if (trimmed && trimmed !== project.project.name) {
+                void project.setName(trimmed)
+              }
+              setRenaming(false)
+            }}
+          >
+            <input
+              autoFocus
+              value={name}
+              onChange={event => setName(event.target.value)}
+              onBlur={() => setRenaming(false)}
+              aria-label="Project name"
+              className="h-7 w-56 rounded-[4px] border border-[var(--border-active)] px-2 text-[14px] font-bold leading-5 focus:outline-none"
+            />
+          </form>
+        ) : (
+          <button
+            type="button"
+            className="pointer-events-auto flex h-7 max-w-[320px] items-center gap-1 truncate rounded-[4px] px-2 text-[14px] font-bold leading-5 text-[var(--content-primary)] hover:bg-[var(--hover-interaction)]"
+            onClick={() => {
+              if (project.canWrite) {
+                setName(project.project.name)
+                setRenaming(true)
+              }
+            }}
+            title={project.canWrite ? 'Rename' : project.project.name}
+          >
+            {project.project.name}
+          </button>
+        )}
+      </div>
 
       <div className="flex-1" />
 
-      <Tooltip content="History" delay={400}>
-        <Button
-          size="sm"
-          variant="light"
-          isIconOnly
-          className="h-8 w-8 min-w-8"
+      <ConnectionBadge />
+
+      <Tooltip content="History" delay={400} closeDelay={0}>
+        <button
+          type="button"
           aria-label="Project history"
           aria-pressed={layout.view === 'history'}
-          onPress={() =>
+          onClick={() =>
             layout.view === 'history' ? layout.restoreView() : layout.setView('history')
           }
+          className={`flex h-7 w-7 items-center justify-center rounded-[4px] ${
+            layout.view === 'history'
+              ? 'bg-[var(--bg-accent-03)] text-[var(--link-web)]'
+              : 'text-[var(--content-primary)] hover:bg-[var(--hover-interaction)]'
+          }`}
         >
           <HistoryIcon />
-        </Button>
+        </button>
       </Tooltip>
 
-      <Button
-        size="sm"
-        variant="flat"
-        className="h-8"
-        onPress={() => setSharing(true)}
+      <OnlineUsers />
+
+      <button
+        type="button"
+        onClick={() => setSharing(true)}
+        className="ml-1 inline-flex h-6 items-center rounded-full bg-[var(--bg-accent-01)] px-3 text-[14px] font-semibold leading-5 text-white hover:bg-[var(--bg-accent-02)]"
       >
         Share
-      </Button>
-
-      <Button
-        size="sm"
-        color="primary"
-        className="h-8"
-        onPress={compile.compiling ? compile.stop : compile.startCompile}
-      >
-        {compile.compiling ? 'Stop' : 'Compile'}
-      </Button>
-
-      <Dropdown placement="bottom-end">
-        <DropdownTrigger>
-          <Button
-            size="sm"
-            variant="light"
-            isIconOnly
-            className="h-8 w-8 min-w-8"
-            aria-label="Compile options"
-          >
-            <ChevronIcon />
-          </Button>
-        </DropdownTrigger>
-        <DropdownMenu aria-label="Compile options" closeOnSelect={false}>
-          <DropdownItem
-            key="auto"
-            endContent={
-              <Switch
-                size="sm"
-                isSelected={compile.autoCompile}
-                onValueChange={compile.setAutoCompile}
-                aria-label="Compile automatically"
-              />
-            }
-          >
-            Compile automatically
-          </DropdownItem>
-          <DropdownItem
-            key="draft"
-            endContent={
-              <Switch
-                size="sm"
-                isSelected={compile.draft}
-                onValueChange={compile.setDraft}
-                aria-label="Draft mode"
-              />
-            }
-            description="Skips images, which is faster"
-          >
-            Draft mode
-          </DropdownItem>
-          <DropdownItem
-            key="stop"
-            endContent={
-              <Switch
-                size="sm"
-                isSelected={compile.stopOnFirstError}
-                onValueChange={compile.setStopOnFirstError}
-                aria-label="Stop on first error"
-              />
-            }
-          >
-            Stop on first error
-          </DropdownItem>
-        </DropdownMenu>
-      </Dropdown>
-
-      <Tooltip content={layout.pdfLayout === 'sideBySide' ? 'One pane' : 'Side by side'} delay={400}>
-        <Button
-          size="sm"
-          variant="light"
-          isIconOnly
-          className="h-8 w-8 min-w-8"
-          aria-label="Change the layout"
-          onPress={() =>
-            layout.changeLayout(
-              layout.pdfLayout === 'sideBySide' ? 'flat' : 'sideBySide'
-            )
-          }
-        >
-          <LayoutIcon />
-        </Button>
-      </Tooltip>
-
-      <Dropdown placement="bottom-end">
-        <DropdownTrigger>
-          <Button
-            size="sm"
-            variant="light"
-            isIconOnly
-            className="h-8 w-8 min-w-8"
-            aria-label="Menu"
-          >
-            <MenuIcon />
-          </Button>
-        </DropdownTrigger>
-        <DropdownMenu aria-label="Menu" closeOnSelect={false}>
-          <DropdownSection title={userName} showDivider>
-            <DropdownItem
-              key="theme"
-              endContent={
-                <Switch
-                  size="sm"
-                  isSelected={settings.overallTheme === 'dark'}
-                  onValueChange={on => settings.set('overallTheme', on ? 'dark' : 'light')}
-                  aria-label="Dark theme"
-                />
-              }
-            >
-              Dark theme
-            </DropdownItem>
-            <DropdownItem
-              key="outline"
-              endContent={
-                <Switch
-                  size="sm"
-                  isSelected={settings.showOutline}
-                  onValueChange={on => settings.set('showOutline', on)}
-                  aria-label="Show the outline"
-                />
-              }
-            >
-              Show outline
-            </DropdownItem>
-            <DropdownItem
-              key="wrap"
-              endContent={
-                <Switch
-                  size="sm"
-                  isSelected={settings.autoComplete}
-                  onValueChange={on => settings.set('autoComplete', on)}
-                  aria-label="Autocomplete"
-                />
-              }
-            >
-              Autocomplete
-            </DropdownItem>
-            <DropdownItem
-              key="lint"
-              endContent={
-                <Switch
-                  size="sm"
-                  isSelected={settings.syntaxValidation}
-                  onValueChange={on => settings.set('syntaxValidation', on)}
-                  aria-label="Check syntax"
-                />
-              }
-            >
-              Check syntax
-            </DropdownItem>
-          </DropdownSection>
-          <DropdownSection>
-            <DropdownItem key="wordcount" closeOnSelect onPress={() => setCounting(true)}>
-              Word count
-            </DropdownItem>
-            <DropdownItem key="settings" href="/account" closeOnSelect>
-              Account settings
-            </DropdownItem>
-            <DropdownItem key="projects" href="/projects" closeOnSelect>
-              All projects
-            </DropdownItem>
-          </DropdownSection>
-        </DropdownMenu>
-      </Dropdown>
+      </button>
 
       <ShareModal isOpen={sharing} onClose={() => setSharing(false)} />
       <WordCountModal isOpen={counting} onClose={() => setCounting(false)} />
+      <span className="sr-only">{userName}</span>
     </header>
+  )
+}
+
+/** Faces of everybody else with the project open. */
+function OnlineUsers() {
+  const { others } = useConnection()
+  if (others.length === 0) {
+    return null
+  }
+  return (
+    <Tooltip content={others.map(each => each.name).join(', ')} delay={200}>
+      <div className="flex items-center -space-x-1.5 pr-1">
+        {others.slice(0, 3).map(person => (
+          <span
+            key={person.clientId}
+            className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-[var(--bg-light-primary)] bg-[var(--bg-info-01)] text-[10px] font-semibold text-white"
+          >
+            {person.name.slice(0, 1).toUpperCase()}
+          </span>
+        ))}
+        {others.length > 3 ? (
+          <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-[var(--bg-light-primary)] bg-[var(--bg-light-tertiary)] text-[10px] font-semibold text-[var(--content-secondary)]">
+            +{others.length - 3}
+          </span>
+        ) : null}
+      </div>
+    </Tooltip>
   )
 }
 
@@ -301,25 +165,15 @@ export function Toolbar({ userName }: { userName: string }) {
  * they close the tab.
  */
 function ConnectionBadge() {
-  const { state, others } = useConnection()
+  const { state } = useConnection()
   const editor = useEditor()
 
   if (state === 'connected') {
-    return (
-      <div className="flex items-center gap-2">
-        {editor.unsaved ? (
-          <span className="text-[11px] text-default-400">Saving…</span>
-        ) : null}
-        {others.length > 0 ? (
-          <Tooltip content={others.map(each => each.name).join(', ')} delay={200}>
-            <span className="flex items-center gap-1 text-[11px] text-default-500">
-              <span className="h-1.5 w-1.5 rounded-full bg-success" />
-              {others.length} other{others.length === 1 ? '' : 's'}
-            </span>
-          </Tooltip>
-        ) : null}
-      </div>
-    )
+    return editor.unsaved ? (
+      <span className="px-2 text-[12px] leading-4 text-[var(--content-secondary)]">
+        Saving…
+      </span>
+    ) : null
   }
 
   const label =
@@ -341,13 +195,17 @@ function ConnectionBadge() {
       delay={200}
     >
       <span
-        className={`flex items-center gap-1 text-[11px] ${
-          state === 'failed' ? 'text-danger' : 'text-warning-600'
+        className={`flex items-center gap-1 px-2 text-[12px] leading-4 ${
+          state === 'failed'
+            ? 'text-[var(--content-danger)]'
+            : 'text-[var(--content-warning)]'
         }`}
       >
         <span
           className={`h-1.5 w-1.5 rounded-full ${
-            state === 'failed' ? 'bg-danger' : 'bg-warning'
+            state === 'failed'
+              ? 'bg-[var(--bg-danger-01)]'
+              : 'bg-[var(--bg-warning-01)]'
           }`}
         />
         {label}
@@ -356,45 +214,20 @@ function ConnectionBadge() {
   )
 }
 
+function LeafIcon() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-5 w-5 text-[var(--bg-accent-01)]" fill="currentColor" aria-hidden>
+      <path d="M13.4 2.2c.3 4.6-1 7.6-3.1 9.2-1.6 1.2-3.4 1.4-4.8 1L4 13.8a.7.7 0 0 1-1-1l1.4-1.4c-.5-1.5-.3-3.4 1-5C7 4.2 9.6 2.6 13.4 2.2Zm-2 2C8.9 4.9 7.2 6 6.3 7.2c-.8 1-1 2-.9 2.9l5-5a.7.7 0 0 1 1 1l-5 5c.9.1 2-.1 3-.9 1.3-1 2.3-2.9 2-6Z" />
+    </svg>
+  )
+}
+
 function HistoryIcon() {
   return (
-    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.4">
+    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
       <path d="M2.6 8a5.4 5.4 0 1 0 1.6-3.8" strokeLinecap="round" />
       <path d="M2.5 3v2.6h2.6" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M8 5.2V8l2 1.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function BackIcon() {
-  return (
-    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M10 3 5 8l5 5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function ChevronIcon() {
-  return (
-    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="m4 6 4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function LayoutIcon() {
-  return (
-    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.4">
-      <rect x="2" y="3" width="12" height="10" rx="1.5" />
-      <path d="M8 3v10" />
-    </svg>
-  )
-}
-
-function MenuIcon() {
-  return (
-    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11" strokeLinecap="round" />
     </svg>
   )
 }
