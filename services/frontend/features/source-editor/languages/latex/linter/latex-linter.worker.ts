@@ -1,7 +1,7 @@
 // @ts-nocheck
 // The original linter algorithm, reproduced as written. It was typed under a
 // configuration without noUncheckedIndexedAccess; the algorithm is unchanged.
-import { LintError } from './errors-to-diagnostics'
+import type { LintError } from './errors-to-diagnostics'
 
 type ControlSymbolToken = [
   number,

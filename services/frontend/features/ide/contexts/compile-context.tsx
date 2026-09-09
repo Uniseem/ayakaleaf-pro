@@ -32,6 +32,7 @@ import {
 import { messageFor } from '@/lib/api'
 import { usePersistedState } from '@/lib/hooks'
 import { parseLatexLog, type LogEntry } from '@/features/pdf-preview/log-parser'
+import useCompileTriggers from '@/features/pdf-preview/use-compile-triggers'
 import { useProject } from './project-context'
 
 /** How long after the last edit an automatic compile runs. */
@@ -155,6 +156,12 @@ export function CompileProvider({ children }: { children: ReactNode }) {
   }, [projectId])
 
   const markEdited = useCallback(() => setStale(true), [])
+
+  // Ctrl/Cmd+Enter, Ctrl/Cmd+S and the editor's save commands compile
+  const startCompileNow = useCallback(() => {
+    void startCompile()
+  }, [startCompile])
+  useCompileTriggers(startCompileNow)
 
   // The automatic recompile. It waits for a pause rather than compiling on
   // every keystroke, and it does not start one while one is running.

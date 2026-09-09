@@ -4,7 +4,7 @@ import { getProject } from '@/lib/editor'
 import { ApiError } from '@/lib/api'
 import { forwardedHeaders } from '@/lib/server'
 import { site as fetchSite } from '@/lib/site'
-import { IdePage } from '@/features/ide/components/ide-page'
+import { IdePageClient } from '@/features/ide/components/ide-page-client'
 
 export const metadata = { title: 'Editor' }
 
@@ -39,7 +39,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const site = await fetchSite(headers)
 
   return (
-    <IdePage
+    <IdePageClient
       user={user}
       view={view}
       site={{

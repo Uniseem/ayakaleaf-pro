@@ -106,7 +106,7 @@ function useCodeMirrorScope(view: EditorView) {
   const editor = useEditor()
   const { current, revision, change, editable, rememberPosition } = editor
   const { files, canWrite, canReview } = useProject()
-  const { logEntries, compiling, stale } = useCompile()
+  const { logEntries, compiling, stale, markEdited } = useCompile()
   const { others, reportPosition } = useConnection()
   const metadata = useMetadataContext()
   const settings = useSettings()
@@ -186,11 +186,13 @@ function useCodeMirrorScope(view: EditorView) {
     })
   }, [view, review.ranges, revision])
 
-  // typing goes to the document session
+  // typing goes to the document session, and marks the PDF as behind the text
   const changeRef = useRef(change)
+  const markEditedRef = useRef(markEdited)
   useEffect(() => {
     changeRef.current = change
-  }, [change])
+    markEditedRef.current = markEdited
+  }, [change, markEdited])
 
   // the project metadata, mostly for use in autocomplete
   const metadataRef = useRef<Metadata>({
@@ -273,7 +275,10 @@ function useCodeMirrorScope(view: EditorView) {
           visual: visualRef.current,
           initialSearchQuery: searchQueryRef.current,
           handleException,
-          onLocalChange: text => changeRef.current(text),
+          onLocalChange: text => {
+            changeRef.current(text)
+            markEditedRef.current()
+          },
           setEditorSelection,
         }),
       })

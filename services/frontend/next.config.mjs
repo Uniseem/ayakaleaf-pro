@@ -26,7 +26,9 @@ const nextConfig = {
 
   async rewrites() {
     const api = process.env.API_INTERNAL_URL || 'http://127.0.0.1:3400'
-    return [{ source: '/api/:path*', destination: `${api}/api/:path*` }]
+    return [
+      { source: '/api/:path*', destination: `${api}/api/:path*` },
+    ]
   },
 
   async headers() {

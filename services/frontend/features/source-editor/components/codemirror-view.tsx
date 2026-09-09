@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect } from 'react'
+import { memo, useCallback, useEffect, useRef } from 'react'
 import { useCodeMirrorViewContext } from './codemirror-context'
 import useCodeMirrorScope from '../hooks/use-codemirror-scope'
 
@@ -17,10 +17,21 @@ function CodeMirrorView() {
     [view]
   )
 
-  // destroy the editor when unmounted
+  // Destroy the editor when unmounted. The destroy is deferred a tick so
+  // that React's development double-mount, which runs this cleanup and then
+  // the effect again, does not leave the remounted component with a dead
+  // view: the re-run cancels the pending destroy.
+  const destroyTimer = useRef<number | null>(null)
   useEffect(() => {
+    if (destroyTimer.current !== null) {
+      window.clearTimeout(destroyTimer.current)
+      destroyTimer.current = null
+    }
     return () => {
-      view.destroy()
+      destroyTimer.current = window.setTimeout(() => {
+        destroyTimer.current = null
+        view.destroy()
+      }, 0)
     }
   }, [view])
 

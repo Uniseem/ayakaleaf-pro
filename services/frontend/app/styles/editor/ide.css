@@ -16,6 +16,22 @@
   --ide-redesign-color-scheme: light;
 }
 
+/* base/layout.scss: the page is a fixed 100% height, and pinned so nothing
+   outside the shell can scroll it */
+html {
+  height: 100%;
+}
+
+html.fixed-size-document {
+  position: fixed;
+  width: 100%;
+}
+
+body {
+  position: relative;
+  min-height: 100%;
+}
+
 #ide-root {
   height: 100vh;
   height: 100dvh;

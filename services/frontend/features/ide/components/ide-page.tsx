@@ -9,7 +9,7 @@
  * the first paint is the project rather than a spinner.
  */
 
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import type { ProjectView } from '@/lib/editor'
 import type { PublicUser } from '@/lib/auth'
 import { setOwnUserId } from '@/lib/colors'
@@ -38,6 +38,16 @@ export type IdePageProps = {
 
 export function IdePage({ user, view, site }: IdePageProps) {
   setOwnUserId(user.id)
+
+  // The page is a fixed-size shell: pinning the document keeps anything
+  // that lands outside it (CodeMirror's tooltip container, for one) from
+  // making the window scroll, as the original did with the same class.
+  useEffect(() => {
+    document.documentElement.classList.add('fixed-size-document')
+    return () => {
+      document.documentElement.classList.remove('fixed-size-document')
+    }
+  }, [])
   const siteValue = useMemo<SiteValue>(() => ({ ...site, user }), [site, user])
 
   return (
