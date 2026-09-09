@@ -66,6 +66,38 @@ import { latexCompletions } from './completion'
 import { latexDiagnostics } from './lint'
 import { analyse } from './analyse'
 
+/**
+ * The smallest single change that turns one string into another.
+ *
+ * Only the middle differs once the shared prefix and suffix are taken off,
+ * which is true of any one edit and close enough for several at once.
+ */
+function smallestChange(
+  from: string,
+  to: string
+): { from: number; to: number; insert: string } | null {
+  if (from === to) {
+    return null
+  }
+  let start = 0
+  const shortest = Math.min(from.length, to.length)
+  while (start < shortest && from[start] === to[start]) {
+    start++
+  }
+  let end = 0
+  while (
+    end < shortest - start &&
+    from[from.length - 1 - end] === to[to.length - 1 - end]
+  ) {
+    end++
+  }
+  return {
+    from: start,
+    to: from.length - end,
+    insert: to.slice(start, to.length - end),
+  }
+}
+
 /** Folding by environment and by section, which is what a LaTeX outline is. */
 const latexFolding = foldService.of((state, lineStart, lineEnd) => {
   const source = state.doc.toString()
@@ -348,13 +380,17 @@ export function SourceEditor() {
       editor.focus()
       return
     }
-    // Same document. Only write if the text genuinely differs, or every
-    // keystroke would be applied back over itself.
+    // Same document, and the text differs: somebody else edited it. Applied as
+    // the smallest change that accounts for the difference rather than as a
+    // whole-document replacement, because replacing the document moves the
+    // cursor to the start and throws away the undo history -- on every
+    // keystroke the other person types.
     const held = editor.state.doc.toString()
     if (held !== current.content) {
-      editor.dispatch({
-        changes: { from: 0, to: held.length, insert: current.content },
-      })
+      const change = smallestChange(held, current.content)
+      if (change) {
+        editor.dispatch({ changes: change })
+      }
     }
   }, [
     current,

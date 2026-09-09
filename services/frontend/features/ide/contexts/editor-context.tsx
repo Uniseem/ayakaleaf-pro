@@ -102,9 +102,12 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     let live = true
     const docSession = new DocSession(socket, currentId, {
       onRemote: next => {
+        // No revision bump: a remote edit is reconciled into the editor as a
+        // change, which keeps the cursor and the undo history. Bumping it
+        // would rebuild the whole editor state on every keystroke somebody
+        // else types.
         if (live) {
           setText(next)
-          setRevision(value => value + 1)
         }
       },
       onResync: next => {
@@ -193,6 +196,12 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         return
       }
       session.current?.localChange(content)
+      // Held here as well as in the session, so that everything else reading
+      // the document -- the outline, the word count, anything that opens next
+      // -- sees what is on screen. Without this the context keeps the text as
+      // it was when the file was opened and pushes that back over what has
+      // just been typed.
+      setText(content)
     },
     [canWrite]
   )
