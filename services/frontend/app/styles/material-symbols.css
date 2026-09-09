@@ -1,0 +1,64 @@
+/*
+ * The icon font, exactly as the original ships it.
+ *
+ * Two faces: the filled slice, and a much smaller "unfilled" slice that only
+ * carries the glyphs listed in lib/unfilled-symbols.ts. An icon asked for
+ * unfilled that is not in that list renders as its ligature text, which is
+ * why the list is typed.
+ */
+
+@font-face {
+  font-family: 'Material Symbols Rounded';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('/fonts/material-symbols/MaterialSymbolsRoundedSlice.woff2')
+    format('woff2');
+}
+
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('/fonts/material-symbols/MaterialSymbolsRoundedUnfilledPartialSlice.woff2')
+    format('woff2');
+}
+
+.material-symbols {
+  font-family: 'Material Symbols Rounded';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  font-variation-settings:
+    'FILL' 1,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 20;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
+.material-symbols.size-2x {
+  font-size: 2em;
+}
+
+.material-symbols.rotate-180 {
+  transform: rotate(180deg);
+}
+
+.material-symbols.unfilled {
+  font-family: 'Material Symbols Outlined';
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 20;
+}

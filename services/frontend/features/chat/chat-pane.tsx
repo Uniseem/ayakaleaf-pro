@@ -14,6 +14,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { listMessages, nameOf, sendMessage, type Message } from '@/lib/chat'
 import { messageFor } from '@/lib/api'
 import { useProject } from '@/features/ide/contexts/project-context'
+import { useTranslation } from '@/lib/i18n'
+import { RailPanelHeader } from '@/features/ide/components/rail/rail-parts'
 
 /** Messages closer together than this from one person are one block. */
 const GROUP_WINDOW = 5 * 60 * 1000
@@ -40,6 +42,7 @@ function group(messages: Message[]): Group[] {
 }
 
 export function ChatPane() {
+  const { t } = useTranslation()
   const { projectId } = useProject()
   const [messages, setMessages] = useState<Message[]>([])
   const [draft, setDraft] = useState('')
@@ -92,20 +95,7 @@ export function ChatPane() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex items-center justify-between border-b border-divider px-3 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-default-500">
-          Chat
-        </span>
-        <Button
-          size="sm"
-          variant="light"
-          className="h-6 min-w-0 px-2 text-xs"
-          onPress={() => void load()}
-          isDisabled={loading}
-        >
-          Refresh
-        </Button>
-      </header>
+      <RailPanelHeader title={t('collaborator_chat')} />
 
       <ScrollShadow className="min-h-0 flex-1 px-3 py-2">
         {loading ? (
@@ -192,4 +182,9 @@ function MessageGroup({ group: entry }: { group: Group }) {
       </div>
     </li>
   )
+}
+
+/** The unread count on the rail's chat tab. Nothing is counted yet. */
+export function ChatIndicator() {
+  return null
 }

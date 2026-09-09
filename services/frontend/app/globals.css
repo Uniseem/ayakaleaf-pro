@@ -7,14 +7,32 @@
 @plugin '../hero.ts';
 
 /*
- * The design system.
+ * The original's stylesheets, ported.
+ *
+ * services/web/frontend/stylesheets is the reference: its tokens, the parts
+ * of Bootstrap it builds on, its components, and its editor pages, in that
+ * order, under the same class names. A rule that reads the same there and
+ * here produces the same pixels, which is the whole point.
+ */
+@import './styles/material-symbols.css';
+@import './styles/foundations.css';
+@import './styles/bootstrap.css';
+@import './styles/components.css';
+@import './styles/editor/ide.css';
+@import './styles/editor/rail.css';
+@import './styles/editor/toolbar.css';
+@import './styles/editor/tabs.css';
+@import './styles/editor/share.css';
+@import './styles/editor/outline.css';
+@import './styles/editor/file-tree.css';
+@import './styles/editor/integrations.css';
+
+/*
+ * The design system, for Tailwind.
  *
  * These are not colours anybody picked here. They are the values in
  * services/web/frontend/stylesheets/foundations/tokens/*.json, copied exactly,
  * because the point is to look like that, not like something near it.
- * A primitive is a raw value; a semantic name says what it is for, and every
- * component uses the semantic one -- which is what makes a theme possible at
- * all.
  */
 @theme {
   /* Primitives -------------------------------------------------------- */
@@ -80,59 +98,11 @@
   --radius-full: 9999px;
 }
 
-/*
- * The semantic layer, as custom properties rather than @theme entries: these
- * change with the theme, and a Tailwind theme value cannot.
- */
 :root {
-  --bg-light-primary: #ffffff;
-  --bg-light-secondary: #f4f5f6;
-  --bg-light-tertiary: #e7e9ee;
-  --bg-light-disabled: #e7e9ee;
-  --bg-dark-primary: #1b222c;
-  --bg-dark-secondary: #2f3a4c;
-  --bg-dark-tertiary: #495365;
-
-  --bg-accent-01: #098842;
-  --bg-accent-02: #1e6b41;
-  --bg-accent-03: #eaf6ef;
-  --bg-danger-01: #b83a33;
-  --bg-danger-02: #942f2a;
-  --bg-danger-03: #f9f1f1;
-  --bg-warning-01: #8f5514;
-  --bg-warning-02: #7a4304;
-  --bg-warning-03: #fcf1e3;
-  --bg-info-01: #366cbf;
-  --bg-info-02: #28518f;
-  --bg-info-03: #f1f4f9;
-
-  --content-primary: #1b222c;
-  --content-secondary: #495365;
-  --content-disabled: #afb5c0;
-  --content-placeholder: #677283;
-  --content-danger: #b83a33;
-  --content-warning: #8f5514;
-  --content-positive: #098842;
-  --content-info: #366cbf;
-  --content-primary-dark: #ffffff;
-
-  --border-primary: #677283;
-  --border-hover: #495365;
-  --border-disabled: #e7e9ee;
-  --border-danger: #b83a33;
-  --border-divider: #e7e9ee;
-  --border-active: #366cbf;
-
-  --link-web: #1e6b41;
-  --link-web-hover: #195936;
-  --link-ui: #366cbf;
-  --link-ui-hover: #28518f;
-
   --hover-interaction: rgba(27, 34, 44, 0.08);
   --overlay: rgba(27, 34, 44, 0.8);
 
   /* The editor's own chrome, measured from the original. */
-  --toolbar-height: 40px;
   --rail-width: 40px;
   --rail-panel-width: 185px;
   --editor-tabs-height: 36px;
@@ -141,15 +111,11 @@
   color-scheme: light;
 }
 
-:root[data-theme='dark'] {
-  --bg-light-primary: #1b222c;
-  --bg-light-secondary: #2f3a4c;
-  --bg-light-tertiary: #495365;
-  --content-primary: #ffffff;
-  --content-secondary: #d0d5dd;
-  --content-placeholder: #8d96a5;
-  --border-divider: #2f3a4c;
-  --border-primary: #495365;
+/*
+ * The theme attribute follows the original: the page is dark unless the root
+ * element says data-theme="light". The settings context writes the attribute.
+ */
+:root:not([data-theme='light']) {
   --hover-interaction: rgba(255, 255, 255, 0.08);
   color-scheme: dark;
 }
@@ -209,7 +175,7 @@ body {
   --cm-type: #28518f;
 }
 
-:root[data-theme='dark'] {
+:root:not([data-theme='light']) {
   --cm-background: #1b222c;
   --cm-foreground: #e7e9ee;
   --cm-caret: #53b57f;

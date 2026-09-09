@@ -1,0 +1,201 @@
+/*
+ * The file tree, from pages/editor/file-tree.scss: the colours, and the
+ * redesign's toolbar and list. The rows themselves are drawn by
+ * features/file-tree against these names.
+ */
+
+:root {
+  --file-tree-item-hover-bg: var(--bg-dark-secondary);
+  --file-tree-item-selected-bg: var(--green-70);
+  --file-tree-item-selected-color: var(--green-10);
+  --file-tree-item-color: var(--content-primary-dark);
+  --file-tree-bg: var(--bg-dark-primary);
+  --file-tree-icon-colour: var(--content-primary-dark);
+  --file-tree-item-dragging-bg: var(--green-40);
+  --file-tree-item-dragging-color: var(--content-primary-dark);
+  --file-tree-item-icon-dragging-color: var(--file-tree-item-dragging-color);
+  --file-tree-item-dragging-preview-bg: rgb(47 58 76 / 60%);
+  --file-tree-item-dragging-preview-colour: rgb(244 245 246 / 60%);
+  --file-tree-expand-button-color: var(--content-primary-dark);
+  --file-tree-line-height: 2.05;
+}
+
+[data-theme='light'] {
+  --file-tree-item-hover-bg: var(--bg-light-secondary);
+  --file-tree-item-selected-bg: var(--bg-accent-03);
+  --file-tree-item-selected-color: var(--green-70);
+  --file-tree-item-color: var(--content-primary);
+  --file-tree-bg: var(--white);
+  --file-tree-icon-colour: var(--content-primary);
+  --file-tree-item-dragging-bg: var(--green-60);
+  --file-tree-item-dragging-color: var(--white);
+  --file-tree-item-icon-dragging-color: var(--file-tree-item-dragging-color);
+  --file-tree-item-dragging-preview-bg: rgb(244 245 246 / 60%);
+  --file-tree-item-dragging-preview-colour: rgb(27 34 44 / 60%);
+  --file-tree-expand-button-color: var(--content-primary);
+}
+
+.file-tree-outline-panel-group {
+  background-color: var(--file-tree-bg);
+}
+
+.file-tree-toolbar {
+  display: flex;
+  justify-content: space-between;
+  height: 28px;
+  margin: var(--spacing-02);
+}
+
+.file-tree-panel {
+  min-height: 36px;
+}
+
+.file-tree-panel-collapsed {
+  max-height: 36px;
+}
+
+.file-tree-expand-collapse-button {
+  border-radius: var(--border-radius-base);
+  color: var(--file-tree-expand-button-color);
+  display: flex;
+  align-items: center;
+  background-color: transparent;
+  border: 0;
+  padding: 0 var(--spacing-02);
+  flex-grow: 1;
+  overflow: hidden;
+}
+
+.file-tree-expand-collapse-button:hover {
+  background-color: var(--file-tree-item-hover-bg);
+}
+
+.file-tree-expand-collapse-button h4 {
+  color: var(--file-tree-expand-button-color);
+  font-size: var(--font-size-02);
+  line-height: var(--line-height-02);
+  margin: 0;
+  font-weight: bold;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree-toolbar-action-buttons {
+  display: flex;
+}
+
+.file-tree-toolbar-action-button {
+  color: var(--file-tree-expand-button-color);
+  padding: var(--spacing-02);
+  border-radius: var(--border-radius-full);
+  --bs-btn-padding-x: var(--spacing-02);
+  --bs-btn-padding-y: var(--spacing-02);
+  --bs-btn-color: var(--file-tree-expand-button-color);
+  --bs-btn-bg: transparent;
+  --bs-btn-border-width: 0;
+  --bs-btn-hover-color: var(--file-tree-expand-button-color);
+  --bs-btn-hover-bg: var(--file-tree-item-hover-bg);
+  --bs-btn-active-color: var(--file-tree-expand-button-color);
+  --bs-btn-active-bg: var(--file-tree-item-hover-bg);
+  line-height: 1;
+}
+
+.file-tree-toolbar-action-button:hover {
+  background-color: var(--file-tree-item-hover-bg);
+}
+
+.file-tree-toolbar-action-button:active {
+  color: var(--file-tree-expand-button-color);
+}
+
+.file-tree {
+  background-color: var(--file-tree-bg);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: var(--file-tree-item-color);
+}
+
+.file-tree ul.file-tree-list {
+  margin: var(--spacing-02);
+}
+
+.file-tree-folder-list {
+  border-left: 1px solid color-mix(in srgb, var(--border-primary) 24%, transparent);
+  margin-left: 14px !important;
+  margin-top: 0;
+}
+
+.file-tree-folder-list.file-tree-list {
+  border-left: none;
+  margin-left: var(--spacing-02) !important;
+}
+
+.file-tree-folder-list.file-tree-list > .file-tree-folder-list-inner {
+  margin-left: 0;
+}
+
+.file-tree-folder-list-inner {
+  margin-left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-02);
+}
+
+.item-name,
+.folder-expand-collapse-button {
+  display: flex;
+  align-items: center;
+  height: 20px !important;
+}
+
+.entity-name {
+  color: var(--file-tree-item-color);
+  border-radius: var(--border-radius-base);
+}
+
+.item-name {
+  margin-left: var(--spacing-02);
+  overflow: hidden;
+}
+
+.item-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Nothing selected, from pages/editor/file-view.scss. */
+
+.no-file-selection-message,
+.multi-selection-message {
+  --bs-heading-color: var(--content-primary-themed);
+  width: 50%;
+  margin: var(--spacing-10) auto;
+  text-align: center;
+}
+
+.no-file-selection-message h3 {
+  font-size: var(--font-size-07);
+  line-height: var(--line-height-06);
+  font-weight: 600;
+  color: var(--bs-heading-color);
+}
+
+.no-file-selection,
+.multi-selection-ongoing {
+  position: relative;
+  flex: 1;
+}
+
+.no-file-selection::before,
+.multi-selection-ongoing::before {
+  position: absolute;
+  inset: 0;
+  left: 20px;
+  content: '';
+  background: url('/img/ol-brand/overleaf-o-grey.svg') center / 200px no-repeat;
+  opacity: 0.2;
+  pointer-events: none;
+}

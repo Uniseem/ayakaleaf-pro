@@ -40,6 +40,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html
       lang="en"
       className={`${sans.variable} ${mono.variable}`}
+      data-theme="light"
       suppressHydrationWarning
     >
       <body className="min-h-full">

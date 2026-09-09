@@ -1,124 +1,142 @@
 'use client'
 
 /**
- * How long a project is.
+ * How long a project is, from word-count-modal.
  *
- * The counting is done by texcount in the compiler, not here. It reads the
- * files the way TeX does -- following \input, skipping the preamble, not
- * counting a command name as a word -- and doing that in the browser would
- * mean reimplementing it against the same edge cases, worse.
- *
- * The consequence is that a project has to have been compiled at least once,
- * because texcount reads the compile directory. The empty answer says so
- * rather than showing zero, which would look like a result.
+ * The counting is done by texcount in the compiler, which is why a project
+ * has to have been compiled first.
  */
 
-import {
-  Button,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  Spinner,
-} from '@heroui/react'
-import { useCallback, useEffect, useState } from 'react'
-import { api, messageFor } from '@/lib/api'
+import { memo, useEffect, useState } from 'react'
+import { OLModal, OLModalBody, OLModalFooter, OLModalHeader, OLModalTitle } from '@/components/ol/modal'
+import { Button } from '@/components/ol/button'
+import { Notification } from '@/components/ol/notification'
+import { LoadingSpinner } from '@/components/ol/spinner'
+import { api } from '@/lib/api'
+import { useTranslation } from '@/lib/i18n'
 import { useProject } from '@/features/ide/contexts/project-context'
 
-type Counts = Record<string, unknown>
+export type ServerWordCountData = {
+  encode?: string
+  textWords: number
+  headWords: number
+  outside: number
+  headers: number
+  elements: number
+  mathInline: number
+  mathDisplay: number
+  errors: number
+  messages: string
+}
 
-/** The rows worth showing, in the order they make sense in. */
-const ROWS: Array<{ key: string; label: string }> = [
-  { key: 'textWords', label: 'Words in the text' },
-  { key: 'headWords', label: 'Words in headings' },
-  { key: 'outsideWords', label: 'Words outside the text' },
-  { key: 'headers', label: 'Headings' },
-  { key: 'mathInline', label: 'Inline formulae' },
-  { key: 'mathDisplay', label: 'Displayed formulae' },
-  { key: 'elements', label: 'Figures and tables' },
-]
-
-export function WordCountModal({
-  isOpen,
-  onClose,
-}: {
-  isOpen: boolean
-  onClose: () => void
-}) {
-  const { projectId } = useProject()
-  const [counts, setCounts] = useState<Counts | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const answer = await api<{ counts: Counts }>(
-        `/api/projects/${projectId}/wordcount`
-      )
-      setCounts(answer.counts)
-    } catch (thrown) {
-      setError(messageFor(thrown))
-    } finally {
-      setLoading(false)
-    }
-  }, [projectId])
-
-  useEffect(() => {
-    if (isOpen) {
-      void load()
-    }
-  }, [isOpen, load])
-
-  const total = numberOf(counts?.textWords) + numberOf(counts?.headWords)
-
+export const WordCountModal = memo(function WordCountModal({ show, handleHide }: { show: boolean; handleHide: () => void }) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="sm">
-      <ModalContent>
-        <ModalHeader>Word count</ModalHeader>
-        <ModalBody>
-          {loading ? (
-            <div className="flex justify-center py-6">
-              <Spinner size="sm" />
-            </div>
-          ) : error ? (
-            <p className="text-sm text-danger">{error}</p>
-          ) : !counts || Object.keys(counts).length === 0 ? (
-            <p className="text-sm text-default-500">
-              Nothing to count yet. This is read from the last compile, so
-              compile the project first.
-            </p>
-          ) : (
-            <>
-              <p className="text-2xl font-semibold">
-                {total.toLocaleString()}{' '}
-                <span className="text-sm font-normal text-default-500">
-                  words
-                </span>
-              </p>
-              <dl className="mt-2 divide-y divide-divider text-sm">
-                {ROWS.filter(row => counts[row.key] !== undefined).map(row => (
-                  <div key={row.key} className="flex justify-between py-1.5">
-                    <dt className="text-default-500">{row.label}</dt>
-                    <dd>{numberOf(counts[row.key]).toLocaleString()}</dd>
-                  </div>
-                ))}
-              </dl>
-            </>
-          )}
-        </ModalBody>
-        <ModalFooter>
-          <Button variant="light" onPress={onClose}>
-            Close
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+    <OLModal animation show={show} onHide={handleHide} id="word-count-modal">
+      {show ? <WordCountModalContent handleHide={handleHide} /> : null}
+    </OLModal>
+  )
+})
+
+function WordCountModalContent({ handleHide }: { handleHide: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <>
+      <OLModalHeader>
+        <OLModalTitle>{t('word_count_lower')}</OLModalTitle>
+      </OLModalHeader>
+      <OLModalBody className="ol-ui">
+        <WordCountServer />
+      </OLModalBody>
+      <OLModalFooter>
+        <Button variant="secondary" onClick={handleHide}>
+          {t('close')}
+        </Button>
+      </OLModalFooter>
+    </>
   )
 }
 
-function numberOf(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+function WordCountServer() {
+  const { projectId } = useProject()
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+  const [data, setData] = useState<ServerWordCountData | null>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    api<{ counts?: Partial<ServerWordCountData>; texcount?: Partial<ServerWordCountData> }>(`/api/projects/${projectId}/wordcount`, {
+      signal: controller.signal,
+    })
+      .then(answer => {
+        const counts = answer.texcount ?? answer.counts ?? {}
+        setData({
+          textWords: counts.textWords ?? 0,
+          headWords: counts.headWords ?? 0,
+          outside: counts.outside ?? 0,
+          headers: counts.headers ?? 0,
+          elements: counts.elements ?? 0,
+          mathInline: counts.mathInline ?? 0,
+          mathDisplay: counts.mathDisplay ?? 0,
+          errors: counts.errors ?? 0,
+          messages: counts.messages ?? '',
+        })
+      })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false))
+    return () => controller.abort()
+  }, [projectId])
+
+  return (
+    <>
+      {loading && !error ? <LoadingSpinner /> : null}
+      {error ? <WordCountError /> : null}
+      {data ? <WordCounts data={data} /> : null}
+    </>
+  )
 }
+
+function WordCountError() {
+  const { t } = useTranslation()
+  return <Notification type="error" content={t('generic_something_went_wrong')} />
+}
+
+function WordCounts({ data }: { data: ServerWordCountData }) {
+  const { t } = useTranslation()
+  return (
+    <div className="container-fluid">
+      {data.messages ? (
+        <div className="row">
+          <div className="col-12">
+            <Notification type="error" content={<p style={{ whiteSpace: 'pre-wrap' }}>{data.messages}</p>} />
+          </div>
+        </div>
+      ) : null}
+      <div className="row">
+        <div className="col-4">
+          <div className="float-end">{t('total_words')}:</div>
+        </div>
+        <div className="col-6">{data.textWords}</div>
+      </div>
+      <div className="row">
+        <div className="col-4">
+          <div className="float-end">{t('headers')}:</div>
+        </div>
+        <div className="col-6">{data.headers}</div>
+      </div>
+      <div className="row">
+        <div className="col-4">
+          <div className="float-end">{t('math_inline')}:</div>
+        </div>
+        <div className="col-6">{data.mathInline}</div>
+      </div>
+      <div className="row">
+        <div className="col-4">
+          <div className="float-end">{t('math_display')}:</div>
+        </div>
+        <div className="col-6">{data.mathDisplay}</div>
+      </div>
+    </div>
+  )
+}
+
+export default WordCountModal

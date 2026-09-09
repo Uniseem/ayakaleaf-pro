@@ -13,6 +13,8 @@ import { Button, Checkbox, Input, ScrollShadow, Spinner } from '@heroui/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { searchProject, type SearchHit } from '@/lib/search'
 import { messageFor } from '@/lib/api'
+import { useTranslation } from '@/lib/i18n'
+import { RailPanelHeader } from '@/features/ide/components/rail/rail-parts'
 import { useProject } from '@/features/ide/contexts/project-context'
 import { useEditor } from '@/features/ide/contexts/editor-context'
 
@@ -185,6 +187,19 @@ export function ProjectSearch() {
           </Button>
         </div>
       ) : null}
+    </div>
+  )
+}
+
+/** The search as the rail shows it: under the panel's header. */
+export function ProjectSearchPanel() {
+  const { t } = useTranslation()
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <RailPanelHeader title={t('project_search')} />
+      <div className="min-h-0 flex-1">
+        <ProjectSearch />
+      </div>
     </div>
   )
 }

@@ -25,7 +25,7 @@ import {
   ModalHeader,
   Tooltip,
 } from '@heroui/react'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FileEntry } from '@/lib/editor'
 import { moveEntry, uploadFile } from '@/lib/editor'
 import { messageFor } from '@/lib/api'
@@ -141,32 +141,24 @@ export function FileTree() {
     uploadInput.current?.click()
   }, [])
 
+  // The toolbar above the tree and the File menu ask for these by event,
+  // because neither holds a reference to the tree.
+  useEffect(() => {
+    const newFile = () => setPrompt({ kind: 'new-doc', folderPath: '' })
+    const newFolder = () => setPrompt({ kind: 'new-folder', folderPath: '' })
+    const upload = () => askUpload(undefined)
+    window.addEventListener('ide:new-file', newFile)
+    window.addEventListener('ide:new-folder', newFolder)
+    window.addEventListener('ide:upload', upload)
+    return () => {
+      window.removeEventListener('ide:new-file', newFile)
+      window.removeEventListener('ide:new-folder', newFolder)
+      window.removeEventListener('ide:upload', upload)
+    }
+  }, [askUpload])
+
   return (
-    <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b border-divider px-3 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-default-500">
-          Files
-        </span>
-        {project.canWrite ? (
-          <div className="flex gap-0.5">
-            <TreeAction
-              label="New file"
-              onPress={() => setPrompt({ kind: 'new-doc', folderPath: '' })}
-            >
-              <PlusIcon />
-            </TreeAction>
-            <TreeAction
-              label="New folder"
-              onPress={() => setPrompt({ kind: 'new-folder', folderPath: '' })}
-            >
-              <FolderPlusIcon />
-            </TreeAction>
-            <TreeAction label="Upload" onPress={() => askUpload(undefined)}>
-              <UploadIcon />
-            </TreeAction>
-          </div>
-        ) : null}
-      </header>
+    <div className="flex min-h-0 flex-1 flex-col">
 
       {error ? (
         <p className="border-b border-divider bg-danger-50 px-3 py-2 text-xs text-danger">

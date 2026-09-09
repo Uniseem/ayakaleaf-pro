@@ -1,0 +1,216 @@
+/* The rail, from pages/editor/rail.scss. */
+
+body {
+  --ide-rail-background: var(--bg-primary-themed);
+  --ide-rail-color: var(--content-primary-themed);
+  --ide-rail-link-hover-color: var(--content-primary-themed);
+  --ide-rail-link-background: var(--bg-primary-themed);
+  --ide-rail-link-hover-background: var(--bg-secondary-themed);
+  --ide-rail-border-colour: var(--border-divider-themed);
+  --ide-rail-header-subdued-button-color: var(--content-primary-themed);
+  --ide-rail-header-subdued-button-hover-background: var(--bg-tertiary-themed);
+  --ide-rail-link-active-color: var(--green-10);
+  --ide-rail-link-active-background: var(--green-70);
+}
+
+[data-theme='light'] body,
+body[data-theme='light'] {
+  --ide-rail-link-active-color: var(--green-70);
+  --ide-rail-link-active-background: var(--bg-accent-03);
+}
+
+.rail-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-03) var(--spacing-04);
+  background-color: var(--ide-rail-background);
+}
+
+.rail-panel-header .rail-panel-header-button-subdued {
+  --bs-btn-color: var(--ide-rail-header-subdued-button-color);
+  --bs-btn-bg: transparent;
+  --bs-btn-border-color: transparent;
+  --bs-btn-hover-color: var(--ide-rail-header-subdued-button-color);
+  --bs-btn-hover-bg: var(--ide-rail-header-subdued-button-hover-background);
+  --bs-btn-hover-border-color: transparent;
+  --bs-btn-active-color: var(--ide-rail-header-subdued-button-color);
+  --bs-btn-active-bg: var(--ide-rail-header-subdued-button-hover-background);
+  --bs-btn-active-border-color: transparent;
+  --bs-btn-disabled-color: var(--content-disabled-themed);
+  --bs-btn-disabled-bg: var(--bg-disabled-themed);
+  --bs-btn-disabled-border-color: var(--bg-disabled-themed);
+  --bs-btn-border-width: 0;
+}
+
+.rail-panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-01);
+}
+
+.rail-panel-title {
+  font-size: var(--font-size-02);
+  line-height: var(--line-height-02);
+  color: var(--ide-rail-color);
+  margin-bottom: 0;
+  font-weight: bold;
+  width: 100%;
+}
+
+.ide-rail-tab-button {
+  border: 0;
+  background: none;
+}
+
+.ide-rail-tab-link {
+  border-radius: var(--border-radius-base);
+  display: block;
+  margin: 0 auto;
+  height: 32px;
+  width: 32px;
+  text-align: center;
+  padding: 0;
+  color: var(--ide-rail-color);
+  background-color: var(--ide-rail-link-background);
+  position: relative;
+  overflow: visible;
+  border: 0;
+}
+
+.ide-rail-tab-link.disabled {
+  color: var(--content-disabled-themed);
+}
+
+.ide-rail-tab-link:visited,
+.ide-rail-tab-link:focus {
+  color: var(--ide-rail-color);
+}
+
+.ide-rail-tab-link:focus-visible {
+  background-color: transparent;
+}
+
+.ide-rail-tab-link:hover {
+  color: var(--ide-rail-link-hover-color);
+  background-color: var(--ide-rail-link-hover-background);
+}
+
+.ide-rail-tab-link .ide-rail-tab-link-icon {
+  line-height: 32px;
+  font-size: 20px;
+}
+
+.ide-rail-tab-link .ide-rail-tab-img-icon {
+  width: 20px;
+  max-height: 32px;
+  object-fit: contain;
+}
+
+.ide-rail-tab-link.open-rail {
+  color: var(--ide-rail-link-active-color);
+  background-color: var(--ide-rail-link-active-background);
+}
+
+.ide-rail-tab-link.open-rail::after {
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 4px;
+  box-sizing: border-box;
+  width: 24px;
+  height: 3px;
+  background-color: var(--ide-rail-link-active-color);
+}
+
+.ide-rail-tab-link .badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  pointer-events: none;
+  z-index: 10;
+  padding: var(--spacing-00) var(--spacing-02);
+  border-radius: var(--border-radius-full);
+}
+
+.ide-rail {
+  height: 100%;
+  padding: var(--spacing-02);
+  background: var(--ide-rail-background);
+  border-right: 1px solid var(--ide-rail-border-colour);
+  width: 40px;
+  flex: 0 0 auto;
+}
+
+.ide-rail-content {
+  height: 100%;
+}
+
+.ide-rail-content .logs-pane {
+  top: 0;
+}
+
+.ide-rail-content .tab-pane {
+  height: 100%;
+}
+
+.ide-rail-tab-content {
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+
+.ide-rail-tabs-nav {
+  height: 100%;
+  display: flex;
+  flex-flow: column nowrap;
+  gap: var(--spacing-02);
+  padding-bottom: var(--spacing-04);
+}
+
+.ide-rail-tabs-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-02);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ide-rail-tab-dropdown {
+  border: 0;
+}
+
+.ide-rail-tab-dropdown.dropdown-toggle::after {
+  display: none;
+}
+
+.ide-rail-overflow-dropdown {
+  min-width: 0;
+  background-color: var(--ide-rail-background);
+}
+
+.ide-rail-overflow-dropdown.show {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-02);
+}
+
+.separated-rail-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-top: 8px;
+  isolation: isolate;
+}
+
+.separated-rail-tab::before {
+  display: inline-block;
+  content: '';
+  border-top: 1px solid var(--border-divider-themed);
+  width: 100%;
+  transform: translateY(-12px);
+}

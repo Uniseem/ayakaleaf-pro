@@ -1,0 +1,328 @@
+/* The toolbar across the top, from pages/editor/toolbar-redesign.scss. */
+
+:root {
+  --redesign-toolbar-home-button-hover-background: var(--bg-dark-secondary);
+  --redesign-toolbar-border-divider: var(--border-divider-dark);
+  --redesign-toolbar-background: var(--bg-dark-primary);
+  --redesign-toolbar-home-link-color: var(--content-primary-dark);
+  --redesign-toolbar-logo-url: url('/img/ol-brand/overleaf-o-white.svg');
+  --redesign-subdued-button-color: var(--content-primary-dark);
+  --redesign-subdued-button-hover-background: var(--bg-dark-tertiary);
+  --redesign-toolbar-feedback-link-color: var(--link-ui-dark);
+}
+
+[data-theme='light'] {
+  --redesign-toolbar-home-button-hover-background: var(--neutral-20);
+  --redesign-toolbar-border-divider: var(--border-divider);
+  --redesign-toolbar-background: var(--bg-light-primary);
+  --redesign-toolbar-home-link-color: var(--content-primary);
+  --redesign-toolbar-logo-url: url('/img/ol-brand/overleaf-o-dark.svg');
+  --redesign-subdued-button-color: var(--content-primary);
+  --redesign-subdued-button-hover-background: var(--bg-light-tertiary);
+  --redesign-toolbar-feedback-link-color: var(--link-ui);
+}
+
+.ide-redesign-toolbar {
+  border-bottom: 1px solid var(--redesign-toolbar-border-divider);
+  background-color: var(--redesign-toolbar-background);
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0 var(--spacing-02);
+  gap: var(--spacing-05);
+}
+
+.ide-redesign-toolbar .ide-redesign-toolbar-menu {
+  display: flex;
+  gap: var(--spacing-05);
+}
+
+.ide-redesign-toolbar .ide-redesign-toolbar-menu,
+.ide-redesign-toolbar .ide-redesign-toolbar-actions {
+  flex: 0 0 auto;
+}
+
+.ide-redesign-toolbar .ide-redesign-toolbar-home-button {
+  width: 32px;
+  height: 32px;
+  margin: 4px 0;
+}
+
+.ide-redesign-toolbar .ide-redesign-toolbar-button-subdued {
+  --bs-btn-color: var(--redesign-subdued-button-color);
+  --bs-btn-bg: transparent;
+  --bs-btn-border-color: transparent;
+  --bs-btn-hover-color: var(--redesign-subdued-button-color);
+  --bs-btn-hover-bg: var(--redesign-subdued-button-hover-background);
+  --bs-btn-hover-border-color: transparent;
+  --bs-btn-active-color: var(--redesign-subdued-button-color);
+  --bs-btn-active-bg: var(--redesign-subdued-button-hover-background);
+  --bs-btn-active-border-color: transparent;
+  --bs-btn-disabled-color: var(--content-disabled);
+  --bs-btn-disabled-bg: var(--bg-light-disabled);
+  --bs-btn-disabled-border-color: var(--bg-light-disabled);
+  --bs-btn-border-width: 0;
+  text-decoration: none;
+}
+
+.ide-redesign-toolbar .ide-redesign-toolbar-button-subdued.ide-redesign-toolbar-button-icon {
+  --bs-btn-bg: var(--redesign-toolbar-background);
+  --bs-btn-border-color: transparent;
+  border-radius: var(--border-radius-full);
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-02);
+}
+
+.ide-redesign-toolbar .ide-redesign-toolbar-button-subdued.ide-redesign-toolbar-button-icon:visited,
+.ide-redesign-toolbar .ide-redesign-toolbar-button-subdued.ide-redesign-toolbar-button-icon:focus {
+  color: var(--redesign-subdued-button-color);
+}
+
+.ide-redesign-toolbar .ide-redesign-toolbar-home-link {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  justify-content: center;
+  flex-direction: column;
+  text-align: center;
+  border-radius: 100%;
+  color: var(--redesign-toolbar-home-link-color);
+  text-decoration: none;
+}
+
+.ide-redesign-toolbar .ide-redesign-toolbar-home-link .toolbar-ol-home-button {
+  display: none;
+  font-size: 24px;
+}
+
+.ide-redesign-toolbar .ide-redesign-toolbar-home-link .toolbar-ol-logo {
+  margin: 0 auto;
+  display: block;
+  width: 24px;
+  height: 24px;
+  background-image: var(--redesign-toolbar-logo-url);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.ide-redesign-toolbar .ide-redesign-toolbar-home-link:hover {
+  background-color: var(--redesign-toolbar-home-button-hover-background);
+}
+
+.ide-redesign-toolbar .ide-redesign-toolbar-home-link:hover .toolbar-ol-home-button {
+  display: block;
+}
+
+.ide-redesign-toolbar .ide-redesign-toolbar-home-link:hover .toolbar-ol-logo {
+  display: none;
+}
+
+.ide-redesign-toolbar .ide-redesign-toolbar-dropdown-toggle-subdued {
+  border: none;
+  border-radius: var(--border-radius-base);
+  padding: var(--spacing-02);
+  height: 28px;
+  font-size: var(--font-size-02);
+  line-height: var(--line-height-02);
+  font-weight: 400;
+  box-sizing: border-box;
+  margin: 6px 0;
+}
+
+.ide-redesign-toolbar .ide-redesign-toolbar-dropdown-toggle-subdued.dropdown-toggle::after {
+  display: none;
+}
+
+.ide-redesign-toolbar .ide-redesign-toolbar-dropdown-toggle-subdued .material-symbols {
+  vertical-align: middle;
+}
+
+.ide-redesign-toolbar .ide-redesign-toolbar-logos {
+  display: flex;
+}
+
+.ide-redesign-toolbar .ide-redesign-toolbar-cobranding-separator {
+  border-radius: var(--border-radius-base);
+  width: 1px;
+  height: 16px;
+  margin-top: 12px;
+  margin-left: calc(var(--spacing-02) - 1px);
+  margin-right: var(--spacing-01);
+  background: var(--redesign-toolbar-border-divider);
+}
+
+.ide-redesign-toolbar .ide-redesign-toolbar-cobranding-link {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 var(--spacing-02);
+}
+
+.ide-redesign-toolbar .ide-redesign-toolbar-cobranding-logo {
+  max-height: calc(40px - var(--spacing-04) * 2);
+  max-width: 150px;
+}
+
+.ide-redesign-toolbar-menu-bar {
+  display: flex;
+  justify-content: flex-start;
+  height: 100%;
+  gap: var(--spacing-05);
+}
+
+.ide-redesign-toolbar-actions {
+  display: flex;
+  gap: var(--spacing-04);
+  padding-left: var(--spacing-05);
+}
+
+.ide-redesign-toolbar-button-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.ide-redesign-online-users {
+  display: flex;
+}
+
+.ide-redesign-toolbar-editable-project-name {
+  text-align: center;
+  width: 100%;
+  max-width: 400px;
+  margin: var(--spacing-02) 0;
+}
+
+.ide-redesign-toolbar-labs-feedback-link,
+.ide-redesign-toolbar-labs-feedback-link:hover,
+.ide-redesign-toolbar-labs-feedback-link:visited {
+  color: var(--redesign-toolbar-feedback-link-color);
+}
+
+.ide-redesign-toolbar-project-dropdown {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.ide-redesign-toolbar-project-dropdown-toggle {
+  display: flex;
+  max-width: 100%;
+}
+
+.ide-redesign-toolbar-project-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The way back from history, from pages/editor/toolbar.scss. */
+
+.back-to-editor-btn {
+  margin: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-02);
+}
+
+.back-to-editor-btn .toolbar-btn-secondary-icon {
+  font-size: 20px;
+}
+
+/* Online users, from pages/editor/online-users.scss. */
+
+:root {
+  --online-users-border-color: var(--bg-dark-primary);
+  --online-users-text-color: var(--content-primary);
+  --online-users-overflow-button-background-color: var(--bg-light-secondary);
+}
+
+[data-theme='light'] {
+  --online-users-border-color: var(--bg-light-primary);
+  --online-users-text-color: var(--content-primary);
+  --online-users-overflow-button-background-color: var(--bg-light-secondary);
+}
+
+.online-users-row {
+  --online-users-circle-size: 24px;
+  --online-users-border-size: 1px;
+  --online-users-overlap: 8px;
+  --online-users-circle-padding: var(--spacing-01);
+  display: flex;
+  align-items: center;
+  color: var(--online-users-text-color);
+}
+
+.online-users-row .online-user-overflow-dropdown {
+  --online-users-border-color: transparent;
+}
+
+.online-users-row .online-users-row-button {
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  color: var(--online-users-text-color);
+  min-width: var(--online-users-circle-size);
+  height: var(--online-users-circle-size);
+  display: block;
+  font-weight: var(--font-weight-regular);
+}
+
+.online-users-row .online-users-row-button.dropdown-toggle::after {
+  display: none;
+}
+
+.online-users-row .online-users-row-button:not(:last-child, .online-user-overflow-toggle) {
+  margin-right: calc(var(--online-users-overlap) * -1 + var(--online-users-border-size));
+}
+
+.online-users-row .online-users-row-button:nth-child(1):not(:hover):not(.online-user-overflow-toggle) { z-index: 1; }
+.online-users-row .online-users-row-button:nth-child(2):not(:hover):not(.online-user-overflow-toggle) { z-index: 2; }
+.online-users-row .online-users-row-button:nth-child(3):not(:hover):not(.online-user-overflow-toggle) { z-index: 3; }
+.online-users-row .online-users-row-button:nth-child(4):not(:hover):not(.online-user-overflow-toggle) { z-index: 4; }
+.online-users-row .online-users-row-button:nth-child(5):not(:hover):not(.online-user-overflow-toggle) { z-index: 5; }
+
+.online-users-row .online-users-row-button:hover {
+  z-index: 7;
+}
+
+.online-users-row .online-user-overflow-toggle:not(:hover) {
+  z-index: 6;
+}
+
+.online-users-row .online-user-overflow-toggle,
+.online-users-row .online-user-overflow-toggle:hover,
+.online-users-row .online-user-overflow-toggle:active {
+  background: none;
+}
+
+.online-users-row .online-user-overflow-toggle .online-user-circle {
+  background-color: var(--online-users-overflow-button-background-color);
+  color: var(--online-users-text-color);
+}
+
+.online-users-row .online-user-circle {
+  padding: var(--online-users-circle-padding);
+  border-radius: 50%;
+  min-width: var(--online-users-circle-size);
+  height: var(--online-users-circle-size);
+  line-height: calc(var(--online-users-circle-size) - 2 * var(--online-users-border-size) - 2 * var(--online-users-circle-padding));
+  font-size: var(--font-size-01);
+  text-align: center;
+  border: var(--online-users-border-size) solid var(--online-users-border-color);
+  box-sizing: border-box;
+  display: inline-block;
+  text-transform: uppercase;
+}
+
+.online-users-row .online-user-circle-light-font {
+  color: var(--content-primary-dark);
+}
+
+.online-users-row .online-user-circle-dark-font {
+  color: var(--content-primary);
+}

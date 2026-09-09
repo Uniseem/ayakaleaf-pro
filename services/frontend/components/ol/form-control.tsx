@@ -1,0 +1,142 @@
+'use client'
+
+/**
+ * Bootstrap's form control, from shared/components/form/form-control.tsx:
+ * an input with an optional icon at either end, kept inside a wrapper so
+ * the icon sits over the field's padding.
+ */
+
+import { forwardRef, type ReactNode } from 'react'
+import { Spinner } from './spinner'
+
+export type FormControlProps = Omit<React.ComponentProps<'input'>, 'size' | 'prefix'> & {
+  prepend?: ReactNode
+  append?: ReactNode
+  size?: 'sm' | 'lg'
+  isInvalid?: boolean
+  isValid?: boolean
+  loading?: boolean
+  as?: 'input' | 'textarea'
+  rows?: number
+}
+
+export const FormControl = forwardRef<HTMLInputElement, FormControlProps>(function FormControl(
+  { prepend, append, className, size, isInvalid, isValid, loading, as = 'input', rows, ...props },
+  ref
+) {
+  const controlClassName = [
+    'form-control',
+    size ? `form-control-${size}` : '',
+    isInvalid ? 'is-invalid' : '',
+    isValid ? 'is-valid' : '',
+    prepend ? 'form-control-offset-start' : '',
+    append || loading ? 'form-control-offset-end' : '',
+    className ?? '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  const control =
+    as === 'textarea' ? (
+      <textarea
+        ref={ref as unknown as React.Ref<HTMLTextAreaElement>}
+        className={controlClassName}
+        rows={rows}
+        {...(props as unknown as React.ComponentProps<'textarea'>)}
+      />
+    ) : (
+      <input ref={ref} className={controlClassName} {...props} />
+    )
+
+  const end = loading ? <Spinner size="sm" /> : append
+
+  if (prepend || end) {
+    return (
+      <div
+        className={[
+          'form-control-wrapper',
+          size === 'sm' ? 'form-control-wrapper-sm' : '',
+          size === 'lg' ? 'form-control-wrapper-lg' : '',
+          props.disabled ? 'form-control-wrapper-disabled' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        {prepend ? <span className="form-control-start-icon">{prepend}</span> : null}
+        {control}
+        {end ? <span className="form-control-end-icon">{end}</span> : null}
+      </div>
+    )
+  }
+
+  return control
+})
+
+export const OLFormControl = FormControl
+
+export function OLFormGroup({
+  children,
+  className,
+  controlId,
+}: {
+  children: ReactNode
+  className?: string
+  controlId?: string
+}) {
+  return (
+    <div className={['form-group', className ?? ''].filter(Boolean).join(' ')} data-control-id={controlId}>
+      {children}
+    </div>
+  )
+}
+
+export function OLFormLabel({
+  children,
+  className,
+  htmlFor,
+  id,
+}: {
+  children: ReactNode
+  className?: string
+  htmlFor?: string
+  id?: string
+}) {
+  return (
+    <label id={id} htmlFor={htmlFor} className={['form-label', className ?? ''].filter(Boolean).join(' ')}>
+      {children}
+    </label>
+  )
+}
+
+export function OLFormText({
+  children,
+  className,
+  id,
+  type,
+}: {
+  children: ReactNode
+  className?: string
+  id?: string
+  type?: 'default' | 'info' | 'success' | 'warning' | 'error'
+}) {
+  return (
+    <div id={id} className={['form-text', type ? `form-text-${type}` : '', className ?? ''].filter(Boolean).join(' ')}>
+      <span className="form-text-inner">{children}</span>
+    </div>
+  )
+}
+
+export function OLFormFeedback({
+  children,
+  className,
+  type = 'invalid',
+}: {
+  children: ReactNode
+  className?: string
+  type?: 'valid' | 'invalid'
+  unfilled?: boolean
+}) {
+  return <div className={[`${type}-feedback`, className ?? ''].filter(Boolean).join(' ')}>{children}</div>
+}
+
+export default FormControl

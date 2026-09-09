@@ -48,6 +48,10 @@ export type UserSettings = {
   /** Show the document outline beside the file tree. */
   showOutline: boolean
   breadcrumbs: boolean
+  /** The row of open-file tabs above the editor. */
+  editorTabs: boolean
+  /** Whether a single click opens a file in a temporary tab. */
+  previewTabs: boolean
   nonBlinkingCursor: boolean
 }
 
@@ -68,6 +72,8 @@ export const defaultSettings: UserSettings = {
   darkModePdf: false,
   showOutline: true,
   breadcrumbs: true,
+  editorTabs: true,
+  previewTabs: true,
   nonBlinkingCursor: false,
 }
 

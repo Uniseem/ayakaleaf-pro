@@ -48,6 +48,14 @@ export type LayoutValue = {
 
   pdfLayout: IdeLayout
   changeLayout: (layout: IdeLayout, view?: IdeView) => void
+  /** The same as changeLayout; the original's name for the menu's handler. */
+  handleChangeLayout: (layout: IdeLayout, view?: IdeView) => void
+  /** Opens the PDF in its own tab. Not offered yet, so undefined. */
+  handleDetach?: () => void
+  detachRole: 'detacher' | 'detached' | null
+  detachIsLinked: boolean
+  /** Whether the PDF is on screen, in this window or another. */
+  pdfPreviewOpen: boolean
   /** Whether the editor pane should be on screen at all. */
   editorIsOpen: boolean
   /** Whether the PDF pane should be on screen at all. */
@@ -149,6 +157,11 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
       restoreView,
       pdfLayout,
       changeLayout,
+      handleChangeLayout: changeLayout,
+      handleDetach: undefined,
+      detachRole: null,
+      detachIsLinked: false,
+      pdfPreviewOpen: pdfIsOpen && view !== 'history',
       editorIsOpen: editorIsOpen && view !== 'history',
       pdfIsOpen: pdfIsOpen && view !== 'history',
       railTab: focusMode ? null : railTab,

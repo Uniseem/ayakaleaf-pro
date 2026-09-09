@@ -46,6 +46,15 @@ export type ProjectValue = {
   /** Whether this person may leave comments but not edit. */
   canReview: boolean
   isOwner: boolean
+  /** Whether this person came in through a read-only sharing link. */
+  isRestrictedTokenMember: boolean
+  /** What this deployment offers every project. There are no plans here. */
+  features: {
+    trackChanges: boolean
+    trackChangesVisible: boolean
+    /** -1 means unlimited. */
+    collaborators: number
+  }
 
   /** The documents that could be compiled, in tree order. */
   docs: FileEntry[]
@@ -139,6 +148,8 @@ export function ProjectProvider({
       canWrite: canWrite(view.access),
       canReview: view.access === 'review' || canWrite(view.access),
       isOwner: view.access === 'owner',
+      isRestrictedTokenMember: false,
+      features: { trackChanges: true, trackChangesVisible: true, collaborators: -1 },
       docs: view.files.filter(isEditable),
       entryById: id => byId.get(id),
       entryByPath: path => byPath.get(path),

@@ -1,0 +1,277 @@
+/*
+ * The design tokens, as the original defines them.
+ *
+ * Every value is copied from services/web/frontend/stylesheets/foundations
+ * and abstracts, under the same custom-property names, so that a rule ported
+ * from there reads the same value here. Nothing in this file is a choice.
+ */
+
+:root {
+  /* Spacing ------------------------------------------------------------ */
+  --spacing-00: 0;
+  --spacing-01: 2px;
+  --spacing-02: 4px;
+  --spacing-03: 6px;
+  --spacing-04: 8px;
+  --spacing-05: 12px;
+  --spacing-06: 16px;
+  --spacing-07: 20px;
+  --spacing-08: 24px;
+  --spacing-09: 32px;
+  --spacing-10: 40px;
+  --spacing-11: 48px;
+  --spacing-12: 56px;
+  --spacing-13: 64px;
+  --spacing-14: 72px;
+  --spacing-15: 80px;
+  --spacing-16: 96px;
+
+  /* Type --------------------------------------------------------------- */
+  --font-sans: 'Noto Sans', sans-serif;
+  --font-size-01: 0.75rem;
+  --font-size-02: 0.875rem;
+  --font-size-03: 1rem;
+  --font-size-04: 1.125rem;
+  --font-size-05: 1.25rem;
+  --font-size-06: 1.5rem;
+  --font-size-07: 1.875rem;
+  --font-size-08: 2.25rem;
+  --font-size-09: 3rem;
+  --font-size-10: 3.25rem;
+  --font-size-11: 3.75rem;
+  --font-size-12: 4.5rem;
+  --font-size-13: 6em;
+  --line-height-01: 1rem;
+  --line-height-02: 1.25rem;
+  --line-height-03: 1.5rem;
+  --line-height-04: 1.75rem;
+  --line-height-05: 2rem;
+  --line-height-06: 2.5rem;
+  --line-height-07: 3rem;
+  --line-height-08: 4rem;
+  --line-height-09: 4.25rem;
+  --line-height-10: 5rem;
+  --line-height-11: 6rem;
+  --line-height-12: 8rem;
+  --font-weight-regular: 400;
+
+  /* Radius ------------------------------------------------------------- */
+  --border-radius-base: 4px;
+  --border-radius-medium: 8px;
+  --border-radius-large: 16px;
+  --border-radius-full: 9999px;
+
+  /* Primitive colours -------------------------------------------------- */
+  --white: #fff;
+  --neutral-10: #f4f5f6;
+  --neutral-20: #e7e9ee;
+  --neutral-30: #d0d5dd;
+  --neutral-40: #afb5c0;
+  --neutral-50: #8d96a5;
+  --neutral-60: #677283;
+  --neutral-70: #495365;
+  --neutral-80: #2f3a4c;
+  --neutral-90: #1b222c;
+  --green-10: #eaf6ef;
+  --green-20: #b8dbc8;
+  --green-30: #86caa5;
+  --green-40: #53b57f;
+  --green-50: #098842;
+  --green-60: #1e6b41;
+  --green-70: #195936;
+  --blue-10: #f1f4f9;
+  --blue-20: #c3d0e3;
+  --blue-30: #97b6e5;
+  --blue-40: #6597e0;
+  --blue-50: #366cbf;
+  --blue-60: #28518f;
+  --blue-70: #214475;
+  --red-10: #f9f1f1;
+  --red-20: #f5beba;
+  --red-30: #e59d9a;
+  --red-40: #e36d66;
+  --red-50: #b83a33;
+  --red-60: #942f2a;
+  --red-70: #782722;
+  --yellow-10: #fcf1e3;
+  --yellow-20: #fcc483;
+  --yellow-30: #f7a445;
+  --yellow-40: #de8014;
+  --yellow-50: #8f5514;
+  --yellow-60: #7a4304;
+  --yellow-70: #633a0b;
+
+  /* Semantic colours --------------------------------------------------- */
+  --bg-light-primary: var(--white);
+  --bg-light-secondary: var(--neutral-10);
+  --bg-light-tertiary: var(--neutral-20);
+  --bg-light-disabled: var(--neutral-20);
+  --bg-dark-primary: var(--neutral-90);
+  --bg-dark-secondary: var(--neutral-80);
+  --bg-dark-tertiary: var(--neutral-70);
+  --bg-dark-disabled: var(--neutral-70);
+  --bg-accent-01: var(--green-50);
+  --bg-accent-02: var(--green-60);
+  --bg-accent-03: var(--green-10);
+  --bg-danger-01: var(--red-50);
+  --bg-danger-02: var(--red-60);
+  --bg-danger-03: var(--red-10);
+  --bg-warning-01: var(--yellow-50);
+  --bg-warning-02: var(--yellow-60);
+  --bg-warning-03: var(--yellow-10);
+  --bg-info-01: var(--blue-50);
+  --bg-info-02: var(--blue-60);
+  --bg-info-03: var(--blue-10);
+  --content-primary: var(--neutral-90);
+  --content-secondary: var(--neutral-70);
+  --content-disabled: var(--neutral-40);
+  --content-placeholder: var(--neutral-60);
+  --content-danger: var(--red-50);
+  --content-warning: var(--yellow-50);
+  --content-positive: var(--green-50);
+  --content-info: var(--blue-50);
+  --border-primary: var(--neutral-60);
+  --border-hover: var(--neutral-70);
+  --border-disabled: var(--neutral-20);
+  --border-active: var(--blue-50);
+  --border-danger: var(--red-50);
+  --border-divider: var(--neutral-20);
+  --border-dark-divider: var(--neutral-70);
+  --link-web: var(--green-60);
+  --link-web-hover: var(--green-70);
+  --link-web-visited: var(--green-60);
+  --link-ui: var(--blue-50);
+  --link-ui-hover: var(--blue-60);
+  --link-ui-visited: var(--blue-60);
+  --content-primary-dark: var(--neutral-10);
+  --content-secondary-dark: var(--neutral-20);
+  --content-disabled-dark: var(--neutral-60);
+  --content-placeholder-dark: var(--neutral-50);
+  --content-danger-dark: var(--red-40);
+  --content-warning-dark: var(--yellow-40);
+  --content-positive-dark: var(--green-40);
+  --content-info-dark: var(--blue-30);
+  --border-primary-dark: var(--neutral-30);
+  --border-hover-dark: var(--neutral-20);
+  --border-disabled-dark: var(--neutral-80);
+  --border-active-dark: var(--blue-30);
+  --border-danger-dark: var(--red-40);
+  --border-divider-dark: var(--neutral-80);
+  --link-web-dark: var(--green-30);
+  --link-web-hover-dark: var(--green-40);
+  --link-web-visited-dark: var(--green-40);
+  --link-ui-dark: var(--blue-30);
+  --link-ui-hover-dark: var(--blue-40);
+  --link-ui-visited-dark: var(--blue-40);
+  --premium-gradient: linear-gradient(246deg, var(--blue-70) 0%, #254c84 29%, var(--blue-40) 97%);
+  --premium-gradient-dark: linear-gradient(246deg, #6f8bcd 0%, #8ea3d7 29%, #ccdcff 97%);
+
+  /* Links, as base/links.scss sets them for a light page */
+  --link-color: var(--link-ui);
+  --link-hover-color: var(--link-ui-hover);
+  --link-visited-color: var(--link-ui-visited);
+  --link-color-dark: var(--link-ui-dark);
+  --link-hover-color-dark: var(--link-ui-hover-dark);
+  --link-visited-color-dark: var(--link-ui-visited-dark);
+
+  /* Colours that follow the theme: dark unless data-theme is light ------ */
+  --bg-primary-themed: var(--bg-dark-primary);
+  --bg-secondary-themed: var(--bg-dark-secondary);
+  --bg-tertiary-themed: var(--bg-dark-tertiary);
+  --bg-disabled-themed: var(--bg-dark-disabled);
+  --content-primary-themed: var(--content-primary-dark);
+  --content-secondary-themed: var(--content-secondary-dark);
+  --content-disabled-themed: var(--content-disabled-dark);
+  --content-placeholder-themed: var(--content-placeholder-dark);
+  --content-danger-themed: var(--content-danger-dark);
+  --content-warning-themed: var(--content-warning-dark);
+  --content-positive-themed: var(--content-positive-dark);
+  --content-info-themed: var(--content-info-dark);
+  --border-primary-themed: var(--border-primary-dark);
+  --border-hover-themed: var(--border-hover-dark);
+  --border-disabled-themed: var(--border-disabled-dark);
+  --border-active-themed: var(--border-active-dark);
+  --border-danger-themed: var(--border-danger-dark);
+  --border-divider-themed: var(--border-divider-dark);
+  --link-web-themed: var(--link-web-dark);
+  --link-web-hover-themed: var(--link-web-hover-dark);
+  --link-web-visited-themed: var(--link-web-visited-dark);
+  --link-ui-themed: var(--link-ui-dark);
+  --link-ui-hover-themed: var(--link-ui-hover-dark);
+  --link-ui-visited-themed: var(--link-ui-visited-dark);
+  --premium-gradient-themed: var(--premium-gradient-dark);
+
+  /* The sizes abstracts/variables.scss keeps */
+  --header-height: 68px;
+  --toolbar-height: 40px;
+  --toolbar-small-height: 32px;
+  --editor-toggler-bg-color: #8a92a0;
+  --editor-resizer-bg-color: var(--bg-dark-secondary);
+
+  /* Bootstrap's own variables that the ported rules read */
+  --bs-border-width: 1px;
+  --bs-border-color: var(--border-divider);
+  --bs-body-font-size: 1rem;
+  --bs-body-font-weight: 400;
+  --bs-body-line-height: 1.5;
+  --bs-danger: var(--bg-danger-01);
+  --bs-heading-color: var(--content-primary);
+  --bs-badge-padding-x: var(--spacing-02);
+  --bs-badge-padding-y: var(--spacing-01);
+  --badge-font-weight: 400;
+  --bs-modal-padding: var(--spacing-06);
+  --bs-form-invalid-border-color: var(--bg-danger-01);
+}
+
+[data-theme='light'] {
+  --bg-primary-themed: var(--bg-light-primary);
+  --bg-secondary-themed: var(--bg-light-secondary);
+  --bg-tertiary-themed: var(--bg-light-tertiary);
+  --bg-disabled-themed: var(--bg-light-disabled);
+  --content-primary-themed: var(--content-primary);
+  --content-secondary-themed: var(--content-secondary);
+  --content-disabled-themed: var(--content-disabled);
+  --content-placeholder-themed: var(--content-placeholder);
+  --content-danger-themed: var(--content-danger);
+  --content-warning-themed: var(--content-warning);
+  --content-positive-themed: var(--content-positive);
+  --content-info-themed: var(--content-info);
+  --border-primary-themed: var(--border-primary);
+  --border-hover-themed: var(--border-hover);
+  --border-disabled-themed: var(--border-disabled);
+  --border-active-themed: var(--border-active);
+  --border-danger-themed: var(--border-danger);
+  --border-divider-themed: var(--border-divider);
+  --border-dark-divider-themed: var(--border-dark-divider);
+  --link-web-themed: var(--link-web);
+  --link-web-hover-themed: var(--link-web-hover);
+  --link-web-visited-themed: var(--link-web-visited);
+  --link-ui-themed: var(--link-ui);
+  --link-ui-hover-themed: var(--link-ui-hover);
+  --link-ui-visited-themed: var(--link-ui-visited);
+  --premium-gradient-themed: var(--premium-gradient);
+  --editor-toggler-bg-color: var(--content-disabled);
+  --editor-resizer-bg-color: var(--bg-light-tertiary);
+}
+
+/* Typography helpers, from the foundations/typography.scss mixins. */
+.body-xs {
+  font-size: var(--font-size-01);
+  line-height: var(--line-height-01);
+}
+.body-sm {
+  font-size: var(--font-size-02);
+  line-height: var(--line-height-02);
+}
+.body-base {
+  font-size: var(--font-size-03);
+  line-height: var(--line-height-03);
+}
+.heading-xs {
+  font-size: var(--font-size-04);
+  line-height: var(--line-height-03);
+}
+.heading-sm {
+  font-size: var(--font-size-05);
+  line-height: var(--line-height-04);
+}
