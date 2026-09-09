@@ -83,8 +83,17 @@ func BucketTarget(bucket, key string) Target {
 	return Target{Bucket: bucket, Key: key}
 }
 
-// projectKeyPattern accepts the numeric ids history allocates.
-var projectKeyPattern = regexp.MustCompile(`^[0-9]+$`)
+// projectKeyPattern is what a history id may look like.
+//
+// Numeric, because that is what upstream's history-v1 allocates -- and hex,
+// because this deployment's does not: it gives a project its own ObjectId as
+// its history id, and those have letters in them. A numeric-only rule rejected
+// every id this installation actually uses, so no blob could be served at all
+// and every figure in every project was missing from the compiled PDF.
+//
+// The point of the check is that the id becomes a path, so what matters is
+// that it cannot contain a separator or a dot. Both forms satisfy that.
+var projectKeyPattern = regexp.MustCompile(`^[0-9a-fA-F]+$`)
 
 // ProjectKey mirrors @overleaf/object-persistor's ProjectKey.format exactly:
 // the id is left-padded to nine digits, reversed, and cut at fixed offsets
