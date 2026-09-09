@@ -73,6 +73,7 @@ import { latexCompletions } from './completion'
 import { latexDiagnostics } from './lint'
 import { analyse } from './analyse'
 import { rejectionChanges, setTrackedChanges, trackedChanges } from './tracked-changes'
+import { visualMode } from './visual'
 import { useReview } from '@/features/ide/contexts/review-context'
 
 /**
@@ -224,6 +225,7 @@ export function SourceEditor() {
       completion: new Compartment(),
       linting: new Compartment(),
       keys: new Compartment(),
+      visual: new Compartment(),
     }),
     []
   )
@@ -382,6 +384,7 @@ export function SourceEditor() {
             // default keymap, which is why it is its own compartment rather
             // than part of the keymap above.
             compartments.keys.of(settings.keybindings === 'vim' ? vim() : []),
+            compartments.visual.of(settings.mode === 'visual' ? visualMode() : []),
           ],
         })
       )
@@ -416,6 +419,7 @@ export function SourceEditor() {
     settings.autoComplete,
     settings.syntaxValidation,
     settings.keybindings,
+    settings.mode,
   ])
 
   // Jumping to a line, asked for by the outline and by search. An event
@@ -561,6 +565,9 @@ export function SourceEditor() {
           settings.syntaxValidation ? linter(latexDiagnostics) : []
         ),
         compartments.keys.reconfigure(settings.keybindings === 'vim' ? vim() : []),
+        compartments.visual.reconfigure(
+          settings.mode === 'visual' ? visualMode() : []
+        ),
       ],
     })
   }, [
@@ -568,6 +575,7 @@ export function SourceEditor() {
     settings.autoComplete,
     settings.syntaxValidation,
     settings.keybindings,
+    settings.mode,
     compartments,
   ])
 

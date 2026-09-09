@@ -22,6 +22,7 @@ import {
   Tooltip,
 } from '@heroui/react'
 import { useEditor } from '@/features/ide/contexts/editor-context'
+import { useSettings } from '@/features/ide/contexts/settings-context'
 
 const insert = (snippet: string) =>
   window.dispatchEvent(new CustomEvent('ide:insert', { detail: { snippet } }))
@@ -40,6 +41,7 @@ const LIST = '\\begin{itemize}\n  \\item \n\\end{itemize}\n'
 
 export function EditorToolbar() {
   const { editable } = useEditor()
+  const settings = useSettings()
 
   return (
     <div className="flex h-8 shrink-0 items-center gap-0.5 bg-[var(--bg-light-primary)] px-2">
@@ -143,6 +145,31 @@ export function EditorToolbar() {
       </ToolButton>
 
       <div className="flex-1" />
+
+      {/* Source or rendered. A pair of segments rather than a menu, because it
+          is a switch between two things and both should be readable without
+          opening anything. */}
+      <div
+        role="group"
+        aria-label="How the document is shown"
+        className="mr-1 flex items-center rounded-full bg-[var(--bg-light-secondary)] p-0.5"
+      >
+        {(['code', 'visual'] as const).map(mode => (
+          <button
+            key={mode}
+            type="button"
+            aria-pressed={settings.mode === mode}
+            onClick={() => settings.set('mode', mode)}
+            className={`h-5 rounded-full px-2.5 text-[12px] leading-4 ${
+              settings.mode === mode
+                ? 'bg-[var(--bg-light-primary)] font-semibold text-[var(--content-primary)] shadow-sm'
+                : 'text-[var(--content-secondary)]'
+            }`}
+          >
+            {mode === 'code' ? 'Code' : 'Visual'}
+          </button>
+        ))}
+      </div>
 
       <ToolButton label="Search file" onClick={() => command('find')}>
         <SearchIcon />
