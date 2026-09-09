@@ -112,3 +112,27 @@ func TestParseSyncOutputIgnoresFieldsNobodyAskedFor(t *testing.T) {
 		t.Error("x was kept")
 	}
 }
+
+// synctex names a file the way TeX saw it, which is the compile directory
+// with the project's own path stuck on the end. Nobody outside has heard of
+// that directory.
+func TestProjectPathDropsTheCompileDirectory(t *testing.T) {
+	const dir = "/var/lib/overleaf/data/compiles/aaa-bbb"
+	for _, each := range []struct{ from, want string }{
+		{dir + "/./main.tex", "main.tex"},
+		{dir + "/chapters/one.tex", "chapters/one.tex"},
+		{"./main.tex", "main.tex"},
+		{"chapters/one.tex", "chapters/one.tex"},
+		// A path outside the compile directory is left alone: it is a file
+		// from the TeX distribution, and mangling it would name a file in the
+		// project that does not exist.
+		{"/usr/local/texlive/2025/texmf-dist/tex/latex/base/article.cls",
+			"/usr/local/texlive/2025/texmf-dist/tex/latex/base/article.cls"},
+		// A directory that merely starts the same way is a different one.
+		{dir + "-other/main.tex", dir + "-other/main.tex"},
+	} {
+		if got := projectPath(each.from, dir); got != each.want {
+			t.Errorf("projectPath(%q) = %q, want %q", each.from, got, each.want)
+		}
+	}
+}

@@ -125,11 +125,33 @@ func (s *Service) syncFromPDF(w http.ResponseWriter, r *http.Request) {
 		s.refuse(w, r, err)
 		return
 	}
-	answerJSON(w, http.StatusOK, map[string]any{"code": parseSyncOutput(output,
+	records := parseSyncOutput(output,
 		syncField{"Input", "file"},
 		syncField{"Line", "line"},
 		syncField{"Column", "column"},
-	)})
+	)
+	// synctex names the file the way TeX saw it, which is the absolute path of
+	// the compile directory with the project's own path stuck on the end. The
+	// caller has never heard of that directory and knows the file as
+	// "chapters/one.tex", so the directory comes off here -- the only place
+	// that knows what it was.
+	compileDir := s.compileDir(r.PathValue("projectId"), r.PathValue("userId"))
+	for _, record := range records {
+		if path, ok := record["file"].(string); ok {
+			record["file"] = projectPath(path, compileDir)
+		}
+	}
+	answerJSON(w, http.StatusOK, map[string]any{"code": records})
+}
+
+// projectPath is a path as TeX printed it, as the project knows it.
+func projectPath(path, compileDir string) string {
+	path = filepath.ToSlash(path)
+	dir := filepath.ToSlash(compileDir)
+	if trimmed, inside := strings.CutPrefix(path, dir+"/"); inside {
+		path = trimmed
+	}
+	return strings.TrimPrefix(path, "./")
 }
 
 // synctex runs the tool that maps between the two.

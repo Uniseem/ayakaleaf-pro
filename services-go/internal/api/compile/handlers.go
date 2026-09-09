@@ -325,11 +325,8 @@ func (s *Service) SyncFromPDF(w http.ResponseWriter, r *http.Request) error {
 		return apierr.Internal.WithCause(err).
 			WithMessage("The document has not been compiled yet.")
 	}
-	// The compiler answers with paths as it sees them, which are relative to
-	// the compile directory and sometimes carry a leading "./".
-	for i := range positions {
-		positions[i].File = strings.TrimPrefix(positions[i].File, "./")
-	}
+	// The paths are already the project's own: the compiler strips its own
+	// directory off them, being the only thing that knows what it was.
 	return httpapi.JSON(w, http.StatusOK, map[string]any{"code": positions})
 }
 
