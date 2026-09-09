@@ -94,7 +94,10 @@ func (s *Service) syncFromCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	output, err := s.synctex(r, "view", "-i", line+":"+column+":"+file)
+	// -o names the PDF. Without it synctex refuses the request rather than
+	// guessing, and answers with its usage text and a zero exit status --
+	// which reads as "this line is not in the document" and is not.
+	output, err := s.synctex(r, "view", "-i", line+":"+column+":"+file, "-o", "output.pdf")
 	if err != nil {
 		s.refuse(w, r, err)
 		return
