@@ -122,7 +122,15 @@ function IdeShell({ userName }: { userName: string }) {
             group, so dragging a handle resizes a panel and not the buttons. */}
         <RailTabs />
 
+        {/* The group's id is written down rather than generated. Every panel
+            here already has one; a group that takes its own from useId gets a
+            different value on the server and on the client, and the element
+            the library holds a reference to is then the one the server sent,
+            under the id the client made up. It looks for the group by that id,
+            does not find it, and throws from an effect -- which takes the
+            whole editor down rather than the layout. */}
         <PanelGroup
+          id="ide-outer"
           direction="horizontal"
           autoSaveId="ide.outer"
           className="min-h-0 flex-1"
@@ -140,13 +148,18 @@ function IdeShell({ userName }: { userName: string }) {
             <RailPanel />
           </Panel>
 
-          <PanelResizeHandle className={handle} disabled={!layout.railIsOpen} />
+          <PanelResizeHandle
+            id="ide-outer-handle"
+            className={handle}
+            disabled={!layout.railIsOpen}
+          />
 
           <Panel id="main" order={2} minSize={30}>
             {layout.view === 'history' ? (
               <HistoryView />
             ) : (
               <PanelGroup
+                id="ide-main"
                 direction="horizontal"
                 autoSaveId="ide.main"
                 className="h-full"
@@ -164,6 +177,7 @@ function IdeShell({ userName }: { userName: string }) {
                 </Panel>
 
                 <PanelResizeHandle
+                  id="ide-main-handle"
                   className={handle}
                   disabled={!layout.editorIsOpen || !layout.pdfIsOpen}
                 />
