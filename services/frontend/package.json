@@ -10,17 +10,24 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@codemirror/language": "^6.10.3",
+    "@codemirror/autocomplete": "6.18.4",
+    "@codemirror/commands": "6.10.1",
+    "@codemirror/language": "6.12.1",
     "@codemirror/legacy-modes": "^6.4.1",
-    "@codemirror/state": "^6.4.1",
-    "@codemirror/view": "^6.34.1",
+    "@codemirror/lint": "6.9.2",
+    "@codemirror/search": "6.5.8",
+    "@codemirror/state": "6.5.4",
+    "@codemirror/view": "6.38.6",
     "@heroui/react": "^2.8.5",
+    "@lezer/common": "1.5.0",
+    "@lezer/highlight": "1.2.3",
+    "@replit/codemirror-vim": "^6.2.1",
     "@tailwindcss/postcss": "^4.3.3",
-    "@uiw/react-codemirror": "^4.23.6",
     "framer-motion": "^11.11.0",
     "next": "^15.5.25",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "react-resizable-panels": "^2.1.7"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

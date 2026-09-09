@@ -2,10 +2,8 @@ import { notFound, redirect } from 'next/navigation'
 import { currentUser } from '@/lib/auth'
 import { getProject } from '@/lib/editor'
 import { ApiError } from '@/lib/api'
-import { projectGitHub } from '@/lib/github'
 import { forwardedHeaders } from '@/lib/server'
-import { site } from '@/lib/site'
-import { Editor } from './editor'
+import { IdePage } from '@/features/ide/components/ide-page'
 
 export const metadata = { title: 'Editor' }
 
@@ -28,7 +26,6 @@ export default async function ProjectPage({
     redirect(`/login?next=/projects/${id}`)
   }
 
-  const where = await site(headers)
 
   let view
   try {
@@ -43,19 +40,6 @@ export default async function ProjectPage({
     throw error
   }
 
-  // Whether this project has a repository is asked here so the editor opens
-  // with the answer rather than with a button that does not know yet.
-  const github = await projectGitHub(id, headers).catch(() => ({
-    enabled: false,
-    linked: false,
-  }))
 
-  return (
-    <Editor
-      user={user}
-      view={view}
-      git={where.git?.enabled ?? false}
-      github={github}
-    />
-  )
+  return <IdePage user={user} view={view} />
 }

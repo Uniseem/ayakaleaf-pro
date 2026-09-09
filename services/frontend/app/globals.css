@@ -29,3 +29,62 @@ body {
   outline: none;
   @apply ring-2 ring-focus;
 }
+
+/*
+ * The editor's colours.
+ *
+ * Set as variables rather than in the CodeMirror theme so that switching
+ * light to dark is a class on the root element and not a reconfiguration of
+ * the editor -- which would cost the cursor and the scroll position.
+ */
+:root {
+  --cm-background: theme(colors.white);
+  --cm-foreground: #1f2933;
+  --cm-caret: #0b6bcb;
+  --cm-selection: #cfe3fb;
+  --cm-selection-match: #e6dcb5;
+  --cm-active-line: #f4f6f8;
+  --cm-gutter-background: #fafbfc;
+  --cm-gutter-foreground: #9aa5b1;
+  --cm-selected: #dbeafe;
+  --cm-tooltip-background: #ffffff;
+  --cm-tooltip-border: #d6dde5;
+
+  --cm-command: #0b6bcb;
+  --cm-comment: #7b8794;
+  --cm-string: #b4532a;
+  --cm-bracket: #6b7280;
+  --cm-atom: #7c3aed;
+  --cm-number: #b4532a;
+  --cm-variable: #1f2933;
+  --cm-type: #0f766e;
+}
+
+:root[data-theme='dark'] {
+  --cm-background: #1b1f24;
+  --cm-foreground: #d7dee7;
+  --cm-caret: #7cb7ff;
+  --cm-selection: #2f4767;
+  --cm-selection-match: #4a442a;
+  --cm-active-line: #21262d;
+  --cm-gutter-background: #1b1f24;
+  --cm-gutter-foreground: #5c6773;
+  --cm-selected: #2c3e57;
+  --cm-tooltip-background: #22272e;
+  --cm-tooltip-border: #363c45;
+
+  --cm-command: #7cb7ff;
+  --cm-comment: #6e7a88;
+  --cm-string: #e5946b;
+  --cm-bracket: #98a2b3;
+  --cm-atom: #c4a3f5;
+  --cm-number: #e5946b;
+  --cm-variable: #d7dee7;
+  --cm-type: #5eead4;
+}
+
+/* The editor fills its pane and scrolls inside it, never the page. */
+.ide-shell {
+  height: 100dvh;
+  overflow: hidden;
+}
