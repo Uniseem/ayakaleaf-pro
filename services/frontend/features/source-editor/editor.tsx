@@ -417,27 +417,23 @@ export function SourceEditor() {
     compartments,
   ])
 
-  if (loading && !current) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-default-400">
-        Opening…
-      </div>
-    )
-  }
-
-  if (!current) {
-    return (
-      <div className="flex h-full items-center justify-center px-6 text-center text-sm text-default-400">
-        Choose a file from the tree to start editing.
-      </div>
-    )
-  }
-
+  // The container is always rendered, even with nothing open. CodeMirror is
+  // created once against it, and it cannot be created against an element that
+  // is not there yet -- returning a placeholder instead of this div would mean
+  // the view is never built, because the effect that builds it does not run
+  // again when the div finally appears.
   return (
-    <div
-      ref={host}
-      className="h-full min-h-0 overflow-hidden"
-      data-testid="source-editor"
-    />
+    <div className="relative h-full min-h-0">
+      <div
+        ref={host}
+        className="h-full min-h-0 overflow-hidden"
+        data-testid="source-editor"
+      />
+      {!current ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-background px-6 text-center text-sm text-default-400">
+          {loading ? 'Opening…' : 'Choose a file from the tree to start editing.'}
+        </div>
+      ) : null}
+    </div>
   )
 }
