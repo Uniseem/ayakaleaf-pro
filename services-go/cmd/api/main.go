@@ -134,6 +134,12 @@ func main() {
 		AllowedOrigins:    allowedOrigins(siteSettings),
 	})
 
+	// The password-reset tokens are unique and expire on their own, both of
+	// which are the index's job.
+	if err := server.EnsureAuthIndexes(ctx); err != nil {
+		log.Warn("could not ensure the password reset indexes", logx.Err(err))
+	}
+
 	// The other services in this deployment ask this one things -- whether
 	// somebody may open a project, what a stored document says, where a
 	// project's history is. That is a different surface from the one a browser

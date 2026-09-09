@@ -12,6 +12,7 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/githubsync"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/history"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/httpapi"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/mailer"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/oauth"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projecthistory"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projects"
@@ -108,12 +110,13 @@ func New(opts Options) *Server {
 		users:    opts.Users,
 		sessions: opts.Sessions,
 		settings: opts.Settings,
-		auth:     auth.New(opts.Users, opts.Sessions, opts.Settings),
-		chat:     chat.New(opts.Projects, opts.Users, opts.ChatURL),
-		prefs:    settings.NewUserService(opts.Database),
-		tags:     tags.New(opts.Database),
-		sharing:  sharing.New(opts.Projects, opts.Users, opts.Database),
-		origins:  opts.AllowedOrigins,
+		auth: auth.New(opts.Users, opts.Sessions, opts.Settings).
+			WithReset(opts.Database, mailer.New(opts.Settings)),
+		chat:    chat.New(opts.Projects, opts.Users, opts.ChatURL),
+		prefs:   settings.NewUserService(opts.Database),
+		tags:    tags.New(opts.Database),
+		sharing: sharing.New(opts.Projects, opts.Users, opts.Database, mailer.New(opts.Settings)),
+		origins: opts.AllowedOrigins,
 	}
 	server.documents = documents.NewService(
 		opts.Projects, opts.Documents, opts.Storage, opts.History)
@@ -274,6 +277,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/settings", h(s.prefs.Get))
 	mux.HandleFunc("POST /api/settings", h(s.prefs.Set))
 	mux.HandleFunc("POST /api/settings/password", h(s.auth.ChangePassword))
+	mux.HandleFunc("GET /api/settings/sessions", h(s.auth.Sessions))
+	mux.HandleFunc("DELETE /api/settings/sessions", h(s.auth.ClearSessions))
+
+	mux.HandleFunc("POST /api/auth/password/reset", h(s.auth.RequestReset))
+	mux.HandleFunc("POST /api/auth/password/set", h(s.auth.SetPasswordFromToken))
 
 	mux.HandleFunc("GET /api/admin/settings", h(s.getSettings))
 	mux.HandleFunc("POST /api/admin/settings", h(s.putSettings))
@@ -344,4 +352,9 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) error {
 		return apierr.Internal.WithCause(err)
 	}
 	return httpapi.JSON(w, http.StatusOK, s.settings.Describe())
+}
+
+// EnsureAuthIndexes creates what the password-reset flow relies on.
+func (s *Server) EnsureAuthIndexes(ctx context.Context) error {
+	return s.auth.EnsureResetIndexes(ctx)
 }

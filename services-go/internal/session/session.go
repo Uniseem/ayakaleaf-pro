@@ -90,6 +90,12 @@ type Session struct {
 	// Redirect is where to send somebody after they sign in.
 	Redirect string `json:"postLoginRedirect,omitempty"`
 
+	// IPAddress and CreatedAt are what the sessions list on the settings page
+	// shows. They are the only way somebody can recognise a session they do
+	// not remember starting, which is the entire point of showing the list.
+	IPAddress string    `json:"ip_address,omitempty"`
+	CreatedAt time.Time `json:"session_created,omitempty"`
+
 	// Extra keeps anything this service does not model, so writing a session
 	// back never drops a field somebody else put there.
 	Extra map[string]json.RawMessage `json:"-"`
@@ -228,6 +234,9 @@ func (s *Store) Create(ctx context.Context, w http.ResponseWriter, sess *Session
 		return "", err
 	}
 	sess.Cookie = s.newCookieState()
+	if sess.CreatedAt.IsZero() {
+		sess.CreatedAt = time.Now().UTC()
+	}
 	raw, err := s.marshal(sess)
 	if err != nil {
 		return "", err
@@ -235,13 +244,118 @@ func (s *Store) Create(ctx context.Context, w http.ResponseWriter, sess *Session
 	if err := s.redis.Set(ctx, s.prefix+id, raw, s.ttl).Err(); err != nil {
 		return "", err
 	}
+	// Remember which sessions belong to whom, so that they can all be ended at
+	// once. Without this there is no way to sign somebody out of the machines
+	// they are not holding -- which is exactly what somebody resetting a
+	// password is trying to do.
+	if identity := sess.Identity(); identity != nil && identity.ID != "" {
+		key := s.trackingKey(identity.ID)
+		if err := s.redis.SAdd(ctx, key, s.prefix+id).Err(); err == nil {
+			// The set outlives a session by a margin, and is pruned when read.
+			_ = s.redis.Expire(ctx, key, s.ttl*2).Err()
+		}
+	}
 	s.SetCookie(w, id)
 	return id, nil
+}
+
+// trackingKey is where the session ids for one person are listed.
+func (s *Store) trackingKey(userID string) string {
+	return "UserSessions:" + userID
+}
+
+// Sessions lists the sessions this person has open, newest first.
+//
+// Entries whose session has expired are dropped from the set as they are
+// found: Redis expires the session but not the name of it, so the set is
+// tidied by whoever reads it rather than by a sweep.
+func (s *Store) Sessions(ctx context.Context, userID string) ([]Open, error) {
+	key := s.trackingKey(userID)
+	keys, err := s.redis.SMembers(ctx, key).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	open := make([]Open, 0, len(keys))
+	stale := make([]any, 0)
+	for _, stored := range keys {
+		raw, err := s.redis.Get(ctx, stored).Bytes()
+		if err != nil {
+			stale = append(stale, stored)
+			continue
+		}
+		var held Session
+		if err := json.Unmarshal(raw, &held); err != nil {
+			stale = append(stale, stored)
+			continue
+		}
+		open = append(open, Open{
+			ID:        strings.TrimPrefix(stored, s.prefix),
+			IPAddress: held.IPAddress,
+			CreatedAt: held.CreatedAt,
+		})
+	}
+	if len(stale) > 0 {
+		_ = s.redis.SRem(ctx, key, stale...).Err()
+	}
+	return open, nil
+}
+
+// Open is one session somebody has, as the settings page shows it.
+type Open struct {
+	ID        string    `json:"id"`
+	IPAddress string    `json:"ipAddress,omitempty"`
+	CreatedAt time.Time `json:"createdAt,omitempty"`
+}
+
+// RemoveAllForUser ends every session this person has, optionally keeping one.
+//
+// `except` is the session doing the asking: somebody clearing their other
+// sessions did not ask to be signed out of the machine they are sitting at.
+// Pass an empty string to end all of them, which is what a password reset
+// does.
+func (s *Store) RemoveAllForUser(ctx context.Context, userID string, except ...string) error {
+	key := s.trackingKey(userID)
+	keys, err := s.redis.SMembers(ctx, key).Result()
+	if err != nil {
+		return err
+	}
+	keep := ""
+	if len(except) > 0 {
+		keep = s.prefix + except[0]
+	}
+
+	removing := make([]string, 0, len(keys))
+	for _, stored := range keys {
+		if stored != keep {
+			removing = append(removing, stored)
+		}
+	}
+	if len(removing) > 0 {
+		if err := s.redis.Del(ctx, removing...).Err(); err != nil {
+			return err
+		}
+		members := make([]any, 0, len(removing))
+		for _, each := range removing {
+			members = append(members, each)
+		}
+		if err := s.redis.SRem(ctx, key, members...).Err(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Destroy removes a session and clears the cookie.
 func (s *Store) Destroy(ctx context.Context, w http.ResponseWriter, id string) error {
 	if id != "" {
+		// Read who it belonged to before deleting it, so the tracking set does
+		// not keep the name of a session that is gone.
+		if sess, _, err := s.Load(ctx, id); err == nil && sess != nil {
+			if identity := sess.Identity(); identity != nil && identity.ID != "" {
+				_ = s.redis.SRem(ctx, s.trackingKey(identity.ID), s.prefix+id).Err()
+			}
+		}
 		if err := s.redis.Del(ctx, s.prefix+id).Err(); err != nil {
 			return err
 		}

@@ -37,14 +37,15 @@ export function getSharing(
  * Offers somebody access.
  *
  * Answers with a member when the address already has an account, and with an
- * invitation and its link when it does not. The link comes back exactly once:
- * it is the whole credential, so there is no endpoint that reads it again.
+ * invitation when it does not. `sent` says whether the API emailed it; the
+ * link comes back either way and exactly once, because it is the whole
+ * credential and there is no endpoint that reads it again.
  */
 export function invite(
   projectId: string,
   email: string,
   privilege: Privilege
-): Promise<{ member?: Member; invite?: Invite; link?: string }> {
+): Promise<{ member?: Member; invite?: Invite; link?: string; sent?: boolean }> {
   return api(`/api/projects/${projectId}/sharing/invites`, {
     method: 'POST',
     body: { email, privilege },

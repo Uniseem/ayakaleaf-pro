@@ -1,6 +1,6 @@
 import { Card, CardBody, CardHeader } from '@heroui/react'
 import { redirect } from 'next/navigation'
-import { SiteHeader } from '@/components/site-header'
+import { SiteFooter, SiteHeader } from '@/components/site-header'
 import { linkedProviders } from '@/lib/account'
 import { currentUser, displayName } from '@/lib/auth'
 import { forwardedHeaders } from '@/lib/server'
@@ -12,6 +12,7 @@ import { GitHubAccount } from './github'
 import { LinkedAccounts } from './linked-accounts'
 import { EditorSettings } from '@/features/settings/editor-settings'
 import { PasswordForm } from '@/features/settings/password-form'
+import { Sessions } from '@/features/settings/sessions'
 import { SettingsProvider } from '@/features/ide/contexts/settings-context'
 import { getUserSettings } from '@/lib/user-settings'
 
@@ -40,7 +41,7 @@ export default async function AccountPage({
   ])
 
   return (
-    <>
+    <div className="flex min-h-dvh flex-col">
       <SiteHeader user={user} siteName={name} />
       <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-10">
         <h1 className="text-2xl font-semibold tracking-tight">Account</h1>
@@ -76,10 +77,12 @@ export default async function AccountPage({
           <EditorSettings />
         </SettingsProvider>
         <PasswordForm />
+        <Sessions />
         <LinkedAccounts providers={providers} />
         <GitAccess tokens={tokens} />
         <GitHubAccount status={github} />
       </main>
-    </>
+      <SiteFooter siteName={name} />
+    </div>
   )
 }

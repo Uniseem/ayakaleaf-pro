@@ -9,6 +9,8 @@ package auth
 import (
 	"context"
 	"errors"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/mailer"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"net"
 	"net/http"
 	"net/mail"
@@ -48,11 +50,25 @@ type Service struct {
 	users    *users.Store
 	sessions *session.Store
 	policy   Policy
+	// resets holds live password-reset requests, and mail is how the link
+	// reaches somebody. Both are optional: an instance with no mail server
+	// still signs people in, it just cannot offer a reset.
+	resets *mongo.Collection
+	mail   *mailer.Mailer
 }
 
 // New builds the auth service.
 func New(userStore *users.Store, sessions *session.Store, policy Policy) *Service {
 	return &Service{users: userStore, sessions: sessions, policy: policy}
+}
+
+// WithReset gives the service what a password reset needs.
+func (s *Service) WithReset(db *mongo.Database, mail *mailer.Mailer) *Service {
+	if db != nil {
+		s.resets = db.Collection("passwordResetTokens")
+	}
+	s.mail = mail
+	return s
 }
 
 // --- what the sign-up page needs to draw itself -----------------------------
@@ -267,6 +283,9 @@ func (s *Service) signIn(w http.ResponseWriter, r *http.Request, user *users.Use
 			Email:     user.Email,
 			IsAdmin:   user.IsAdmin,
 		}},
+		// Recorded so the sessions list can show where each one came from,
+		// which is the only way somebody spots one they did not start.
+		IPAddress: clientIP(r),
 	}
 
 	redirect := "/projects"

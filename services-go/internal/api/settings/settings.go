@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/mailer"
 	"log/slog"
 	"os"
 	"strconv"
@@ -43,6 +44,15 @@ type Values struct {
 	AllowPublicRegistration  *bool  `json:"allowPublicRegistration,omitempty"`
 	RegistrationEmailDomains string `json:"registrationEmailDomains,omitempty"`
 	EmailConfirmation        string `json:"emailConfirmation,omitempty"`
+
+	EmailFromAddress   string `json:"emailFromAddress,omitempty"`
+	EmailReplyTo       string `json:"emailReplyTo,omitempty"`
+	EmailSmtpHost      string `json:"emailSmtpHost,omitempty"`
+	EmailSmtpPort      any    `json:"emailSmtpPort,omitempty"`
+	EmailSmtpUser      string `json:"emailSmtpUser,omitempty"`
+	EmailSmtpPass      string `json:"emailSmtpPass,omitempty"`
+	EmailSmtpSecure    *bool  `json:"emailSmtpSecure,omitempty"`
+	EmailSmtpIgnoreTLS *bool  `json:"emailSmtpIgnoreTLS,omitempty"`
 
 	PasswordMinLength any `json:"passwordMinLength,omitempty"`
 	PasswordMaxLength any `json:"passwordMaxLength,omitempty"`
@@ -366,3 +376,26 @@ func (s *Store) MayCreateAccounts() bool {
 
 // SiteURL is where this site lives.
 func (s *Store) SiteURL() string { return strings.TrimRight(s.Values().SiteURL, "/") }
+
+// SMTP is the mail server, as configured.
+func (s *Store) SMTP() mailer.Config {
+	values := s.Values()
+	return mailer.Config{
+		Host:      strings.TrimSpace(values.EmailSmtpHost),
+		Port:      intOr(values.EmailSmtpPort, 587),
+		User:      values.EmailSmtpUser,
+		Password:  values.EmailSmtpPass,
+		Secure:    values.EmailSmtpSecure != nil && *values.EmailSmtpSecure,
+		IgnoreTLS: values.EmailSmtpIgnoreTLS != nil && *values.EmailSmtpIgnoreTLS,
+		From:      strings.TrimSpace(values.EmailFromAddress),
+		ReplyTo:   strings.TrimSpace(values.EmailReplyTo),
+	}
+}
+
+// AppName is what this instance calls itself.
+func (s *Store) AppName() string {
+	if name := strings.TrimSpace(s.Values().AppName); name != "" {
+		return name
+	}
+	return "Overleaf"
+}

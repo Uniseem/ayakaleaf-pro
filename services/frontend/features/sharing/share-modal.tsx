@@ -54,6 +54,7 @@ export function ShareModal({
   const [privilege, setPrivilegeChoice] = useState<Privilege>('readAndWrite')
   /** Shown once, after an invitation is made, because it is never readable again. */
   const [link, setLink] = useState<string | null>(null)
+  const [emailed, setEmailed] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -113,6 +114,7 @@ export function ShareModal({
                       const answer = await sendInvite(projectId, address, privilege)
                       setEmail('')
                       setLink(answer.link ?? null)
+                      setEmailed(Boolean(answer.sent))
                     })
                   }}
                 >
@@ -154,14 +156,16 @@ export function ShareModal({
               ) : null}
 
               {link ? (
-                <div className="rounded-md bg-success-50 p-3">
-                  <p className="text-xs font-medium text-success-700">
-                    They have no account yet, so send them this link.
+                <div className="rounded-[4px] bg-[var(--bg-accent-03)] p-3">
+                  <p className="text-[12px] font-medium leading-4 text-[var(--content-positive)]">
+                    {emailed
+                      ? 'They have no account yet, so an invitation has been emailed to them.'
+                      : 'They have no account yet, and this site has no mail server — send them this link yourself.'}
                   </p>
-                  <p className="mt-1 break-all font-mono text-[11px] text-success-800">
+                  <p className="mt-1 break-all font-mono text-[11px] leading-4 text-[var(--content-primary)]">
                     {window.location.origin + link}
                   </p>
-                  <p className="mt-1 text-[11px] text-success-700">
+                  <p className="mt-1 text-[11px] leading-4 text-[var(--content-secondary)]">
                     It is shown once. Anybody holding it can take the access it
                     offers.
                   </p>

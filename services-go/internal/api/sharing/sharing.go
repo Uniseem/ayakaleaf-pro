@@ -23,6 +23,7 @@ import (
 
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/apierr"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/httpapi"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/mailer"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projects"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/users"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -78,14 +79,24 @@ type Service struct {
 	projects *projects.Store
 	users    *users.Store
 	invites  *mongo.Collection
+	// mail sends the invitation. Optional: an instance with no mail server
+	// still makes the invitation and answers with its link, which is then
+	// somebody's job to pass on.
+	mail *mailer.Mailer
 }
 
 // New builds it.
-func New(projectStore *projects.Store, userStore *users.Store, db *mongo.Database) *Service {
+func New(
+	projectStore *projects.Store,
+	userStore *users.Store,
+	db *mongo.Database,
+	mail *mailer.Mailer,
+) *Service {
 	return &Service{
 		projects: projectStore,
 		users:    userStore,
 		invites:  db.Collection("projectInvites"),
+		mail:     mail,
 	}
 }
 
@@ -234,12 +245,33 @@ func (s *Service) Invite(w http.ResponseWriter, r *http.Request) error {
 		return apierr.Internal.WithCause(err)
 	}
 
-	// The link is answered once, here, and never read back: it is the whole
-	// credential, and an endpoint that lists tokens is an endpoint that leaks
-	// them.
+	// Sent if there is anywhere to send from. The link is answered either way:
+	// it is the whole credential, there is no endpoint that reads it back, and
+	// an instance with no mail server needs somebody to pass it on by hand.
+	path := "/project/invite/" + token
+	sent := false
+	if s.mail != nil && s.mail.Configured() {
+		who := user.DisplayName()
+		// A raw string, so the blank lines between paragraphs are the newlines
+		// they look like rather than escapes to read past.
+		body := who + " has invited you to " + project.Name + `.
+
+` + s.mail.Link(path) + `
+
+The link works once and expires in 30 days.
+`
+		err := s.mail.Send(r.Context(), mailer.Message{
+			To:      email,
+			Subject: who + " shared a project with you",
+			Text:    body,
+		})
+		sent = err == nil
+	}
+
 	return httpapi.JSON(w, http.StatusCreated, map[string]any{
 		"invite": invite,
-		"link":   "/project/invite/" + token,
+		"link":   path,
+		"sent":   sent,
 	})
 }
 
