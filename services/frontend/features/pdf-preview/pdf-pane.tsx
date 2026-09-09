@@ -52,11 +52,17 @@ export function PdfPane() {
   const [pages, setPages] = useState(0)
   const [syncError, setSyncError] = useState<string | null>(null)
 
+  // A jump that is waiting for its file to finish opening.
+  const pending = useRef<{ docId: string; line: number } | null>(null)
+
   /**
    * A double click in the PDF puts the cursor on the line that made it.
    *
    * The file it names is often not the one that is open -- a thesis is a
-   * dozen chapters -- so the file is opened first and the jump follows it.
+   * dozen chapters -- so the file is opened first and the jump waits for it.
+   * Jumping straight away moves the cursor in the document being left, and
+   * the new one then opens at its own beginning: the file is right, the line
+   * is wrong, and it looks close enough to working to be missed.
    */
   const jumpToSource = useCallback(
     async (clickedPage: number, h: number, v: number) => {
@@ -70,7 +76,9 @@ export function PdfPane() {
         }
         const entry = project.files.find(file => file.path === first.file)
         if (entry && entry.id !== editor.current?.id) {
+          pending.current = { docId: entry.id, line: first.line }
           editor.open(entry)
+          return
         }
         window.dispatchEvent(
           new CustomEvent('ide:goto-line', { detail: { line: first.line - 1 } })
@@ -81,6 +89,22 @@ export function PdfPane() {
     },
     [project.projectId, project.files, editor]
   )
+
+  // The file asked for has arrived. `loading` is the signal rather than the
+  // id, which changes the moment the file is chosen and says nothing about
+  // whether its text is here yet.
+  const openId = editor.current?.id
+  const stillLoading = editor.loading
+  useEffect(() => {
+    const wanted = pending.current
+    if (!wanted || stillLoading || openId !== wanted.docId) {
+      return
+    }
+    pending.current = null
+    window.dispatchEvent(
+      new CustomEvent('ide:goto-line', { detail: { line: wanted.line - 1 } })
+    )
+  }, [openId, stillLoading])
 
   /** And the other direction, asked for by the editor. */
   useEffect(() => {
