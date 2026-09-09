@@ -269,3 +269,197 @@ func (s *Service) project(r *http.Request, needWrite bool) (*projects.Project, *
 	}
 	return project, user, nil
 }
+
+// Comment threads.
+//
+// A comment is anchored to a range of a document, and the range lives in the
+// document's own tracked-changes data rather than here. What this holds is the
+// conversation: the thread id is the anchor, and the two are joined in the
+// editor. That split is the reason a comment survives an edit -- the range
+// moves with the text, and nothing about the conversation has to be rewritten.
+
+// thread is one conversation, as this API reports it.
+type thread struct {
+	ID       string    `json:"id"`
+	Messages []message `json:"messages"`
+	Resolved bool      `json:"resolved"`
+	// ResolvedBy and ResolvedAt are only set on a resolved thread.
+	ResolvedBy *person `json:"resolvedBy,omitempty"`
+	ResolvedAt string  `json:"resolvedAt,omitempty"`
+}
+
+// storedThread is what the chat service answers with.
+type storedThread struct {
+	Messages         []storedMessage `json:"messages"`
+	Resolved         bool            `json:"resolved"`
+	ResolvedByUserID string          `json:"resolved_by_user_id,omitempty"`
+	ResolvedAt       string          `json:"resolved_at,omitempty"`
+}
+
+// Threads answers with every comment thread on a project.
+func (s *Service) Threads(w http.ResponseWriter, r *http.Request) error {
+	project, _, err := s.readable(r)
+	if err != nil {
+		return err
+	}
+
+	var stored map[string]storedThread
+	if err := s.call(r.Context(), http.MethodGet,
+		fmt.Sprintf("/project/%s/threads", project.ID.Hex()), nil, &stored); err != nil {
+		return err
+	}
+
+	out := make(map[string]thread, len(stored))
+	for id, held := range stored {
+		entry := thread{
+			ID:         id,
+			Messages:   s.withAuthors(r.Context(), held.Messages),
+			Resolved:   held.Resolved,
+			ResolvedAt: held.ResolvedAt,
+		}
+		if held.ResolvedByUserID != "" {
+			resolved := s.withAuthors(r.Context(), []storedMessage{
+				{UserID: held.ResolvedByUserID},
+			})
+			if len(resolved) > 0 {
+				who := resolved[0].User
+				entry.ResolvedBy = &who
+			}
+		}
+		out[id] = entry
+	}
+	return httpapi.JSON(w, http.StatusOK, map[string]any{"threads": out})
+}
+
+// Comment adds a message to a thread, making the thread if it is new.
+func (s *Service) Comment(w http.ResponseWriter, r *http.Request) error {
+	// Review access is enough to comment and is the point of it: somebody
+	// asked to read and remark on a draft should not need to be able to
+	// rewrite it.
+	project, user, err := s.commentable(r)
+	if err != nil {
+		return err
+	}
+	threadID := r.PathValue("threadId")
+	if threadID == "" {
+		return apierr.NotFound
+	}
+
+	var in struct {
+		Content string `json:"content"`
+	}
+	if err := httpapi.Decode(r, &in); err != nil {
+		return err
+	}
+	content := strings.TrimSpace(in.Content)
+	if content == "" {
+		return apierr.BadRequest.WithField("content").
+			WithMessage("A comment cannot be empty.")
+	}
+	if len(content) > maxMessageLength {
+		return apierr.BadRequest.WithField("content").
+			WithMessage("That comment is too long.")
+	}
+
+	body, err := json.Marshal(map[string]any{
+		"user_id": user.ID.Hex(),
+		"content": content,
+	})
+	if err != nil {
+		return apierr.Internal.WithCause(err)
+	}
+
+	var stored storedMessage
+	if err := s.call(r.Context(), http.MethodPost,
+		fmt.Sprintf("/project/%s/thread/%s/messages", project.ID.Hex(), threadID),
+		body, &stored); err != nil {
+		return err
+	}
+	written := s.withAuthors(r.Context(), []storedMessage{stored})
+	if len(written) == 0 {
+		return apierr.Internal.WithMessage("That comment was stored but cannot be read back.")
+	}
+	return httpapi.JSON(w, http.StatusCreated, map[string]any{"message": written[0]})
+}
+
+// ResolveThread marks a conversation as dealt with.
+func (s *Service) ResolveThread(w http.ResponseWriter, r *http.Request) error {
+	return s.setResolved(w, r, true)
+}
+
+// ReopenThread undoes that.
+func (s *Service) ReopenThread(w http.ResponseWriter, r *http.Request) error {
+	return s.setResolved(w, r, false)
+}
+
+func (s *Service) setResolved(w http.ResponseWriter, r *http.Request, resolved bool) error {
+	project, user, err := s.commentable(r)
+	if err != nil {
+		return err
+	}
+	threadID := r.PathValue("threadId")
+	if threadID == "" {
+		return apierr.NotFound
+	}
+
+	action := "reopen"
+	var body []byte
+	if resolved {
+		action = "resolve"
+		body, err = json.Marshal(map[string]any{"user_id": user.ID.Hex()})
+		if err != nil {
+			return apierr.Internal.WithCause(err)
+		}
+	}
+	if err := s.call(r.Context(), http.MethodPost,
+		fmt.Sprintf("/project/%s/thread/%s/%s", project.ID.Hex(), threadID, action),
+		body, nil); err != nil {
+		return err
+	}
+	return httpapi.NoContent(w)
+}
+
+// DeleteThread removes a conversation entirely.
+//
+// Only somebody who can write the project: deleting a thread deletes what
+// other people said, which is not something a reviewer should be able to do.
+func (s *Service) DeleteThread(w http.ResponseWriter, r *http.Request) error {
+	project, _, err := s.writable(r)
+	if err != nil {
+		return err
+	}
+	threadID := r.PathValue("threadId")
+	if threadID == "" {
+		return apierr.NotFound
+	}
+	if err := s.call(r.Context(), http.MethodDelete,
+		fmt.Sprintf("/project/%s/thread/%s", project.ID.Hex(), threadID),
+		nil, nil); err != nil {
+		return err
+	}
+	return httpapi.NoContent(w)
+}
+
+// commentable allows anybody who may review as well as anybody who may write.
+func (s *Service) commentable(r *http.Request) (*projects.Project, *users.User, error) {
+	user, err := httpapi.RequireUser(r.Context())
+	if err != nil {
+		return nil, nil, err
+	}
+	id, err := bson.ObjectIDFromHex(r.PathValue("id"))
+	if err != nil {
+		return nil, nil, apierr.NotFound
+	}
+	project, access, err := s.projects.Get(r.Context(), id, user.ID)
+	if errors.Is(err, projects.ErrNotFound) {
+		return nil, nil, apierr.NotFound
+	}
+	if err != nil {
+		return nil, nil, apierr.Internal.WithCause(err)
+	}
+	if !access.CanWrite() && access != projects.AccessReview {
+		return nil, nil, apierr.Forbidden.
+			WithMessage("You cannot comment on this project.")
+	}
+	return project, user, nil
+}

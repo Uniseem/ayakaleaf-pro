@@ -13,11 +13,11 @@ import { Tooltip } from '@heroui/react'
 import type { ReactNode } from 'react'
 import { useLayout, type RailTab } from '@/features/ide/contexts/layout-context'
 import { useSettings } from '@/features/ide/contexts/settings-context'
-import { useCompile } from '@/features/ide/contexts/compile-context'
 import { FileTree } from '@/features/file-tree/file-tree'
 import { Outline } from './outline'
 import { ProjectSearch } from './project-search'
 import { ChatPane } from '@/features/chat/chat-pane'
+import { ReviewPanel } from '@/features/review-panel/review-panel'
 
 type RailEntry = {
   key: RailTab
@@ -31,7 +31,6 @@ type RailEntry = {
 export function Rail() {
   const layout = useLayout()
   const settings = useSettings()
-  const compile = useCompile()
 
   const entries: RailEntry[] = [
     {
@@ -66,8 +65,8 @@ export function Rail() {
       key: 'review-panel',
       title: 'Review',
       icon: <ReviewIcon />,
-      panel: <ReviewPlaceholder />,
-      badge: compile.errors.length || undefined,
+      panel: <ReviewPanel />,
+
     },
     {
       key: 'chat',
@@ -122,18 +121,6 @@ export function Rail() {
         </div>
       ) : null}
     </>
-  )
-}
-
-function ReviewPlaceholder() {
-  return (
-    <div className="p-4 text-xs text-default-500">
-      <p className="font-medium text-default-700">Review</p>
-      <p className="mt-1">
-        Tracked changes and comments need the API to hold them. Not wired up
-        yet.
-      </p>
-    </div>
   )
 }
 
