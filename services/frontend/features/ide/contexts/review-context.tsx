@@ -121,9 +121,14 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
         return
       }
       await acceptOnServer(projectId, docId, changeIds)
+      // Accepting happens over HTTP, under document-updater's own lock, so
+      // the editing session knows nothing about it and would keep sending
+      // operations against the version it had before -- every one of which
+      // the server refuses. Re-reading is what puts the two back in step.
+      await editor.reload()
       await refresh()
     },
-    [projectId, docId, refresh]
+    [projectId, docId, editor, refresh]
   )
 
   /**

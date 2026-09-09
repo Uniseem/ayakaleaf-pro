@@ -279,6 +279,21 @@ export class DocSession {
     return moved
   }
 
+  /**
+   * Reloads the document from the server.
+   *
+   * Needed after anything changes it from outside this session -- accepting a
+   * tracked change is done over HTTP, under document-updater's own lock, and
+   * this session would otherwise keep editing against the version it had
+   * before and have every operation refused.
+   */
+  async reload(): Promise<string> {
+    this.socket.emit('leaveDoc', [this.docId])
+    const text = await this.join()
+    this.events.onResync(text)
+    return text
+  }
+
   /** Called when the connection comes back, to send whatever was waiting. */
   resume() {
     // Anything that was in flight when the connection dropped may or may not

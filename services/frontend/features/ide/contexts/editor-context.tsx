@@ -71,6 +71,14 @@ export type EditorValue = {
    */
   setTracking: (seed: string | null) => void
 
+  /**
+   * Re-reads the open document from the server.
+   *
+   * For after something changed it that did not go through this session --
+   * accepting a tracked change, restoring a file from the history.
+   */
+  reload: () => Promise<void>
+
   /** Whether anything is waiting to reach the server. */
   unsaved: boolean
   /** Whether edits can be made at all right now. */
@@ -220,6 +228,18 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     session.current?.setTracking(seed)
   }, [])
 
+  const reload = useCallback(async () => {
+    const live = session.current
+    if (!live) {
+      return
+    }
+    try {
+      await live.reload()
+    } catch (thrown) {
+      setError(messageFor(thrown))
+    }
+  }, [])
+
   const closeTab = useCallback(
     (id: string) => {
       setOpenTabs(previous => {
@@ -333,6 +353,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       openTabs: openTabs.filter(id => Boolean(entryById(id))),
       closeTab,
       setTracking,
+      reload,
       unsaved,
       // Read-only access cannot edit, and neither can anybody whose
       // connection is down: there is nowhere for the edit to go.
@@ -354,6 +375,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     openTabs,
     closeTab,
     setTracking,
+    reload,
     unsaved,
     canWrite,
     connected,
