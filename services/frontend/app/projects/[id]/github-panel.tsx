@@ -159,7 +159,7 @@ export function GitHubPanel({
             </>
           ) : (
             <>
-              <div className="flex flex-wrap items-center gap-2 text-small">
+              <div className="flex flex-wrap items-center gap-2">
                 <a
                   className="font-medium underline"
                   href={`https://github.com/${state?.repoFullName}`}
@@ -174,14 +174,14 @@ export function GitHubPanel({
               </div>
 
               {status.canPush === false ? (
-                <p className="text-small text-warning-600">
+                <p className="text-[var(--content-warning)]">
                   This GitHub account cannot write to that repository, so a sync
                   would only be able to pull.
                 </p>
               ) : null}
 
               {conflicted ? (
-                <div className="flex flex-col gap-2 rounded-medium border border-warning-200 bg-warning-50 p-4 text-small dark:bg-warning-50/10">
+                <div className="alert alert-warning flex flex-col gap-2">
                   <p className="font-medium">This one needs merging by hand.</p>
                   <p>
                     The changes that could not be merged are on the branch{' '}
@@ -191,8 +191,8 @@ export function GitHubPanel({
                   </p>
                 </div>
               ) : overview ? (
-                <div className="flex flex-col gap-2 text-small">
-                  <p className="text-default-500">
+                <div className="flex flex-col gap-2">
+                  <p className="text-[var(--content-secondary)]">
                     {overview.projectChanged
                       ? 'This project has changes to push.'
                       : 'Nothing new here.'}
@@ -203,7 +203,7 @@ export function GitHubPanel({
                       : ' Nothing new there.'}
                   </p>
                   {overview.repoRewritten ? (
-                    <p className="text-warning-600">
+                    <p className="text-[var(--content-warning)]">
                       That repository was rewritten since the last sync, so this
                       will be worked out file by file.
                     </p>
@@ -212,7 +212,7 @@ export function GitHubPanel({
                     <ul className="flex flex-col gap-1">
                       {overview.commits.slice(0, 8).map(commit => (
                         <li key={commit.sha} className="flex gap-2">
-                          <code className="shrink-0 text-tiny text-default-400">
+                          <code className="shrink-0 text-xs text-[var(--content-secondary)]">
                             {commit.sha.slice(0, 7)}
                           </code>
                           <span className="truncate">

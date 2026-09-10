@@ -51,7 +51,7 @@ export function SettingsForm({ initial }: { initial: SettingsDescription }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="sticky top-0 z-20 -mx-4 flex items-center justify-between gap-4 bg-background/80 px-4 py-3 backdrop-blur">
+      <div className="sticky top-0 z-20 -mx-4 flex items-center justify-between gap-4 bg-[var(--bg-light-primary)] px-4 py-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
           {pending > 0 ? (

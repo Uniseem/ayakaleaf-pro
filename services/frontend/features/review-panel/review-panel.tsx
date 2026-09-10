@@ -16,8 +16,7 @@ import cx from '@/lib/cx'
 import { useTranslation } from '@/lib/i18n'
 import { useLayout } from '@/features/ide/contexts/layout-context'
 import { useCodeMirrorViewContext } from '@/features/source-editor/components/codemirror-context'
-import { ReviewPanelViewProvider, useReviewPanelViewContext } from './contexts/review-panel-view-context'
-import { ThreadsProvider } from './contexts/threads-context'
+import { useReviewPanelViewContext } from './contexts/review-panel-view-context'
 import ReviewPanelTabs from './components/review-panel-tabs'
 import ReviewPanelCurrentFile from './components/review-panel-current-file'
 import ReviewPanelOverview from './components/review-panel-overview'
@@ -53,16 +52,12 @@ export const ReviewPanel = memo(function ReviewPanel() {
   const { t } = useTranslation()
 
   return (
-    <ThreadsProvider>
-      <ReviewPanelViewProvider>
-        <div className="review-panel-rail">
-          <div className="review-panel-header">
-            <RailPanelHeader title={t('review')} actions={<ReviewPanelResolvedThreadsButton />} />
-          </div>
-          <ReviewPanelBody />
-        </div>
-      </ReviewPanelViewProvider>
-    </ThreadsProvider>
+    <div className="review-panel-rail">
+      <div className="review-panel-header">
+        <RailPanelHeader title={t('review')} actions={<ReviewPanelResolvedThreadsButton />} />
+      </div>
+      <ReviewPanelBody />
+    </div>
   )
 })
 
@@ -79,12 +74,10 @@ export const ReviewPanelContainer = memo(function ReviewPanelContainer() {
   }
 
   return createPortal(
-    <ThreadsProvider>
-      <ReviewPanelViewProvider>
-        {!focusMode && <ReviewModeSwitcher />}
-        {reviewPanelOpen && <ReviewPanelBody mini />}
-      </ReviewPanelViewProvider>
-    </ThreadsProvider>,
+    <>
+      {!focusMode && <ReviewModeSwitcher />}
+      {reviewPanelOpen && <ReviewPanelBody mini />}
+    </>,
     view.scrollDOM
   )
 })

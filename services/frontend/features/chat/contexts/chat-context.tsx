@@ -42,6 +42,8 @@ type ChatValue = {
   error: string | null
   loadInitialMessages: () => void
   loadMoreMessages: () => void
+  /** Re-reads the newest page, for want of the server pushing them. */
+  reload: () => void
   sendMessage: (content: string) => void
   markMessagesAsRead: () => void
   reset: () => void
@@ -135,7 +137,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [projectId, user]
   )
 
+  const reload = useCallback(() => {
+    if (initialMessagesLoaded) {
+      void load()
+    }
+  }, [initialMessagesLoaded, load])
+
   // Somebody else's message, pushed while this session is open.
+  //
+  // The realtime service does not emit this yet -- it carries document
+  // operations and presence and nothing else -- so today this listener never
+  // fires and the panel re-reads on open instead. It is subscribed anyway
+  // because the day the server does emit it, this is what should happen.
   useEffect(() => {
     if (!socket) {
       return
@@ -174,6 +187,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       error,
       loadInitialMessages,
       loadMoreMessages,
+      reload,
       sendMessage,
       markMessagesAsRead,
       reset,
@@ -187,6 +201,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       error,
       loadInitialMessages,
       loadMoreMessages,
+      reload,
       sendMessage,
       markMessagesAsRead,
       reset,

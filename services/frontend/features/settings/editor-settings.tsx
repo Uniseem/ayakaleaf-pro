@@ -86,7 +86,11 @@ export function EditorSettings() {
     { key: 'mathPreview', label: t('math') },
     { key: 'showOutline', label: t('show_outline') },
     { key: 'breadcrumbs', label: t('show_breadcrumbs') },
-    { key: 'nonBlinkingCursor', label: t('stop_on_first_error') },
+    {
+      key: 'nonBlinkingCursor',
+      label: t('non_blinking_cursor'),
+      description: t('reduces_visual_distraction_by_keeping_the_cursor_solid'),
+    },
     { key: 'darkModePdf', label: t('invert_pdf_preview_colors') },
   ]
 

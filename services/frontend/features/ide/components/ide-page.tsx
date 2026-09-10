@@ -31,6 +31,8 @@ import { MainLayout } from '@/features/ide/components/layout/main-layout'
 import { SettingsModal } from '@/features/settings/settings-modal'
 import { GlobalToasts } from '@/features/ide/components/global-toasts'
 import { ChatProvider } from '@/features/chat/contexts/chat-context'
+import { ThreadsProvider } from '@/features/review-panel/contexts/threads-context'
+import { ReviewPanelViewProvider } from '@/features/review-panel/contexts/review-panel-view-context'
 
 export type IdePageProps = {
   user: PublicUser
@@ -66,6 +68,8 @@ export function IdePage({ user, view, site }: IdePageProps) {
                         <MetadataProvider>
                           <OutlineProvider>
                             <ChatProvider>
+                            <ThreadsProvider>
+                            <ReviewPanelViewProvider>
                             <RailProvider>
                               <TabsProvider>
                                 <div id="ide-root" className="ide-shell">
@@ -75,6 +79,8 @@ export function IdePage({ user, view, site }: IdePageProps) {
                                 </div>
                               </TabsProvider>
                             </RailProvider>
+                            </ReviewPanelViewProvider>
+                            </ThreadsProvider>
                             </ChatProvider>
                           </OutlineProvider>
                         </MetadataProvider>

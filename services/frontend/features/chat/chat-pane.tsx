@@ -31,17 +31,24 @@ function ChatPaneBody() {
     atEnd,
     loadInitialMessages,
     loadMoreMessages,
+    reload,
     reset,
     sendMessage,
     markMessagesAsRead,
     error,
   } = useChatContext()
 
+  // Every time the panel is opened, not only the first: nothing pushes a
+  // message here, so this is the moment anything sent since the last look
+  // has to be fetched.
   useEffect(() => {
-    if (!initialMessagesLoaded) {
+    if (initialMessagesLoaded) {
+      reload()
+    } else {
       loadInitialMessages()
     }
-  }, [loadInitialMessages, initialMessagesLoaded])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const shouldDisplayPlaceholder = status !== 'pending' && messages.length === 0
 

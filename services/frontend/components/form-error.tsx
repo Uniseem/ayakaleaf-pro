@@ -1,6 +1,7 @@
 'use client'
 
 import { messageFor } from '@/lib/api'
+import { Notification } from '@/components/ol/notification'
 
 /**
  * What went wrong, in the words the API chose.
@@ -17,13 +18,5 @@ export function FormError({ error }: { error: unknown }) {
   if (!message) {
     return null
   }
-  return (
-    <div
-      role="alert"
-      aria-live="polite"
-      className="rounded-medium border border-danger-200 bg-danger-50 px-4 py-3 text-small text-danger-700 dark:border-danger-100 dark:bg-danger-50/10 dark:text-danger-400"
-    >
-      {message}
-    </div>
-  )
+  return <Notification type="error" content={message} />
 }

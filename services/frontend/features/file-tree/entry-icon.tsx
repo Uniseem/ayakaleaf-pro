@@ -26,7 +26,7 @@ export function EntryIcon({
 }) {
   const shared = {
     viewBox: '0 0 16 16',
-    className: 'h-3.5 w-3.5 shrink-0 text-default-400',
+    className: 'h-3.5 w-3.5 shrink-0 text-[var(--content-secondary-themed)]',
     fill: 'none',
     stroke: 'currentColor',
     strokeWidth: 1.4,

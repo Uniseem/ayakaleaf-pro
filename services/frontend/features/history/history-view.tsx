@@ -135,7 +135,7 @@ export function HistoryView() {
         <div className="history-header toolbar-container">
           <div className="history-toolbar">
             <span className="history-toolbar-title">
-              {chosen ? t('history') : t('history')}
+              {chosen ? versionName(chosen) : t('history')}
             </span>
             <div className="history-toolbar-spacer" />
             {chosen && canWrite ? (
@@ -182,7 +182,7 @@ export function HistoryView() {
             {changes === null ? (
               <LoadingSpinner />
             ) : changes.length === 0 ? (
-              <p className="history-empty">{t('empty')}</p>
+              <p className="history-empty">{t('no_actions')}</p>
             ) : (
               <ul className="list-unstyled">
                 {changes.map(change => (
@@ -225,7 +225,7 @@ export function HistoryView() {
           {loading ? (
             <LoadingSpinner />
           ) : updates.length === 0 ? (
-            <p className="history-empty">{t('empty')}</p>
+            <p className="history-empty">{t('no_actions')}</p>
           ) : (
             updates.map(update => (
               <div
@@ -244,11 +244,7 @@ export function HistoryView() {
                 }}
               >
                 <div className="history-version-metadata-time">
-                  <time>
-                    {update.meta.end_ts
-                      ? new Date(update.meta.end_ts).toLocaleString()
-                      : t('history')}
-                  </time>
+                  <time>{versionName(update)}</time>
                 </div>
                 {update.labels?.length ? (
                   <div className="history-version-labels">
@@ -293,6 +289,20 @@ export function HistoryView() {
       ) : null}
     </div>
   )
+}
+
+/**
+ * What to call a version.
+ *
+ * The time it was made when the history service recorded one, and otherwise
+ * its number: both are data, so neither needs translating, and a version with
+ * no name at all cannot be told apart from the one above it.
+ */
+function versionName(update: Update): string {
+  if (update.meta.end_ts) {
+    return new Date(update.meta.end_ts).toLocaleString()
+  }
+  return `#${update.toV}`
 }
 
 function ChangeMark({ operation }: { operation?: FileChange['operation'] }) {
