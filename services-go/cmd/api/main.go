@@ -62,6 +62,12 @@ func main() {
 	})
 	defer func() { _ = rdb.Close() }()
 
+	pubsubRedis := redis.NewClient(&redis.Options{
+		Addr:     config.RedisAddr("PUBSUB"),
+		Password: config.RedisPassword("PUBSUB"),
+	})
+	defer func() { _ = pubsubRedis.Close() }()
+
 	userStore := users.NewStore(db)
 	// Indexes are ensured at startup rather than by a migration: this service
 	// depends on the email one being unique, and a service that needs a
@@ -132,6 +138,11 @@ func main() {
 		ProjectHistoryURL: serviceURL("PROJECT_HISTORY", "3054"),
 		Database:          db,
 		AllowedOrigins:    allowedOrigins(siteSettings),
+		// Telling the editors of a project that something happened to it goes
+		// through the same channel real-time subscribes to, so it has to be
+		// the pub/sub Redis and the same sharding setting real-time was given.
+		PubSub:                      pubsubRedis,
+		PublishOnIndividualChannels: os.Getenv("PUBLISH_ON_INDIVIDUAL_CHANNELS") != "",
 	})
 
 	// The password-reset tokens are unique and expire on their own, both of

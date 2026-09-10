@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/apierr"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/editorevents"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/httpapi"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/projects"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/users"
@@ -45,6 +46,9 @@ type Service struct {
 	users    *users.Store
 	baseURL  string
 	http     *http.Client
+	// events tells the people already looking at the project. Without it a
+	// message is stored and nobody hears about it until they reopen the panel.
+	events *editorevents.Publisher
 }
 
 // New builds it.
@@ -55,6 +59,12 @@ func New(projectStore *projects.Store, userStore *users.Store, baseURL string) *
 		baseURL:  strings.TrimRight(baseURL, "/"),
 		http:     &http.Client{Timeout: 20 * time.Second},
 	}
+}
+
+// WithEvents attaches the publisher that announces a new message.
+func (s *Service) WithEvents(events *editorevents.Publisher) *Service {
+	s.events = events
+	return s
 }
 
 // storedMessage is what the chat service answers with.
@@ -153,6 +163,16 @@ func (s *Service) Send(w http.ResponseWriter, r *http.Request) error {
 	if len(written) == 0 {
 		return apierr.Internal.WithMessage("That message was stored but cannot be read back.")
 	}
+
+	// Everybody with the project open, including the sender: the browser that
+	// sent this also has the message from the response, and recognises the
+	// duplicate by its id rather than showing it twice. Sending it to
+	// everybody is what keeps one code path instead of two.
+	//
+	// "new-chat-message" is not on real-time's pass list, so a link-share
+	// visitor does not receive it. That is deliberate and checked there.
+	s.events.Emit(r.Context(), project.ID.Hex(), "new-chat-message", written[0])
+
 	return httpapi.JSON(w, http.StatusCreated, map[string]any{"message": written[0]})
 }
 

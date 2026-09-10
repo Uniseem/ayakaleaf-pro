@@ -38,9 +38,10 @@ function ChatPaneBody() {
     error,
   } = useChatContext()
 
-  // Every time the panel is opened, not only the first: nothing pushes a
-  // message here, so this is the moment anything sent since the last look
-  // has to be fetched.
+  // Every time the panel is opened, not only the first. New messages are
+  // pushed while the session is connected, but a message sent during a
+  // reconnect was pushed to nobody, and opening the panel is when that would
+  // be noticed.
   useEffect(() => {
     if (initialMessagesLoaded) {
       reload()

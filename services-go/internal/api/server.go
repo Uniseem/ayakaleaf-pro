@@ -21,6 +21,7 @@ import (
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/chat"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/compile"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/documents"
+	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/editorevents"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/gitbridge"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/githubsync"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/history"
@@ -35,6 +36,7 @@ import (
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/tokens"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/api/users"
 	"github.com/Uniseem/ayakaleaf-pro/services-go/internal/session"
+	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
@@ -98,6 +100,13 @@ type Options struct {
 	// Database is needed for the per-person settings, which live on the user
 	// document rather than in a store of their own.
 	Database *mongo.Database
+	// PubSub is where the events the editors are listening for are published.
+	// Absent, everything still works except being told: a chat message is
+	// stored and seen the next time somebody opens the panel.
+	PubSub *redis.Client
+	// PublishOnIndividualChannels has to match what real-time was given, or
+	// the events go to a channel nobody is subscribed to.
+	PublishOnIndividualChannels bool
 	// AllowedOrigins are the addresses a browser may send a state-changing
 	// request from. The site's own is enough unless something else embeds it.
 	AllowedOrigins []string
@@ -112,7 +121,8 @@ func New(opts Options) *Server {
 		settings: opts.Settings,
 		auth: auth.New(opts.Users, opts.Sessions, opts.Settings).
 			WithReset(opts.Database, mailer.New(opts.Settings)),
-		chat:    chat.New(opts.Projects, opts.Users, opts.ChatURL),
+		chat: chat.New(opts.Projects, opts.Users, opts.ChatURL).
+			WithEvents(editorevents.New(opts.PubSub, opts.PublishOnIndividualChannels, opts.Log)),
 		prefs:   settings.NewUserService(opts.Database),
 		tags:    tags.New(opts.Database),
 		sharing: sharing.New(opts.Projects, opts.Users, opts.Database, mailer.New(opts.Settings)),

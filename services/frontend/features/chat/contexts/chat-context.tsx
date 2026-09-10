@@ -42,7 +42,7 @@ type ChatValue = {
   error: string | null
   loadInitialMessages: () => void
   loadMoreMessages: () => void
-  /** Re-reads the newest page, for want of the server pushing them. */
+  /** Re-reads the newest page, for whatever arrived while nobody was listening. */
   reload: () => void
   sendMessage: (content: string) => void
   markMessagesAsRead: () => void
@@ -125,7 +125,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       sendMessageRequest(projectId, trimmed)
         .then(sent => {
-          setMessages(current => current.map(message => (message.id === pendingId ? sent : message)))
+          setMessages(current => {
+            // The broadcast may have arrived first, in which case the real
+            // message is already here and the pending one just goes.
+            const withoutPending = current.filter(message => message.id !== pendingId)
+            if (withoutPending.some(message => message.id === sent.id)) {
+              return withoutPending
+            }
+            return current.map(message => (message.id === pendingId ? sent : message))
+          })
         })
         .catch(thrown => {
           // The message did not go. Taking it back is better than leaving it
@@ -145,10 +153,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Somebody else's message, pushed while this session is open.
   //
-  // The realtime service does not emit this yet -- it carries document
-  // operations and presence and nothing else -- so today this listener never
-  // fires and the panel re-reads on open instead. It is subscribed anyway
-  // because the day the server does emit it, this is what should happen.
+  // The API publishes this on the editor-events channel when it stores a
+  // message, and real-time fans it out to everybody in the project room --
+  // except a link-share visitor, who is not on the pass list for it.
   useEffect(() => {
     if (!socket) {
       return
@@ -158,9 +165,25 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (!message) {
         return
       }
-      setMessages(current =>
-        current.some(existing => existing.id === message.id) ? current : [...current, message]
-      )
+      setMessages(current => {
+        if (current.some(existing => existing.id === message.id)) {
+          return current
+        }
+        // This person's own message, echoed back before the POST resolved:
+        // it replaces the placeholder rather than sitting under it.
+        const pendingIndex = current.findIndex(
+          existing =>
+            existing.pending &&
+            existing.content === message.content &&
+            existing.user?.id === message.user?.id
+        )
+        if (pendingIndex !== -1) {
+          const next = [...current]
+          next[pendingIndex] = message
+          return next
+        }
+        return [...current, message]
+      })
       if (message.user?.id !== user.id) {
         setUnreadMessageCount(count => count + 1)
       }
