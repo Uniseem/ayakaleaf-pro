@@ -66,12 +66,14 @@ const chooseTargetPosition = (
     return targetNode.to
   }
 
-  // The range at this index always exists: the caller is iterating the same
-  // selection this reads from.
-  const previousHead = tr.startState.selection.ranges[index]!.head
+  // The new selection can hold more ranges than the old one -- adding a cursor
+  // is such a transaction -- so this range may have no predecessor. Treated as
+  // moving forwards, which is where the original's comparison against an
+  // undefined head landed.
+  const previousHead = tr.startState.selection.ranges[index]?.head
 
   // keyboard navigation
-  if (range.head < previousHead) {
+  if (previousHead !== undefined && range.head < previousHead) {
     // moving backwards: jump to end of the previous line
     return Math.max(tr.state.doc.lineAt(range.anchor).from - 1, 1)
   } else {

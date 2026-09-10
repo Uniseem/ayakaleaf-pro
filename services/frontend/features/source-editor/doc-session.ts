@@ -46,6 +46,14 @@ export class DocSession {
    * same operation is sent, and the server records it instead of applying it.
    */
   private tracking = false
+  /**
+   * Set while a comment operation is on its way to the server.
+   *
+   * Text edits are held back for that moment: a comment carries a version like
+   * any other operation, and an edit sent at the same version is refused --
+   * which costs a resync and, with it, the person's undo history.
+   */
+  private commenting = false
 
   constructor(
     private readonly socket: SocketClient,
@@ -202,7 +210,12 @@ export class DocSession {
 
   /** Sends what is waiting, if nothing is already in flight. */
   private flush() {
-    if (this.inflight !== null || this.pending.length === 0 || !this.socket.connected) {
+    if (
+      this.inflight !== null ||
+      this.commenting ||
+      this.pending.length === 0 ||
+      !this.socket.connected
+    ) {
       return
     }
     this.inflight = this.pending
@@ -284,15 +297,22 @@ export class DocSession {
    */
   async comment(position: number, text: string, threadId: string): Promise<void> {
     await this.settled()
-    await this.socket.request('applyOtUpdate', [
-      this.docId,
-      {
-        doc: this.docId,
-        op: [{ p: position, c: text, t: threadId }],
-        v: this.version,
-      },
-    ])
-    this.version += 1
+    this.commenting = true
+    try {
+      await this.socket.request('applyOtUpdate', [
+        this.docId,
+        {
+          doc: this.docId,
+          op: [{ p: position, c: text, t: threadId }],
+          v: this.version,
+        },
+      ])
+      this.version += 1
+    } finally {
+      this.commenting = false
+      // Whatever was typed while this was in flight can go now.
+      this.flush()
+    }
   }
 
   /** Resolves once nothing local is waiting to reach the server. */

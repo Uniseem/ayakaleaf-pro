@@ -9,7 +9,7 @@
  * between the options for free.
  */
 
-import { createContext, useContext, type ReactNode } from 'react'
+import { createContext, useContext, useState, type ReactNode } from 'react'
 import cx from '@/lib/cx'
 
 type GroupContext = {
@@ -39,9 +39,22 @@ export function OLToggleButtonGroup({
   children,
   ...rest
 }: ToggleButtonGroupProps) {
+  // Uncontrolled use keeps its own selection: `defaultValue` names where to
+  // start, and without this the buttons would never move, because the value
+  // handed down would be that same starting point on every render.
+  const [chosen, setChosen] = useState(defaultValue)
+  const selected = value ?? chosen
+
+  const handleChange = (next: string) => {
+    if (value === undefined) {
+      setChosen(next)
+    }
+    onChange(next)
+  }
+
   return (
     <ToggleButtonGroupContext.Provider
-      value={{ name, value: value ?? defaultValue, onChange }}
+      value={{ name, value: selected, onChange: handleChange }}
     >
       <div role="radiogroup" className={cx('btn-group', className)} {...rest}>
         {children}
