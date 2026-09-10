@@ -3,7 +3,6 @@ import { useTranslation } from '@/lib/i18n'
 import OLTooltip from '@/components/ol/tooltip'
 import { DropdownItem } from '@/components/ol/dropdown'
 import MaterialIcon from '@/components/ol/material-icon'
-import { useLayout } from '@/features/ide/contexts/layout-context'
 
 /**
  * The language the suggestions came from, at the foot of the menu.
@@ -17,12 +16,13 @@ export const SpellingSuggestionsLanguage = memo<{
   handleClose: (focus: boolean) => void
 }>(({ language, handleClose }) => {
   const { t } = useTranslation()
-  const { setLeftMenuShown } = useLayout()
-
+  // Through a window event rather than the layout context: this menu is
+  // rendered into a CodeMirror tooltip, in a React root of its own that is
+  // outside the app's providers.
   const handleClick = useCallback(() => {
-    setLeftMenuShown(true)
+    window.dispatchEvent(new Event('ui:open-settings'))
     handleClose(false)
-  }, [handleClose, setLeftMenuShown])
+  }, [handleClose])
 
   return (
     <OLTooltip

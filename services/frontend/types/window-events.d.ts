@@ -42,6 +42,7 @@ declare global {
     'synctex:sync-to-position': CustomEvent<unknown>
     'toggle-track-changes': Event
     'ui:open-rail-modal': CustomEvent<unknown>
+    'ui:open-settings': Event
   }
 }
 

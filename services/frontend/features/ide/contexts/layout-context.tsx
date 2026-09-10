@@ -19,6 +19,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -105,6 +106,15 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
     false
   )
   const [showLogs, setShowLogs] = useState(false)
+
+  // Asked for through a window event as well as through this context, because
+  // some of what asks for it is rendered in its own React root inside a
+  // CodeMirror tooltip and cannot see this provider.
+  useEffect(() => {
+    const open = () => setLeftMenuShown(true)
+    window.addEventListener('ui:open-settings', open)
+    return () => window.removeEventListener('ui:open-settings', open)
+  }, [])
   const [focusMode, setFocusMode] = usePersistedState('ide.focusMode', false)
 
   const setView = useCallback((next: IdeView) => {
