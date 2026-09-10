@@ -11,7 +11,6 @@
 % The packages this example uses.
 \usepackage{amsmath}    % maths
 \usepackage{graphicx}   % images
-\usepackage{booktabs}   % tables that look like a book's
 \usepackage[colorlinks=true, allcolors=blue]{hyperref}
 
 \title{Your Paper}
@@ -72,13 +71,13 @@ fraction of the text width so that it stays right if the margins change.
 \begin{table}[h]
 \centering
 \begin{tabular}{lrr}
-\toprule
-Item     & Quantity & Unit price \\
-\midrule
-Widget   & 3        & 7.50 \\
-Gadget   & 12       & 1.25 \\
-Doohickey& 1        & 42.00 \\
-\bottomrule
+\hline
+Item      & Quantity & Unit price \\
+\hline
+Widget    & 3        & 7.50 \\
+Gadget    & 12       & 1.25 \\
+Doohickey & 1        & 42.00 \\
+\hline
 \end{tabular}
 \caption{\label{tab:widgets}An example table.}
 \end{table}
