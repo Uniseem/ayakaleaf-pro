@@ -15,6 +15,7 @@ import { documentCommands } from './document-commands'
 import { documentOutline } from './document-outline'
 import { LaTeXLanguage } from './latex-language'
 import { documentEnvironments } from './document-environments'
+import { figureModal, figureModalPasteHandler } from '../../extensions/figure-modal'
 
 const completionSources: CompletionSource[] = [
   ...argumentCompletionSources,
@@ -38,5 +39,7 @@ export const latex = () => {
         autocomplete: completionSource,
       })
     ),
+    figureModal(),
+    figureModalPasteHandler(),
   ])
 }
