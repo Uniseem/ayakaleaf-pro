@@ -11,6 +11,10 @@ func TestSafeArchivePathRefusesWhatIsNotAPathInTheProject(t *testing.T) {
 	for _, name := range []string{
 		"../escape.tex",
 		"a/../../escape.tex",
+		// Not an escape -- it lands inside the project -- but no program
+		// writes it on purpose, and resolving it moves a file out of the
+		// folder its neighbours are in.
+		"paper/../escape.tex",
 		"/etc/passwd",
 		"C:\\Windows\\system32\\evil.tex",
 		"..",
@@ -25,14 +29,13 @@ func TestSafeArchivePathRefusesWhatIsNotAPathInTheProject(t *testing.T) {
 
 func TestSafeArchivePathKeepsOrdinaryFiles(t *testing.T) {
 	for from, want := range map[string]string{
-		"main.tex":                  "main.tex",
-		"./main.tex":                "main.tex",
-		"chapters/one.tex":          "chapters/one.tex",
-		"chapters\\one.tex":         "chapters/one.tex",
-		"figures/./plot.png":        "figures/plot.png",
-		"paper/chapters/../fig.pdf": "paper/fig.pdf",
-		"latexmkrc":                 "latexmkrc",
-		".latexmkrc":                ".latexmkrc",
+		"main.tex":           "main.tex",
+		"./main.tex":         "main.tex",
+		"chapters/one.tex":   "chapters/one.tex",
+		"chapters\\one.tex":  "chapters/one.tex",
+		"figures/./plot.png": "figures/plot.png",
+		"latexmkrc":          "latexmkrc",
+		".latexmkrc":         ".latexmkrc",
 	} {
 		got, ok := safeArchivePath(from)
 		if !ok {

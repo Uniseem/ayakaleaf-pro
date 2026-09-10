@@ -288,11 +288,22 @@ func safeArchivePath(name string) (string, bool) {
 		return "", false
 	}
 
-	cleaned := path.Clean(name)
-	if cleaned == "." || strings.HasPrefix(cleaned, "../") || cleaned == ".." {
-		return "", false
+	// Checked before cleaning, because cleaning is what makes them disappear.
+	// A ".." anywhere is refused rather than resolved: "a/../b.tex" is b.tex
+	// and lands inside the project, so it is not an escape -- but no program
+	// writes that on purpose, and resolving it silently moves a file out of
+	// the folder its neighbours are in, which is enough to stop a right-click
+	// zip from being recognised as one folder holding a project.
+	for _, segment := range strings.Split(name, "/") {
+		if segment == ".." {
+			return "", false
+		}
 	}
 
+	cleaned := path.Clean(name)
+	if cleaned == "." {
+		return "", false
+	}
 	segments := strings.Split(cleaned, "/")
 	for index, segment := range segments {
 		if segment == "" {
