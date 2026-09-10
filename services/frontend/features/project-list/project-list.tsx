@@ -33,18 +33,20 @@ import {
   type ProjectSummary,
   type SortKey,
   type Tag,
+  type Template,
 } from '@/lib/projects'
 import { messageFor } from '@/lib/api'
 import { usePersistedState } from '@/lib/hooks'
 import { Button, TextField } from '@/components/ui'
 import { ProjectSidebar } from './sidebar'
+import { UploadProjectModal } from './upload-project-modal'
 import { ProjectRow } from './row'
 
 /** Identifies a dialog, so switching target remounts the form. */
 function askKey(ask: Ask): string {
   switch (ask.kind) {
     case 'new':
-      return 'new'
+      return 'new:' + ask.template
     case 'delete':
       return 'delete:' + ask.projects.map(p => p.id).join(',')
     default:
@@ -53,7 +55,7 @@ function askKey(ask: Ask): string {
 }
 
 type Ask =
-  | { kind: 'new' }
+  | { kind: 'new'; template: Template }
   | { kind: 'rename'; project: ProjectSummary }
   | { kind: 'copy'; project: ProjectSummary }
   | { kind: 'delete'; projects: ProjectSummary[] }
@@ -84,6 +86,7 @@ export function ProjectList({
   )
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [ask, setAsk] = useState<Ask | null>(null)
+  const [uploading, setUploading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -162,7 +165,13 @@ export function ProjectList({
           setSelected(new Set())
         }}
         onChanged={refresh}
-        onNewProject={() => setAsk({ kind: 'new' })}
+        onNewProject={kind => {
+          if (kind === 'upload') {
+            setUploading(true)
+          } else {
+            setAsk({ kind: 'new', template: kind })
+          }
+        }}
       />
 
       <main className="min-w-0 flex-1 px-4 py-4">
@@ -299,6 +308,12 @@ export function ProjectList({
         ) : null}
       </main>
 
+      <UploadProjectModal
+        isOpen={uploading}
+        onClose={() => setUploading(false)}
+        onUploaded={refresh}
+      />
+
       {ask ? (
         <AskDialog
           key={askKey(ask)}
@@ -312,7 +327,7 @@ export function ProjectList({
           onConfirm={name => {
             switch (ask.kind) {
               case 'new':
-                void run(() => createProject(name))
+                void run(() => createProject(name, ask.template))
                 break
               case 'rename':
                 void run(() => renameProject(ask.project.id, name))
@@ -507,7 +522,13 @@ function AskDialog({
   }
 
   const title =
-    ask.kind === 'new' ? 'New project' : ask.kind === 'copy' ? 'Copy project' : 'Rename project'
+    ask.kind === 'new'
+      ? ask.template === 'example'
+        ? 'New example project'
+        : 'New project'
+      : ask.kind === 'copy'
+        ? 'Copy project'
+        : 'Rename project'
 
   return (
     <OLModal show onHide={onCancel}>

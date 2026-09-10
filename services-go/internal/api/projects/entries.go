@@ -290,6 +290,15 @@ func (s *Store) applyTreeChange(ctx context.Context, id bson.ObjectID, update bs
 // name becomes a real file in the directory a compile runs in, so anything
 // that could leave that directory, or that no filesystem will store, is not a
 // name.
+// dotfiles are the hidden names that mean something to LaTeX.
+//
+// latexmk reads its configuration from .latexmkrc, and a project that carries
+// one is relying on it: it names the engine, extra passes, and where output
+// goes. An import that dropped it would produce a project that builds
+// differently from the one somebody uploaded, with nothing on screen to say
+// why.
+var dotfiles = map[string]bool{".latexmkrc": true}
+
 func ValidName(name string) error {
 	name = strings.TrimSpace(name)
 	switch {
@@ -303,9 +312,13 @@ func ValidName(name string) error {
 		return fmt.Errorf("a name cannot contain a slash")
 	case strings.ContainsRune(name, 0):
 		return fmt.Errorf("that is not a name")
-	case strings.HasPrefix(name, "."):
-		// Hidden files are not shown by anything here, so one would be a file
-		// somebody could create and then never find again.
+	case strings.HasPrefix(name, ".") && !dotfiles[strings.ToLower(name)]:
+		// A dot at the front means "hidden" to every tool that will ever touch
+		// this project outside the editor -- a checkout, a zip, a backup -- so
+		// one made here is a file that quietly stops being there. The
+		// exceptions are the few that LaTeX itself reads: refusing those does
+		// not protect anybody, it just loses the settings of a project that
+		// was imported with one.
 		return fmt.Errorf("a name cannot start with a dot")
 	}
 	return nil

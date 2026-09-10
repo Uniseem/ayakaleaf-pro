@@ -214,6 +214,8 @@ func (s *Server) Handler() http.Handler {
 	// Projects.
 	mux.HandleFunc("GET /api/projects", h(s.projects.List))
 	mux.HandleFunc("POST /api/projects", h(s.projects.Create))
+	// A project that arrives as a zip file rather than being written here.
+	mux.HandleFunc("POST /api/projects/upload", h(s.documents.ImportZip))
 	mux.HandleFunc("GET /api/projects/{id}", h(s.projects.Get))
 	mux.HandleFunc("POST /api/projects/{id}/rename", h(s.projects.Rename))
 	mux.HandleFunc("POST /api/projects/{id}/archive", h(s.projects.Archive))

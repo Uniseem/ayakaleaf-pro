@@ -21,11 +21,73 @@ export function listProjects(headers?: Record<string, string>): Promise<ProjectS
   )
 }
 
-export function createProject(name: string): Promise<ProjectSummary> {
+/** What a new project starts as. */
+export type Template = 'blank' | 'example'
+
+export function createProject(
+  name: string,
+  template: Template = 'blank'
+): Promise<ProjectSummary> {
   return api<{ project: ProjectSummary }>('/api/projects', {
     method: 'POST',
-    body: { name },
+    body: { name, template },
   }).then(answer => answer.project)
+}
+
+/**
+ * A project that arrives as a zip file.
+ *
+ * XMLHttpRequest rather than fetch, for the one thing fetch still cannot do:
+ * say how far through the upload it is. A zip is the one thing somebody sends
+ * here that is large enough for a progress bar to be the difference between
+ * waiting and giving up.
+ */
+export function uploadProject(
+  file: File,
+  options: { name?: string; onProgress?: (fraction: number) => void } = {}
+): Promise<ProjectSummary> {
+  const form = new FormData()
+  form.append('file', file, file.name)
+  if (options.name) {
+    form.append('name', options.name)
+  }
+
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest()
+    request.open('POST', '/api/projects/upload')
+    request.withCredentials = true
+    request.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
+
+    request.upload.addEventListener('progress', event => {
+      if (event.lengthComputable) {
+        options.onProgress?.(event.loaded / event.total)
+      }
+    })
+    request.addEventListener('error', () =>
+      reject(new Error('The upload did not finish. Check your connection and try again.'))
+    )
+    request.addEventListener('abort', () => reject(new Error('The upload was stopped.')))
+    request.addEventListener('load', () => {
+      let body: unknown
+      try {
+        body = JSON.parse(request.responseText)
+      } catch {
+        body = null
+      }
+      if (request.status >= 200 && request.status < 300) {
+        const project = (body as { project?: ProjectSummary } | null)?.project
+        if (project) {
+          resolve(project)
+          return
+        }
+        reject(new Error('The project was made but could not be read back.'))
+        return
+      }
+      const message = (body as { error?: { message?: string } } | null)?.error?.message
+      reject(new Error(message || 'That project could not be uploaded.'))
+    })
+    request.send(form)
+  })
 }
 
 export function renameProject(id: string, name: string): Promise<void> {

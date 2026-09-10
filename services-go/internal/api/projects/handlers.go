@@ -19,6 +19,10 @@ import (
 // which is why this is an interface here rather than a call.
 type Seeder interface {
 	SeedNewProject(ctx context.Context, project *Project, ownerID bson.ObjectID) error
+	// SeedExampleProject fills it with a worked example instead of one empty
+	// file. A blank project is a blank page, which is where somebody who has
+	// not written LaTeX before gets stuck.
+	SeedExampleProject(ctx context.Context, project *Project, ownerID bson.ObjectID) error
 }
 
 // Forgetter is told when a project goes, so that what refers to it can stop.
@@ -82,16 +86,30 @@ func (s *Service) Create(w http.ResponseWriter, r *http.Request) error {
 	var in struct {
 		Name     string `json:"name"`
 		Compiler string `json:"compiler,omitempty"`
+		// Template is "blank" or "example". Anything else is refused rather
+		// than quietly treated as blank: somebody who asked for a starting
+		// point and got an empty file would think the feature was broken.
+		Template string `json:"template,omitempty"`
 	}
 	if err := httpapi.Decode(r, &in); err != nil {
 		return err
+	}
+	switch in.Template {
+	case "", "blank", "example":
+	default:
+		return apierr.BadRequest.WithField("template").
+			WithMessage("There is no such template.")
 	}
 	project, err := s.store.Create(r.Context(), user.ID, in.Name, in.Compiler)
 	if err != nil {
 		return apierr.Internal.WithCause(err)
 	}
 	if s.seeder != nil {
-		if err := s.seeder.SeedNewProject(r.Context(), project, user.ID); err != nil {
+		seed := s.seeder.SeedNewProject
+		if in.Template == "example" {
+			seed = s.seeder.SeedExampleProject
+		}
+		if err := seed(r.Context(), project, user.ID); err != nil {
 			// A project that could not be given its first file is not the
 			// project that was asked for, and leaving it in somebody's list
 			// would leave them with something they cannot use and did not

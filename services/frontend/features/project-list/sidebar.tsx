@@ -24,6 +24,17 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: 'trashed', label: 'Trashed projects' },
 ]
 
+/** What the new-project menu can be asked for. */
+export type NewProject = 'blank' | 'example' | 'upload'
+
+function Caret() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="m4 6 4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 /** The colours a tag may be, kept few so a list of them stays readable. */
 const COLOURS = ['#098842', '#366cbf', '#b83a33', '#8f5514', '#495365', '#1e6b41', '#28518f']
 
@@ -42,7 +53,7 @@ export function ProjectSidebar({
   tagId: string | null
   onTag: (id: string | null) => void
   onChanged: () => Promise<void> | void
-  onNewProject: () => void
+  onNewProject: (kind: NewProject) => void
 }) {
   const [editing, setEditing] = useState<Tag | 'new' | null>(null)
   const [busy, setBusy] = useState(false)
@@ -67,9 +78,37 @@ export function ProjectSidebar({
 
   return (
     <aside className="hidden w-[200px] shrink-0 flex-col gap-4 px-3 py-4 md:flex">
-      <Button className="w-full" onClick={onNewProject}>
-        New project
-      </Button>
+      {/* A menu rather than a button, because "new project" is three
+          different questions: start from nothing, start from something that
+          already works, or bring one you have. The original asks the same
+          three, and the first is what the button does if you just click it. */}
+      <Dropdown className="w-full">
+        <DropdownToggle
+          bsPrefix="new-project-toggle"
+          aria-label="New project"
+          className="flex h-9 w-full items-center justify-center gap-1.5 rounded-full bg-[var(--bg-accent-01)] px-4 text-[16px] font-semibold leading-6 text-white hover:bg-[var(--bg-accent-02)]"
+        >
+          New project
+          <Caret />
+        </DropdownToggle>
+        <DropdownMenu>
+          <li role="none">
+            <DropdownItem as="button" onClick={() => onNewProject('blank')}>
+              Blank project
+            </DropdownItem>
+          </li>
+          <li role="none">
+            <DropdownItem as="button" onClick={() => onNewProject('example')}>
+              Example project
+            </DropdownItem>
+          </li>
+          <li role="none">
+            <DropdownItem as="button" onClick={() => onNewProject('upload')}>
+              Upload project
+            </DropdownItem>
+          </li>
+        </DropdownMenu>
+      </Dropdown>
 
       <nav aria-label="Filter projects">
         <ul className="flex flex-col">
