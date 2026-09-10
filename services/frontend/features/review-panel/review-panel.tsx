@@ -4,10 +4,11 @@
  * The review panel, from review-panel/components/review-panel and its
  * container.
  *
- * Two places, one component. In the rail it is a normal panel with a header.
- * Beside the editor it is drawn into CodeMirror's own scrolling element, so
- * that the cards scroll with the text they are about rather than being
- * positioned against a moving target from outside.
+ * It is drawn into CodeMirror's own scrolling element, and only there. The
+ * cards are positioned against the lines they are about, so they have to
+ * scroll with the text rather than be aimed at it from outside; that is also
+ * why the rail's review tab has no component of its own and only decides
+ * whether this shows in full or as a strip of marks in the margin.
  */
 
 import { memo } from 'react'
@@ -22,10 +23,12 @@ import ReviewPanelCurrentFile from './components/review-panel-current-file'
 import ReviewPanelOverview from './components/review-panel-overview'
 import ReviewModeSwitcher from './components/review-mode-switcher'
 import { ReviewPanelResolvedThreadsButton } from './components/review-panel-resolved-threads'
-import { RailPanelHeader } from '@/features/ide/components/rail/rail-parts'
+import useReviewPanelLayout from './hooks/use-review-panel-layout'
 
-function ReviewPanelBody({ mini = false }: { mini?: boolean }) {
+function ReviewPanelBody({ mini, showHeader }: { mini: boolean; showHeader: boolean }) {
+  const { t } = useTranslation()
   const chosenSubView = useReviewPanelViewContext()
+  // The narrow form has no room for the overview, and no tabs to switch with.
   const activeSubView = mini ? 'cur_file' : chosenSubView
 
   const className = cx('review-panel-container', {
@@ -36,38 +39,40 @@ function ReviewPanelBody({ mini = false }: { mini?: boolean }) {
   return (
     <div className={className} data-testid="review-panel">
       <div id="review-panel-inner" className="review-panel-inner">
+        {showHeader && (
+          <div className="review-panel-header">
+            <div className="rail-panel-header">
+              <h4 className="rail-panel-title">{t('review')}</h4>
+              <div className="rail-panel-header-actions">
+                <ReviewPanelResolvedThreadsButton />
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeSubView === 'cur_file' && <ReviewPanelCurrentFile />}
         {activeSubView === 'overview' && <ReviewPanelOverview />}
 
-        <div className="review-panel-footer" id="review-panel-tabs" role="tablist">
-          <ReviewPanelTabs />
-        </div>
+        {!mini && (
+          <div className="review-panel-footer" id="review-panel-tabs" role="tablist">
+            <ReviewPanelTabs />
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-/** The rail's version: a header, then the panel. */
-export const ReviewPanel = memo(function ReviewPanel() {
-  const { t } = useTranslation()
-
-  return (
-    <div className="review-panel-rail">
-      <div className="review-panel-header">
-        <RailPanelHeader title={t('review')} actions={<ReviewPanelResolvedThreadsButton />} />
-      </div>
-      <ReviewPanelBody />
-    </div>
-  )
-})
-
 /**
- * The version that lives inside the editor: the mode switcher, and the cards
- * when the panel is open.
+ * The mode switcher, and the panel when there is anything to show.
+ *
+ * Rendered by the editor so that both are inside the CodeMirror context they
+ * depend on.
  */
 export const ReviewPanelContainer = memo(function ReviewPanelContainer() {
   const view = useCodeMirrorViewContext()
-  const { reviewPanelOpen, focusMode } = useLayout()
+  const { focusMode } = useLayout()
+  const { showPanel, showHeader, mini } = useReviewPanelLayout()
 
   if (!view) {
     return null
@@ -76,10 +81,10 @@ export const ReviewPanelContainer = memo(function ReviewPanelContainer() {
   return createPortal(
     <>
       {!focusMode && <ReviewModeSwitcher />}
-      {reviewPanelOpen && <ReviewPanelBody mini />}
+      {showPanel && <ReviewPanelBody mini={mini} showHeader={showHeader} />}
     </>,
     view.scrollDOM
   )
 })
 
-export default ReviewPanel
+export default ReviewPanelContainer

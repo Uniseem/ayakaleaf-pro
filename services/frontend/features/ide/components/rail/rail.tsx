@@ -23,7 +23,6 @@ import { HorizontalResizeHandle, HorizontalToggler } from '@/features/ide/compon
 import { FileTreeOutlinePanel } from '@/features/file-tree/file-tree-outline-panel'
 import { ProjectSearchPanel } from '@/features/ide/components/project-search'
 import { ChatPane, ChatIndicator } from '@/features/chat/chat-pane'
-import { ReviewPanel } from '@/features/review-panel/review-panel'
 import { IntegrationsPanel } from '@/features/integrations-panel/integrations-panel'
 import HotkeysModal from '@/features/hotkeys-modal/hotkeys-modal'
 import { RailActionElement, RailHelpDropdown, RailOverflowDropdown, RailTab, shouldIncludeElement, type RailAction, type RailElement } from './rail-parts'
@@ -77,7 +76,7 @@ export function RailLayout() {
         key: 'review-panel',
         icon: 'rate_review',
         title: t('review_panel'),
-        component: <ReviewPanel />,
+        component: null,
         hide: !features.trackChangesVisible,
         disabled: view !== 'editor',
       },
@@ -145,7 +144,9 @@ export function RailLayout() {
     }
   }, [railTabs, selectedTab, openTab, isOpen])
 
-  const isReviewPanelOpen = false
+  // The review panel takes the editor's own width rather than the rail's, so
+  // while it is open the rail shows no panel and no handle of its own.
+  const isReviewPanelOpen = selectedTab === 'review-panel' && isOpen && !isHistoryView
 
   const { tabsInRail, tabsInOverflow, tabWrapperRef } = useRailOverflow(railTabs)
 
