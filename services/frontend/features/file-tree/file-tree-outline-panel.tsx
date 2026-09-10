@@ -6,6 +6,10 @@
  *
  * Two panels one above the other, each with a header that collapses it, and
  * the tree's actions -- new file, new folder, upload -- in the tree's header.
+ *
+ * The tree's providers wrap both, because the header's buttons and the rows
+ * below are asking the same context the same questions: what is selected, and
+ * what is being created.
  */
 
 import { useCallback, useRef } from 'react'
@@ -13,14 +17,10 @@ import { Panel, PanelGroup, type ImperativePanelHandle } from 'react-resizable-p
 import { useTranslation } from '@/lib/i18n'
 import { usePersistedState } from '@/lib/hooks'
 import MaterialIcon from '@/components/ol/material-icon'
-import { Tooltip } from '@/components/ol/tooltip'
-import type { AvailableUnfilledIcon } from '@/lib/unfilled-symbols'
-import { useProject } from '@/features/ide/contexts/project-context'
-import { useRailContext } from '@/features/ide/contexts/rail-context'
-import { useCommandProvider } from '@/features/ide/contexts/command-registry-context'
 import { useCollapsiblePanel } from '@/features/ide/hooks/use-collapsible-panel'
 import { VerticalResizeHandle } from '@/features/ide/components/resize/resize-handles'
-import { FileTree } from './file-tree'
+import { FileTree, FileTreeProviders } from './file-tree'
+import FileTreeActionButtons from './components/file-tree-action-buttons'
 import { OutlineContainer, useOutlineState } from '@/features/outline/outline-pane'
 
 export function FileTreeOutlinePanel() {
@@ -34,45 +34,65 @@ export function FileTreeOutlinePanel() {
 
   const expandFileTree = useCallback(() => setFileTreeExpanded(true), [setFileTreeExpanded])
   const collapseFileTree = useCallback(() => setFileTreeExpanded(false), [setFileTreeExpanded])
-  const toggleFileTreeExpanded = useCallback(() => setFileTreeExpanded(value => !value), [setFileTreeExpanded])
+  const toggleFileTreeExpanded = useCallback(
+    () => setFileTreeExpanded(value => !value),
+    [setFileTreeExpanded]
+  )
 
   return (
-    <PanelGroup className="file-tree-outline-panel-group" autoSaveId="ide-redesign-file-tree-outline" direction="vertical">
-      <Panel
-        className={['file-tree-panel', !fileTreeExpanded ? 'file-tree-panel-collapsed' : ''].filter(Boolean).join(' ')}
-        defaultSize={50}
-        id="ide-redesign-file-tree"
-        order={1}
-        collapsible
-        ref={fileTreePanelRef}
-        onExpand={expandFileTree}
-        onCollapse={collapseFileTree}
-        minSize={10}
+    <FileTreeProviders>
+      <PanelGroup
+        className="file-tree-outline-panel-group"
+        autoSaveId="ide-redesign-file-tree-outline"
+        direction="vertical"
       >
-        <div className="file-tree">
-          <FileTreeToolbar fileTreeExpanded={fileTreeExpanded} toggleFileTreeExpanded={toggleFileTreeExpanded} />
-          <FileTree />
-        </div>
-      </Panel>
-      <VerticalResizeHandle hitAreaMargins={{ coarse: 0, fine: 0 }} disabled={!canShowOutline} />
-      <Panel
-        className="file-outline-panel"
-        defaultSize={50}
-        id="ide-redesign-file-outline"
-        order={2}
-        collapsible
-        ref={outlinePanelRef}
-        onExpand={expandOutline}
-        onCollapse={collapseOutline}
-        minSize={10}
-      >
-        <OutlineContainer />
-      </Panel>
-    </PanelGroup>
+        <Panel
+          className={['file-tree-panel', !fileTreeExpanded ? 'file-tree-panel-collapsed' : '']
+            .filter(Boolean)
+            .join(' ')}
+          defaultSize={50}
+          id="ide-redesign-file-tree"
+          order={1}
+          collapsible
+          ref={fileTreePanelRef}
+          onExpand={expandFileTree}
+          onCollapse={collapseFileTree}
+          minSize={10}
+        >
+          <div className="file-tree" data-testid="file-tree">
+            <FileTreeToolbar
+              fileTreeExpanded={fileTreeExpanded}
+              toggleFileTreeExpanded={toggleFileTreeExpanded}
+            />
+            <FileTree />
+          </div>
+        </Panel>
+        <VerticalResizeHandle hitAreaMargins={{ coarse: 0, fine: 0 }} disabled={!canShowOutline} />
+        <Panel
+          className="file-outline-panel"
+          defaultSize={50}
+          id="ide-redesign-file-outline"
+          order={2}
+          collapsible
+          ref={outlinePanelRef}
+          onExpand={expandOutline}
+          onCollapse={collapseOutline}
+          minSize={10}
+        >
+          <OutlineContainer />
+        </Panel>
+      </PanelGroup>
+    </FileTreeProviders>
   )
 }
 
-function FileTreeToolbar({ fileTreeExpanded, toggleFileTreeExpanded }: { fileTreeExpanded: boolean; toggleFileTreeExpanded: () => void }) {
+function FileTreeToolbar({
+  fileTreeExpanded,
+  toggleFileTreeExpanded,
+}: {
+  fileTreeExpanded: boolean
+  toggleFileTreeExpanded: () => void
+}) {
   const { t } = useTranslation()
   return (
     <div className="file-tree-toolbar">
@@ -87,57 +107,5 @@ function FileTreeToolbar({ fileTreeExpanded, toggleFileTreeExpanded }: { fileTre
       </button>
       <FileTreeActionButtons fileTreeExpanded={fileTreeExpanded} />
     </div>
-  )
-}
-
-function FileTreeActionButtons({ fileTreeExpanded }: { fileTreeExpanded: boolean }) {
-  const { t } = useTranslation()
-  const { canWrite } = useProject()
-  const { handlePaneCollapse } = useRailContext()
-
-  const startCreatingDocOrFile = useCallback(() => window.dispatchEvent(new CustomEvent('ide:new-file')), [])
-  const startCreatingFolder = useCallback(() => window.dispatchEvent(new CustomEvent('ide:new-folder')), [])
-  const startUploadingDocOrFile = useCallback(() => window.dispatchEvent(new CustomEvent('ide:upload')), [])
-
-  useCommandProvider(() => {
-    if (!canWrite) return
-    return [
-      { label: t('new_file'), id: 'new_file', handler: startCreatingDocOrFile },
-      { label: t('new_folder'), id: 'new_folder', handler: startCreatingFolder },
-      { label: t('upload_file'), id: 'upload_file', handler: startUploadingDocOrFile },
-    ]
-  }, [canWrite, t, startCreatingDocOrFile, startCreatingFolder, startUploadingDocOrFile])
-
-  return (
-    <div className="file-tree-toolbar-action-buttons">
-      {fileTreeExpanded && canWrite ? (
-        <>
-          <FileTreeActionButton id="new-file" description={t('new_file')} onClick={startCreatingDocOrFile} iconType="note_add" />
-          <FileTreeActionButton id="new-folder" description={t('new_folder')} onClick={startCreatingFolder} iconType="create_new_folder" />
-          <FileTreeActionButton id="upload" description={t('upload')} onClick={startUploadingDocOrFile} iconType="upload" />
-        </>
-      ) : null}
-      <FileTreeActionButton id="close" description={t('close')} onClick={handlePaneCollapse} iconType="close" />
-    </div>
-  )
-}
-
-function FileTreeActionButton({
-  id,
-  description,
-  onClick,
-  iconType,
-}: {
-  id: string
-  description: string
-  onClick: () => void
-  iconType: AvailableUnfilledIcon
-}) {
-  return (
-    <Tooltip id={id} description={description} overlayProps={{ placement: 'bottom' }}>
-      <button type="button" className="btn file-tree-toolbar-action-button" onClick={onClick}>
-        <MaterialIcon unfilled type={iconType} accessibilityLabel={description} />
-      </button>
-    </Tooltip>
   )
 }

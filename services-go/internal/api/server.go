@@ -233,6 +233,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/projects/{id}/sharing/members/{userId}", h(s.sharing.SetPrivilege))
 	mux.HandleFunc("DELETE /api/projects/{id}/sharing/members/{userId}", h(s.sharing.Remove))
 	mux.HandleFunc("POST /api/projects/{id}/sharing/public", h(s.sharing.SetPublicAccess))
+	mux.HandleFunc("POST /api/projects/{id}/sharing/invites/{inviteId}/resend", h(s.sharing.ResendInvite))
+	mux.HandleFunc("POST /api/projects/{id}/sharing/owner", h(s.sharing.TransferOwnership))
+	// The sharing links, and following one.
+	mux.HandleFunc("GET /api/projects/{id}/tokens", h(s.sharing.Tokens))
+	mux.HandleFunc("POST /api/sharing/links/{token}", h(s.sharing.RedeemToken))
 	mux.HandleFunc("POST /api/invites/{token}/accept", h(s.sharing.Accept))
 	mux.HandleFunc("POST /api/projects/{id}/entries/{entryId}/move", h(s.documents.Move))
 	mux.HandleFunc("POST /api/projects/{id}/root-doc", h(s.documents.SetRootDoc))

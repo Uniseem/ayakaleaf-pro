@@ -18,6 +18,7 @@ import CodeMirrorView from './codemirror-view'
 import { CodeMirrorToolbar } from './codemirror-toolbar'
 import CodeMirrorSearch from './codemirror-search'
 import { CodemirrorOutline } from './codemirror-outline'
+import { ReviewPanelContainer } from '@/features/review-panel/review-panel'
 import { useToolbarMenuBarEditorCommands } from '../hooks/use-toolbar-menu-editor-commands'
 import { useFigureModalFallback } from '../hooks/use-figure-modal-fallback'
 import { useIsMounted } from '@/lib/hooks'
@@ -67,6 +68,7 @@ function CodeMirrorEditorComponents() {
       <CodeMirrorView />
       <CodeMirrorSearch />
       <CodeMirrorToolbar />
+      <ReviewPanelContainer />
     </>
   )
 }

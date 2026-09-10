@@ -102,10 +102,27 @@ type Project struct {
 	PublicAccessLevel string `bson:"publicAccesLevel,omitempty" json:"publicAccessLevel,omitempty"`
 	Description       string `bson:"description,omitempty" json:"description,omitempty"`
 
+	// Tokens are the link-sharing credentials, absent until somebody asks for
+	// them. Never serialised: a token is the whole credential, and the one
+	// endpoint that hands them out is owner-only for that reason.
+	Tokens *Tokens `bson:"tokens,omitempty" json:"-"`
+
 	// Overleaf is where the project's history lives. Only the id is modelled:
 	// the rest of what is under there belongs to the history services, and a
 	// write here would be this service having an opinion about it.
 	Overleaf *Overleaf `bson:"overleaf,omitempty" json:"-"`
+}
+
+// Tokens is a project's pair of sharing links.
+//
+// Two of them, because "anybody with the link may edit" and "anybody with the
+// link may read" are different offers: revoking one should not revoke the
+// other. The read-write token carries a numeric prefix, which is what makes a
+// pasted link recognisable as that kind of link before the rest is looked up.
+type Tokens struct {
+	ReadOnly           string `bson:"readOnly,omitempty" json:"readOnly,omitempty"`
+	ReadAndWrite       string `bson:"readAndWrite,omitempty" json:"readAndWrite,omitempty"`
+	ReadAndWritePrefix string `bson:"readAndWritePrefix,omitempty" json:"readAndWritePrefix,omitempty"`
 }
 
 // Overleaf is the part of a project document the history services own.
@@ -391,6 +408,87 @@ func (s *Store) RemoveAccess(ctx context.Context, id, userID bson.ObjectID) erro
 func (s *Store) SetPublicAccessLevel(ctx context.Context, id bson.ObjectID, level string) error {
 	_, err := s.projects.UpdateByID(ctx, id, bson.M{
 		"$set": bson.M{"publicAccesLevel": level, "lastUpdated": time.Now().UTC()},
+	})
+	return err
+}
+
+// SetTokens stores the link-sharing credentials.
+func (s *Store) SetTokens(ctx context.Context, id bson.ObjectID, tokens Tokens) error {
+	_, err := s.projects.UpdateByID(ctx, id, bson.M{
+		"$set": bson.M{"tokens": tokens},
+	})
+	return err
+}
+
+// SetOwner hands a project to one of its members.
+//
+// The outgoing owner keeps write access rather than losing the project
+// entirely: handing over a project is not the same as leaving it, and somebody
+// who meant to leave can then do that as a separate, visible step. The
+// incoming owner comes off the access lists, because owner is not a level that
+// sits alongside them.
+func (s *Store) SetOwner(ctx context.Context, id, newOwner, oldOwner bson.ObjectID) error {
+	if _, err := s.projects.UpdateByID(ctx, id, bson.M{
+		"$pull": bson.M{
+			"collaberator_refs":            newOwner,
+			"readOnly_refs":                newOwner,
+			"tokenAccessReadAndWrite_refs": newOwner,
+			"tokenAccessReadOnly_refs":     newOwner,
+		},
+	}); err != nil {
+		return err
+	}
+	_, err := s.projects.UpdateByID(ctx, id, bson.M{
+		"$set":      bson.M{"owner_ref": newOwner, "lastUpdated": time.Now().UTC()},
+		"$addToSet": bson.M{"collaberator_refs": oldOwner},
+	})
+	return err
+}
+
+// ByToken finds the project a sharing link belongs to, and what it offers.
+//
+// Answers the privilege as well as the project because the two tokens live on
+// the same document: which one matched is the only thing that says whether the
+// holder may write.
+func (s *Store) ByToken(ctx context.Context, token string) (*Project, string, error) {
+	var project Project
+	err := s.projects.FindOne(ctx, bson.M{
+		"$or": []bson.M{
+			{"tokens.readOnly": token},
+			{"tokens.readAndWrite": token},
+		},
+	}).Decode(&project)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, "", ErrNotFound
+	}
+	if err != nil {
+		return nil, "", err
+	}
+	if project.Tokens == nil {
+		return nil, "", ErrNotFound
+	}
+	switch token {
+	case project.Tokens.ReadAndWrite:
+		return &project, "readAndWrite", nil
+	case project.Tokens.ReadOnly:
+		return &project, "readOnly", nil
+	}
+	return nil, "", ErrNotFound
+}
+
+// GrantTokenAccess admits somebody who followed a sharing link.
+//
+// Kept on its own lists rather than mixed in with the invited collaborators,
+// so that turning link sharing off can remove everybody who came in that way
+// without touching the people who were invited by name.
+func (s *Store) GrantTokenAccess(ctx context.Context, id, userID bson.ObjectID, privilege string) error {
+	field := "tokenAccessReadAndWrite_refs"
+	if privilege == "readOnly" {
+		field = "tokenAccessReadOnly_refs"
+	}
+	_, err := s.projects.UpdateByID(ctx, id, bson.M{
+		"$addToSet": bson.M{field: userID},
+		"$set":      bson.M{"lastUpdated": time.Now().UTC()},
 	})
 	return err
 }

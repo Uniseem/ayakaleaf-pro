@@ -1,0 +1,616 @@
+/*
+ * The review panel, from pages/editor/review-panel.scss.
+ *
+ * Only the redesign's rules are drawn here, as with the file tree: the
+ * original carries both designs and overrides half of one.
+ */
+
+:root {
+  --rp-base-font-size: var(--font-size-01);
+  --review-panel-bg-color: var(--bg-dark-secondary);
+  --review-panel-color: var(--content-primary-dark);
+  --review-panel-color-secondary: var(--content-secondary-dark);
+  --review-panel-header-bg-color: var(--bg-dark-primary);
+  --review-panel-footer-bg-color: var(--bg-dark-primary);
+  --review-panel-entry-bg-color: var(--bg-dark-primary);
+  --review-panel-empty-state-bg-color: var(--bg-dark-primary);
+  --review-panel-button-hover-bg-color: var(--bg-dark-tertiary);
+  --review-panel-border-color: var(--border-divider-dark);
+  --review-panel-header-height: 36px;
+  --review-panel-width: 230px;
+  --review-panel-width-mini: 24px;
+  --review-panel-color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --review-panel-bg-color: var(--bg-light-secondary);
+  --review-panel-color: var(--content-primary);
+  --review-panel-color-secondary: var(--content-secondary);
+  --review-panel-header-bg-color: var(--bg-light-primary);
+  --review-panel-footer-bg-color: var(--bg-light-primary);
+  --review-panel-entry-bg-color: var(--bg-light-primary);
+  --review-panel-empty-state-bg-color: var(--bg-light-primary);
+  --review-panel-button-hover-bg-color: var(--bg-light-tertiary);
+  --review-panel-border-color: var(--border-divider);
+  --review-panel-color-scheme: light;
+}
+
+.review-panel-container {
+  color-scheme: var(--review-panel-color-scheme);
+  height: 100%;
+  flex-shrink: 0;
+  position: relative;
+  order: -1;
+}
+
+.review-panel-inner {
+  z-index: 6;
+  flex-shrink: 0;
+  background-color: var(--review-panel-bg-color);
+  border-right: 1px solid var(--border-divider-themed);
+  color: var(--review-panel-color);
+  line-height: var(--line-height-03);
+  font-size: var(--font-size-01);
+  box-sizing: content-box;
+  width: var(--review-panel-width);
+  min-height: var(--review-panel-height);
+  /* Forces a compositing layer, so the cards move without repainting. */
+  backface-visibility: hidden;
+}
+
+.review-panel-inner .dropdown-menu {
+  z-index: 1;
+}
+
+.review-panel-rail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* One card ---------------------------------------------------------------- */
+
+.review-panel-entry {
+  background-color: var(--review-panel-entry-bg-color);
+  border-radius: var(--border-radius-base);
+  border: 1px solid var(--review-panel-border-color);
+  padding: var(--spacing-04);
+  width: calc(100% - var(--spacing-04));
+  margin-left: var(--spacing-02);
+  z-index: 1;
+}
+
+.review-panel-entry:hover {
+  box-shadow: 0 2px 4px 0 rgb(30 37 48 / 16%);
+}
+
+.review-panel-entry.review-panel-entry-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.review-panel-entry-indicator {
+  display: none;
+}
+
+.review-panel-entry-content {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--font-size-01);
+  gap: var(--spacing-04);
+}
+
+.review-panel-entry.review-panel-entry-selected,
+.review-panel-entry.review-panel-entry-highlighted,
+.review-panel-entry.review-panel-entry-textarea-focused {
+  margin-left: var(--spacing-01);
+  border: 1px solid var(--border-active);
+  box-shadow: 0 4px 8px 0 rgb(30 37 48 / 20%);
+}
+
+/* Raised above the rest: the cards are not in visual order in the DOM. */
+.review-panel-entry.review-panel-entry-focused {
+  z-index: 2;
+}
+
+.review-panel-entry-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-01);
+}
+
+.review-panel-entry-header .review-panel-entry-user {
+  color: var(--review-panel-color);
+  font-size: 110%;
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-02);
+}
+
+.review-panel-entry-user-colour {
+  display: inline-block;
+  width: var(--spacing-04);
+  height: var(--spacing-04);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.review-panel-entry-header .review-panel-entry-time,
+.review-panel-entry-time {
+  color: var(--review-panel-color-secondary);
+}
+
+.review-panel-entry-header .review-panel-entry-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-03);
+}
+
+.review-panel-entry-header .review-panel-entry-actions .btn {
+  background-color: transparent;
+  color: var(--review-panel-color);
+  border-width: 0;
+  padding: 0;
+  height: 24px;
+  width: 24px;
+}
+
+.review-panel-entry-header .review-panel-entry-actions .btn:hover,
+.review-panel-entry-header .review-panel-entry-actions .btn:focus {
+  background-color: var(--review-panel-button-hover-bg-color);
+  color: var(--review-panel-color);
+}
+
+.review-panel-entry-actions-icon {
+  padding: var(--spacing-01);
+  font-size: var(--font-size-05);
+}
+
+.review-panel-change-body {
+  display: flex;
+  align-items: flex-start;
+  color: var(--review-panel-color-secondary);
+  gap: var(--spacing-02);
+  overflow-wrap: anywhere;
+}
+
+.review-panel-content-highlight {
+  color: var(--review-panel-color);
+  text-decoration: none;
+}
+
+del.review-panel-content-highlight {
+  text-decoration: line-through;
+}
+
+.review-panel-entry-icon {
+  border-radius: var(--border-radius-base);
+  padding: var(--spacing-02);
+  font-size: var(--font-size-03);
+}
+
+.review-panel-entry-change-icon {
+  margin-top: calc(-1 * var(--spacing-01));
+}
+
+.review-panel-entry-icon-accept {
+  background-color: var(--bg-accent-03);
+  color: var(--bg-accent-01);
+}
+
+.review-panel-entry-icon-reject {
+  background-color: var(--bg-danger-03);
+  color: var(--bg-danger-01);
+}
+
+.review-panel-entry-icon-changed {
+  background-color: var(--neutral-20);
+  color: var(--content-secondary);
+}
+
+/* Quoted text, clipped until asked to open ------------------------------- */
+
+.review-panel-content {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.review-panel-content-inline {
+  display: inline;
+}
+
+.review-panel-content-expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+  white-space: pre-wrap;
+}
+
+.review-panel-content-expand-button {
+  all: unset;
+  color: var(--link-ui-themed);
+  cursor: pointer;
+  font-size: var(--font-size-01);
+}
+
+.review-panel-content-expand-button:hover {
+  text-decoration: underline;
+}
+
+/* The header, and the resolved-comments popover -------------------------- */
+
+.review-panel-header {
+  position: sticky;
+  top: 0;
+  height: var(--review-panel-header-height);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background-color: var(--review-panel-header-bg-color);
+  z-index: 4;
+}
+
+.rail-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--spacing-04);
+}
+
+.rail-panel-title {
+  font-size: var(--font-size-02);
+  font-weight: bold;
+  margin: 0;
+  color: var(--review-panel-color);
+}
+
+.rail-panel-header-actions {
+  display: flex;
+  align-items: center;
+}
+
+.review-panel-resolved-comments-toggle {
+  all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--border-radius-base);
+  color: var(--review-panel-color);
+  cursor: pointer;
+  height: 24px;
+  width: 24px;
+}
+
+.review-panel-resolved-comments-toggle:hover {
+  background-color: var(--review-panel-button-hover-bg-color);
+}
+
+.review-panel-resolved-comments {
+  width: 320px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.review-panel-resolved-comments-empty {
+  padding: var(--spacing-05);
+  color: var(--content-secondary);
+  text-align: center;
+}
+
+.review-panel-resolved-comments-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.review-panel-resolved-comment {
+  padding: var(--spacing-04);
+  border-bottom: 1px solid var(--border-divider);
+}
+
+.review-panel-resolved-comment-actions {
+  display: flex;
+  gap: var(--spacing-02);
+  justify-content: flex-end;
+}
+
+/* Comments ---------------------------------------------------------------- */
+
+.review-panel-entry-quote {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-02);
+  color: var(--review-panel-color-secondary);
+  overflow: hidden;
+}
+
+.review-panel-comment-body {
+  font-size: var(--font-size-02);
+  color: var(--review-panel-color);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-03);
+}
+
+.review-panel-comment-message-content {
+  color: var(--review-panel-color);
+}
+
+.review-panel-comment-input {
+  width: 100%;
+  font-size: var(--rp-base-font-size);
+  padding: 2px var(--spacing-03);
+  border-radius: var(--border-radius-base);
+  border: solid 1px var(--border-primary-themed);
+  resize: vertical;
+  color: var(--review-panel-color-secondary);
+  background-color: var(--review-panel-entry-bg-color);
+  min-height: 44px;
+  overflow-x: hidden;
+  max-height: 400px;
+}
+
+.review-panel-comment-input::placeholder {
+  color: var(--content-placeholder-themed);
+}
+
+.review-panel-comment-reply {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-02);
+}
+
+.review-panel-comment-reply-actions {
+  display: flex;
+  gap: var(--spacing-02);
+  justify-content: flex-end;
+}
+
+.review-panel-comment-reply-prompt {
+  all: unset;
+  color: var(--link-ui-themed);
+  cursor: pointer;
+  font-size: var(--font-size-01);
+}
+
+.review-panel-comment-reply-prompt:hover {
+  text-decoration: underline;
+}
+
+/* Nothing to show --------------------------------------------------------- */
+
+.review-panel-empty-state {
+  position: absolute;
+  width: var(--review-panel-width);
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  overflow-y: auto;
+}
+
+.review-panel-empty-state-inner {
+  position: sticky;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 100%;
+  padding-left: var(--spacing-06);
+  padding-right: var(--spacing-06);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+}
+
+.review-panel-empty-state-inner p {
+  margin-bottom: 0;
+  text-align: center;
+}
+
+.review-panel-empty-state-comment-icon {
+  width: 80px;
+  height: 80px;
+  background-color: var(--review-panel-empty-state-bg-color);
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--spacing-06);
+}
+
+.review-panel-empty-state-comment-icon .material-symbols {
+  font-size: 32px;
+}
+
+/* The overview ------------------------------------------------------------ */
+
+.review-panel-overview {
+  padding: var(--spacing-02);
+  position: absolute;
+  top: 0;
+  bottom: 59px;
+  width: 100%;
+  overflow: auto;
+  overscroll-behavior-block: none;
+}
+
+.review-panel-overview .review-panel-entry {
+  margin-left: 0;
+  width: 100%;
+}
+
+.review-panel-overview-file-header {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-02);
+  width: 100%;
+  cursor: pointer;
+  padding: var(--spacing-02);
+  color: var(--review-panel-color);
+  border-bottom: 1px solid var(--review-panel-border-color);
+}
+
+.review-panel-overview-file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: bold;
+}
+
+.review-panel-overview-file-count {
+  color: var(--review-panel-color-secondary);
+}
+
+.review-panel-overview-file-entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-02);
+  overflow: hidden;
+  padding-top: var(--spacing-02);
+  padding-bottom: var(--spacing-03);
+}
+
+/* The two tabs at the foot ------------------------------------------------ */
+
+.review-panel-footer {
+  position: absolute;
+  height: 60px;
+  bottom: 0;
+  width: var(--review-panel-width);
+  z-index: 2;
+  background-color: var(--review-panel-footer-bg-color);
+  border-top: 1px solid var(--review-panel-border-color);
+  display: flex;
+}
+
+.review-panel-footer .review-panel-tab {
+  flex: 0 0 50%;
+  padding: var(--spacing-03) 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-02);
+  border: 0;
+  border-top: solid 3px transparent;
+  background: none;
+  color: var(--review-panel-color-secondary);
+  font-size: var(--font-size-02);
+}
+
+.review-panel-footer .review-panel-tab:hover,
+.review-panel-footer .review-panel-tab:focus {
+  text-decoration: none;
+  color: var(--review-panel-color);
+}
+
+.review-panel-footer .review-panel-tab-active {
+  color: var(--review-panel-color);
+  border-top: solid 3px var(--bg-accent-01);
+}
+
+/* Editing / Reviewing / Viewing ------------------------------------------- */
+
+.review-mode-switcher-container {
+  position: sticky;
+  top: 0;
+  right: 0;
+}
+
+.review-mode-switcher {
+  position: absolute;
+  top: var(--spacing-03);
+  right: var(--spacing-03);
+}
+
+.review-mode-switcher:hover .review-mode-switcher-toggle-button.editing,
+.review-mode-switcher:focus .review-mode-switcher-toggle-button.editing {
+  background-color: var(--bg-light-tertiary);
+}
+
+.review-mode-switcher:hover .review-mode-switcher-toggle-button.reviewing,
+.review-mode-switcher:focus .review-mode-switcher-toggle-button.reviewing {
+  background-color: var(--yellow-20);
+}
+
+.review-mode-switcher:hover .review-mode-switcher-toggle-button.viewing,
+.review-mode-switcher:focus .review-mode-switcher-toggle-button.viewing {
+  background-color: var(--blue-20);
+}
+
+/* The label appears on hover, and the button widens to hold it. */
+.review-mode-switcher:hover .review-mode-switcher-toggle-label,
+.review-mode-switcher:focus .review-mode-switcher-toggle-label {
+  display: block;
+}
+
+/* No gap between the button and the menu it opens. */
+.review-mode-switcher > .dropdown-menu {
+  margin-top: -2px;
+}
+
+.review-mode-switcher-toggle-button {
+  all: unset;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  border-radius: 14px;
+  font-size: var(--font-size-02);
+  padding: var(--spacing-02) var(--spacing-03);
+  gap: var(--spacing-02);
+  height: 20px;
+  cursor: pointer;
+}
+
+.review-mode-switcher-toggle-button .material-symbols {
+  font-size: 16px;
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 20;
+}
+
+.review-mode-switcher-toggle-button.editing {
+  background-color: var(--bg-light-secondary);
+  color: var(--content-primary);
+}
+
+.review-mode-switcher-toggle-button.reviewing {
+  background-color: var(--yellow-10);
+  color: var(--yellow-60);
+}
+
+.review-mode-switcher-toggle-button.viewing {
+  background-color: var(--blue-10);
+  color: var(--blue-70);
+}
+
+.review-mode-switcher-toggle-button .review-mode-switcher-toggle-label {
+  display: none;
+}
+
+/* Shown once, so the control introduces itself and then gets out of the way. */
+.review-mode-switcher-toggle-button.review-mode-switcher-toggle-button-expanded
+  .review-mode-switcher-toggle-label {
+  display: block;
+}
+
+/* Narrow form: the cards are off screen and only the marks remain. */
+.review-panel-mini {
+  z-index: 201;
+}
+
+.review-panel-mini .review-panel-entry-hover .review-panel-entry-content {
+  left: auto;
+  right: -200px;
+}
+
+.review-panel-mini .review-panel-entry-indicator {
+  display: flex;
+}

@@ -1,7 +1,11 @@
 /*
- * The file tree, from pages/editor/file-tree.scss: the colours, and the
- * redesign's toolbar and list. The rows themselves are drawn by
- * features/file-tree against these names.
+ * The file tree, from pages/editor/file-tree.scss.
+ *
+ * The original carries two designs at once and disables half of one with
+ * !important overrides. Only the redesign is drawn here, so the rules it
+ * overrode are simply not present: the "fake full width background" the old
+ * tree used to paint a row past its own indentation is one of them, and the
+ * rows are full-width flex children instead.
  */
 
 :root {
@@ -34,6 +38,8 @@
   --file-tree-item-dragging-preview-colour: rgb(27 34 44 / 60%);
   --file-tree-expand-button-color: var(--content-primary);
 }
+
+/* The panel, and the header that collapses it ---------------------------- */
 
 .file-tree-outline-panel-group {
   background-color: var(--file-tree-bg);
@@ -89,16 +95,6 @@
   color: var(--file-tree-expand-button-color);
   padding: var(--spacing-02);
   border-radius: var(--border-radius-full);
-  --bs-btn-padding-x: var(--spacing-02);
-  --bs-btn-padding-y: var(--spacing-02);
-  --bs-btn-color: var(--file-tree-expand-button-color);
-  --bs-btn-bg: transparent;
-  --bs-btn-border-width: 0;
-  --bs-btn-hover-color: var(--file-tree-expand-button-color);
-  --bs-btn-hover-bg: var(--file-tree-item-hover-bg);
-  --bs-btn-active-color: var(--file-tree-expand-button-color);
-  --bs-btn-active-bg: var(--file-tree-item-hover-bg);
-  line-height: 1;
 }
 
 .file-tree-toolbar-action-button:hover {
@@ -109,28 +105,52 @@
   color: var(--file-tree-expand-button-color);
 }
 
+/* The tree ---------------------------------------------------------------- */
+
 .file-tree {
-  background-color: var(--file-tree-bg);
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 0;
-  color: var(--file-tree-item-color);
+  width: 100%;
+  background-color: var(--file-tree-bg);
+}
+
+.file-tree .file-tree-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  overflow-y: auto;
+  width: inherit;
+  height: inherit;
+  font-size: var(--font-size-02);
 }
 
 .file-tree ul.file-tree-list {
   margin: var(--spacing-02);
+  overflow: hidden auto;
+  height: 100%;
+  flex-grow: 1;
+  position: relative;
+}
+
+/* Room below the last row, so a row at the bottom is not against the edge. */
+.file-tree ul.file-tree-list::after {
+  content: '';
+  display: block;
+  min-height: var(--spacing-08);
 }
 
 .file-tree-folder-list {
   border-left: 1px solid color-mix(in srgb, var(--border-primary) 24%, transparent);
-  margin-left: 14px !important;
+  margin-left: 14px;
   margin-top: 0;
+  padding-left: 0;
 }
 
 .file-tree-folder-list.file-tree-list {
   border-left: none;
-  margin-left: var(--spacing-02) !important;
+  margin-left: var(--spacing-02);
 }
 
 .file-tree-folder-list.file-tree-list > .file-tree-folder-list-inner {
@@ -144,16 +164,56 @@
   gap: var(--spacing-02);
 }
 
+.file-tree ul.file-tree-list li {
+  line-height: var(--file-tree-line-height);
+  position: relative;
+}
+
+.file-tree ul.file-tree-list li .entity {
+  user-select: none;
+}
+
+.file-tree ul.file-tree-list li .entity > .entity-name {
+  display: flex;
+  align-items: center;
+  color: var(--file-tree-item-color);
+  border-radius: var(--border-radius-base);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+  background-color: transparent;
+}
+
+.file-tree ul.file-tree-list li .entity > .entity-name:hover {
+  background-color: var(--file-tree-item-hover-bg);
+}
+
+.file-tree ul.file-tree-list li .entity > .entity-name > button {
+  background-color: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.file-tree ul.file-tree-list li .entity-name input {
+  line-height: 1.6;
+}
+
+.file-tree-entity-button,
+.file-tree-entity-details {
+  display: flex;
+  width: 100%;
+  color: inherit;
+  padding: var(--spacing-02);
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
 .item-name,
 .folder-expand-collapse-button {
   display: flex;
   align-items: center;
-  height: 20px !important;
-}
-
-.entity-name {
-  color: var(--file-tree-item-color);
-  border-radius: var(--border-radius-base);
+  height: 20px;
 }
 
 .item-name {
@@ -166,36 +226,297 @@
   text-overflow: ellipsis;
 }
 
-/* Nothing selected, from pages/editor/file-view.scss. */
+/* Icons ------------------------------------------------------------------- */
 
-.no-file-selection-message,
-.multi-selection-message {
-  --bs-heading-color: var(--content-primary-themed);
-  width: 50%;
-  margin: var(--spacing-10) auto;
-  text-align: center;
+.file-tree ul.file-tree-list li .material-symbols {
+  color: var(--file-tree-icon-colour);
 }
 
-.no-file-selection-message h3 {
-  font-size: var(--font-size-07);
-  line-height: var(--line-height-06);
-  font-weight: 600;
-  color: var(--bs-heading-color);
+.file-tree ul.file-tree-list li .material-symbols.file-tree-icon {
+  margin-left: 0;
+  margin-right: 0;
+  vertical-align: sub;
 }
 
-.no-file-selection,
-.multi-selection-ongoing {
+.file-tree ul.file-tree-list li .material-symbols.file-tree-expand-icon {
+  margin-left: 0;
+  vertical-align: sub;
+}
+
+.file-tree ul.file-tree-list li .material-symbols.file-tree-icon.linked-file-icon {
   position: relative;
+  left: -2px;
+}
+
+.linked-file-highlight {
+  background-color: var(--file-tree-bg);
+  color: var(--file-tree-icon-colour);
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  font-size: var(--font-size-01);
+  border-radius: var(--spacing-01);
+}
+
+/* The row's own menu ------------------------------------------------------ */
+
+.file-tree ul.file-tree-list li .menu-button {
+  position: absolute;
+  right: 0;
+}
+
+.file-tree ul.file-tree-list li > .entity > .entity-name .entity-menu-toggle {
+  display: none;
+}
+
+.file-tree ul.file-tree-list li .entity-name .entity-menu-toggle > .material-symbols {
+  color: var(--content-primary-dark);
+  vertical-align: middle;
+}
+
+.file-tree ul.file-tree-list li .rename-input {
+  display: block;
+  position: absolute;
+  top: 1px;
+  left: 32px;
+  right: 32px;
+  color: var(--content-primary);
+}
+
+.file-tree ul.file-tree-list li .rename-input input {
+  width: 100%;
+}
+
+/* Selected ---------------------------------------------------------------- */
+
+.file-tree:not(.multi-selected) ul.file-tree-list li.selected > .entity > .entity-name {
+  background-color: var(--file-tree-item-selected-bg);
+  color: var(--file-tree-item-selected-color);
+  font-weight: bold;
+  padding-right: var(--spacing-09);
+}
+
+.file-tree:not(.multi-selected) ul.file-tree-list li.selected > .entity > .entity-name > div > .material-symbols,
+.file-tree:not(.multi-selected) ul.file-tree-list li.selected > .entity > .entity-name > button > .material-symbols,
+.file-tree:not(.multi-selected) ul.file-tree-list li.selected > .entity > .entity-name > .material-symbols,
+.file-tree:not(.multi-selected)
+  ul.file-tree-list
+  li.selected
+  > .entity
+  > .entity-name
+  .entity-menu-toggle
+  .material-symbols {
+  color: var(--file-tree-item-selected-color);
+}
+
+.file-tree:not(.multi-selected)
+  ul.file-tree-list
+  li.selected
+  > .entity
+  > .entity-name
+  > .material-symbols.linked-file-highlight {
+  background-color: var(--bg-info-01);
+}
+
+.file-tree:not(.multi-selected) ul.file-tree-list li.selected > .entity > .entity-name button {
+  font-weight: inherit;
+}
+
+.file-tree:not(.multi-selected) ul.file-tree-list li.selected > .entity > .entity-name .entity-menu-toggle {
+  display: inline-block;
+  background-color: transparent;
+  border: 0;
+  padding-right: var(--spacing-02);
+  padding-left: var(--spacing-02);
+}
+
+/* Dragging ---------------------------------------------------------------- */
+
+/* While something is being dragged the old selection stops shouting. */
+.file-tree ul.file-tree-list.file-tree-dragging li.selected .entity .entity-name {
+  font-weight: normal;
+  background-color: transparent;
+  color: var(--file-tree-item-color);
+}
+
+.file-tree ul.file-tree-list.file-tree-dragging li.selected .entity .entity-name .material-symbols {
+  color: var(--content-disabled) !important;
+}
+
+/* What is being dragged takes the hover colour. */
+.file-tree ul.file-tree-list.file-tree-dragging li .entity.file-tree-entity-dragging .entity-name {
+  background-color: var(--file-tree-item-dragging-bg);
+  color: var(--file-tree-item-dragging-color);
+}
+
+.file-tree
+  ul.file-tree-list.file-tree-dragging
+  li
+  .entity.file-tree-entity-dragging
+  .entity-name
+  .material-symbols {
+  color: var(--file-tree-item-icon-dragging-color) !important;
+}
+
+/* Where it would land takes the selected colour. */
+.file-tree ul.file-tree-list.file-tree-dragging li.dnd-droppable-hover .entity .entity-name {
+  background-color: var(--file-tree-item-selected-bg);
+  color: var(--file-tree-item-selected-color);
+}
+
+.file-tree ul.file-tree-list.file-tree-dragging li.dnd-droppable-hover .entity .entity-name .material-symbols {
+  color: var(--file-tree-item-selected-color) !important;
+}
+
+.file-tree ul.file-tree-list.dnd-droppable-hover {
+  outline: 2px solid var(--file-tree-item-selected-bg);
+  outline-offset: -2px;
+  border-radius: var(--border-radius-base);
+}
+
+.dnd-draggable-preview-item {
+  color: var(--file-tree-item-dragging-preview-colour);
+  background-color: var(--file-tree-item-dragging-preview-bg);
+  border-radius: var(--border-radius-base);
+  width: 75%;
+  padding-left: var(--spacing-08);
+  line-height: 2.05;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Nothing may be moved while the connection is down. */
+.file-tree .disconnected-overlay {
+  background-color: var(--file-tree-bg);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  opacity: 0.5;
+  cursor: wait;
+}
+
+/* The context menu -------------------------------------------------------- */
+
+.context-menu {
+  position: fixed;
+  z-index: 100;
+}
+
+.context-menu-upwards {
+  top: auto;
+  bottom: 100%;
+}
+
+.file-tree-error {
+  text-align: center;
+  color: var(--content-secondary-dark);
+  padding: 20px;
+}
+
+.file-tree-modal-alert {
+  margin-top: var(--spacing-06);
+}
+
+/* Adding files ------------------------------------------------------------ */
+
+.modal-new-file {
+  padding: 0;
+}
+
+.modal-new-file-body {
+  display: flex;
+  min-height: 400px;
+}
+
+.modal-new-file-list {
+  background-color: var(--bg-light-secondary);
+  width: 220px;
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.modal-new-file-list li .btn {
+  color: var(--content-secondary);
+  padding: var(--spacing-03);
+}
+
+.modal-new-file-list li .btn:hover {
+  text-decoration: none;
+}
+
+.modal-new-file-list li .btn:focus {
+  outline: none;
+  text-decoration: none;
+  background-color: var(--white);
+}
+
+.modal-new-file-list li:hover {
+  background-color: var(--white);
+}
+
+.modal-new-file-list li.active {
+  background-color: var(--white);
+}
+
+.modal-new-file-list li.active .btn {
+  color: var(--link-ui);
+  text-decoration: none;
+}
+
+.btn.modal-new-file-mode {
+  justify-content: left;
+  text-align: left;
+  text-decoration: none;
+  width: 100%;
+}
+
+.modal-new-file-body-mode {
+  flex: 1;
+  padding: 20px;
+  padding-top: var(--spacing-03);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-new-file-body-mode form,
+.modal-new-file-uploader {
+  display: flex;
+  flex-direction: column;
   flex: 1;
 }
 
-.no-file-selection::before,
-.multi-selection-ongoing::before {
-  position: absolute;
-  inset: 0;
-  left: 20px;
-  content: '';
-  background: url('/img/ol-brand/overleaf-o-grey.svg') center / 200px no-repeat;
-  opacity: 0.2;
-  pointer-events: none;
+.modal-new-file-dropzone {
+  border: 1px dashed var(--border-primary);
+  border-radius: var(--border-radius-base);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-04);
+  color: var(--content-secondary);
+  margin-top: var(--spacing-05);
+}
+
+.modal-new-file-dropzone-over {
+  border-color: var(--bg-accent-01);
+  background-color: var(--bg-light-secondary);
+}
+
+.modal-new-file-dropzone-icon {
+  font-size: var(--font-size-07);
+}
+
+.modal-new-file-upload-list {
+  margin: var(--spacing-05) 0 0;
+  padding: 0;
+  max-height: 120px;
+  overflow-y: auto;
+  font-size: var(--font-size-02);
+  color: var(--content-secondary);
 }
