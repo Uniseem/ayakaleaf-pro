@@ -9,6 +9,7 @@
  */
 
 import { useTranslation } from '@/lib/i18n'
+import { spellCheckLanguages } from '@/lib/spell-check-languages'
 import { Select } from '@/components/ol/select'
 import { Button } from '@/components/ol/button'
 import { defaultSettings, useSettings, type UserSettings } from '@/features/ide/contexts/settings-context'
@@ -67,6 +68,17 @@ export function EditorSettings() {
         { value: 'default', label: t('off') },
         { value: 'vim', label: 'Vim' },
         { value: 'emacs', label: 'Emacs' },
+      ],
+    },
+    {
+      key: 'spellCheckLanguage',
+      label: t('spellcheck_language'),
+      options: [
+        { value: '', label: t('off') },
+        ...spellCheckLanguages.map(language => ({
+          value: language.code,
+          label: language.name,
+        })),
       ],
     },
     {

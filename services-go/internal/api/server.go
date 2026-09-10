@@ -312,6 +312,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/settings", h(s.prefs.Get))
 	mux.HandleFunc("POST /api/settings", h(s.prefs.Set))
 	mux.HandleFunc("POST /api/settings/password", h(s.auth.ChangePassword))
+	mux.HandleFunc("GET /api/spelling/learned", h(s.prefs.LearnedWords))
+	mux.HandleFunc("POST /api/spelling/learn", h(s.prefs.Learn))
+	mux.HandleFunc("POST /api/spelling/unlearn", h(s.prefs.Unlearn))
 	mux.HandleFunc("GET /api/settings/sessions", h(s.auth.Sessions))
 	mux.HandleFunc("DELETE /api/settings/sessions", h(s.auth.ClearSessions))
 

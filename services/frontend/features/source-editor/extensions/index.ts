@@ -17,6 +17,8 @@ import { autoPair } from './auto-pair'
 import { phrases } from './phrases'
 import { mathPreview } from './math-preview'
 import { reviewTooltip } from './review-tooltip'
+import { spelling } from './spelling'
+import type { HunspellManager } from '../hunspell/HunspellManager'
 import type { PreviewPath } from '@/features/file-tree/util/preview-path'
 import { symbolPalette } from './symbol-palette'
 import { search } from './search'
@@ -71,6 +73,10 @@ export type ExtensionOptions = {
     nonBlinkingCursor: boolean
   }
   phrases: Record<string, string>
+  spelling: {
+    spellCheckLanguage?: string
+    hunspellManager?: HunspellManager
+  }
   visual: {
     visual: boolean
     previewByPath: (path: string) => PreviewPath | null
@@ -163,6 +169,7 @@ export const createExtensions = (options: ExtensionOptions): Extension[] => [
   symbolPalette(),
   mathPreview(options.settings.mathPreview),
   reviewTooltip(),
+  spelling(options.spelling),
   // NOTE: `emptyLineFiller` needs to be before `trackedChanges`,
   // so the decorations are added in the correct order.
   emptyLineFiller(),

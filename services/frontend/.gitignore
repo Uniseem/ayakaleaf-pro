@@ -10,6 +10,10 @@ tsconfig.tsbuildinfo
 # Copied from node_modules by scripts/copy-mathjax.mjs at build time.
 /public/mathjax/
 
+# Copied from node_modules by scripts/copy-hunspell.mjs at build time.
+/public/hunspell/
+/public/dictionaries/
+
 # Generated from latex.grammar by scripts/generate-latex-parser.mjs
 /features/source-editor/lezer-latex/latex.mjs
 /features/source-editor/lezer-latex/latex.terms.mjs

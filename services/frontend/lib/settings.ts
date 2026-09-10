@@ -53,3 +53,22 @@ export function saveSettings(
     body: { values },
   })
 }
+
+/** The words this person has told the spell checker to accept. */
+export function learnedWords(): Promise<string[]> {
+  return api<{ words: string[] }>('/api/spelling/learned').then(a => a.words)
+}
+
+export function learnWord(word: string): Promise<string[]> {
+  return api<{ words: string[] }>('/api/spelling/learn', {
+    method: 'POST',
+    body: { word },
+  }).then(a => a.words)
+}
+
+export function unlearnWord(word: string): Promise<string[]> {
+  return api<{ words: string[] }>('/api/spelling/unlearn', {
+    method: 'POST',
+    body: { word },
+  }).then(a => a.words)
+}

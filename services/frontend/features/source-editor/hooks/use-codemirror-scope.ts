@@ -15,6 +15,8 @@ import { setAutoComplete } from '../extensions/auto-complete'
 import { usePhrases } from './use-phrases'
 import { setPhrases } from '../extensions/phrases'
 import { setMathPreview } from '../extensions/math-preview'
+import { setSpellCheckLanguage } from '../extensions/spelling'
+import { useHunspell } from './use-hunspell'
 import { setKeybindings } from '../extensions/keybindings'
 import { setVisual } from '../extensions/visual/visual'
 import { setDocName } from '../extensions/doc-name'
@@ -78,7 +80,7 @@ const fontFamilyFor = (value: UserSettings['fontFamily']) => value
 function useCodeMirrorScope(view: EditorView) {
   const editor = useEditor()
   const { current, revision, change, editable, rememberPosition } = editor
-  const { files, canWrite, canReview, projectId, entryByPath } = useProject()
+  const { files, canWrite, canReview, projectId, entryByPath, project } = useProject()
   const { logEntryAnnotations, compiling, stale, markEdited } = useCompile()
   const { others, reportPosition } = useConnection()
   const metadata = useMetadataContext()
@@ -191,6 +193,26 @@ function useCodeMirrorScope(view: EditorView) {
 
   const editableRef = useRef(editable && (canWrite || canReview))
 
+  // Spell check is off for somebody who cannot write: there is nothing they
+  // could do about a misspelling, and underlining it is only noise.
+  // The project's language if it has one, otherwise this person's own: a
+  // project created before they chose a language should still be checked in
+  // the language they read.
+  const spellCheckLanguage =
+    canWrite || canReview
+      ? project.spellCheckLanguage || settings.spellCheckLanguage || ''
+      : ''
+  const hunspellManager = useHunspell(spellCheckLanguage)
+
+  const spellingRef = useRef({ spellCheckLanguage, hunspellManager })
+
+  useEffect(() => {
+    spellingRef.current = { spellCheckLanguage, hunspellManager }
+    window.setTimeout(() => {
+      view.dispatch(setSpellCheckLanguage(spellingRef.current))
+    })
+  }, [view, spellCheckLanguage, hunspellManager])
+
   const showVisual = visual && !!openDocName && isVisualEditorAvailable(openDocName)
 
   // Resolving a graphics path needs the file tree, which changes as files are
@@ -254,6 +276,7 @@ function useCodeMirrorScope(view: EditorView) {
           settings: settingsRef.current,
           phrases: phrasesRef.current,
           visual: visualRef.current,
+      spelling: spellingRef.current,
           initialSearchQuery: searchQueryRef.current,
           handleException,
           onLocalChange: text => {
