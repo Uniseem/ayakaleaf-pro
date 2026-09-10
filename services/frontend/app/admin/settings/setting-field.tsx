@@ -1,7 +1,11 @@
 'use client'
 
-import { Chip, Input, Select, SelectItem, Switch, Textarea } from '@heroui/react'
+import { Badge } from '@/components/ol/badge'
+import { OLFormControl, OLFormGroup, OLFormLabel, OLFormText } from '@/components/ol/form-control'
+import { Select } from '@/components/ol/select'
 import type { Field } from '@/lib/settings'
+
+type Option = { value: string; label: string }
 
 /**
  * One setting, drawn from what the API said about it.
@@ -21,11 +25,7 @@ export function SettingField({
   const label = (
     <span className="flex items-center gap-2">
       {field.label}
-      {field.restart ? (
-        <Chip size="sm" variant="flat" color="warning">
-          needs a restart
-        </Chip>
-      ) : null}
+      {field.restart ? <Badge bg="warning">needs a restart</Badge> : null}
     </span>
   )
 
@@ -33,96 +33,108 @@ export function SettingField({
     <>
       {field.help ? <span className="block">{field.help}</span> : null}
       {field.env ? (
-        <span className="block text-default-400">
-          was <code className="font-mono text-tiny">{field.env}</code>
+        <span className="block text-[var(--content-secondary)]">
+          was <code className="font-mono text-xs">{field.env}</code>
         </span>
       ) : null}
     </>
   )
+
+  const asText = value === undefined || value === null ? '' : String(value)
 
   switch (field.kind) {
     case 'boolean':
       return (
         <div className="flex items-start justify-between gap-6 py-2">
           <div className="flex flex-col">
-            <span className="text-small">{label}</span>
-            <span className="text-tiny text-default-500">{description}</span>
+            <span>{label}</span>
+            <span className="text-xs text-[var(--content-secondary)]">{description}</span>
           </div>
-          <Switch
-            isSelected={Boolean(value)}
-            onValueChange={next => onChange(field.key, next)}
+          <input
+            type="checkbox"
+            className="form-check-input"
+            checked={Boolean(value)}
+            onChange={event => onChange(field.key, event.target.checked)}
             aria-label={field.label}
           />
         </div>
       )
 
-    case 'select':
+    case 'select': {
+      const options: Option[] = field.options ?? []
+      const selected = options.find(option => option.value === asText) ?? null
       return (
-        <Select
-          label={label}
-          description={description}
-          selectedKeys={value === undefined || value === null ? [] : [String(value)]}
-          onSelectionChange={keys => {
-            const next = Array.from(keys)[0]
-            if (next !== undefined) onChange(field.key, String(next))
-          }}
-          variant="bordered"
-        >
-          {(field.options ?? []).map(option => (
-            <SelectItem key={option.value}>{option.label}</SelectItem>
-          ))}
-        </Select>
+        <OLFormGroup controlId={`setting-${field.key}`}>
+          <Select<Option>
+            label={label}
+            items={options}
+            itemToKey={option => option.value}
+            itemToString={option => option?.label ?? ''}
+            selected={selected}
+            onSelectedItemChanged={option => {
+              if (option) {
+                onChange(field.key, option.value)
+              }
+            }}
+          />
+          <OLFormText>{description}</OLFormText>
+        </OLFormGroup>
       )
+    }
 
     case 'text':
     case 'json':
       return (
-        <Textarea
-          label={label}
-          description={description}
-          value={value === undefined || value === null ? '' : String(value)}
-          onValueChange={next => onChange(field.key, next)}
-          minRows={field.kind === 'json' ? 4 : 3}
-          variant="bordered"
-        />
+        <OLFormGroup controlId={`setting-${field.key}`}>
+          <OLFormLabel>{label}</OLFormLabel>
+          <OLFormControl
+            as="textarea"
+            rows={field.kind === 'json' ? 4 : 3}
+            value={asText}
+            onChange={event => onChange(field.key, event.target.value)}
+          />
+          <OLFormText>{description}</OLFormText>
+        </OLFormGroup>
       )
 
     case 'password':
       return (
-        <Input
-          label={label}
-          description={description}
-          type="password"
-          // A secret is never sent back, so the box starts empty and empty
-          // means "leave it alone".
-          placeholder={field.isSet ? 'set — leave blank to keep, or "-" to clear' : undefined}
-          value={value === undefined || value === null ? '' : String(value)}
-          onValueChange={next => onChange(field.key, next)}
-          variant="bordered"
-        />
+        <OLFormGroup controlId={`setting-${field.key}`}>
+          <OLFormLabel>{label}</OLFormLabel>
+          <OLFormControl
+            type="password"
+            // A secret is never sent back, so the box starts empty and empty
+            // means "leave it alone".
+            placeholder={field.isSet ? 'set — leave blank to keep, or "-" to clear' : undefined}
+            value={asText}
+            onChange={event => onChange(field.key, event.target.value)}
+          />
+          <OLFormText>{description}</OLFormText>
+        </OLFormGroup>
       )
 
     case 'number':
       return (
-        <Input
-          label={label}
-          description={description}
-          type="number"
-          value={value === undefined || value === null ? '' : String(value)}
-          onValueChange={next => onChange(field.key, next === '' ? '' : Number(next))}
-          variant="bordered"
-        />
+        <OLFormGroup controlId={`setting-${field.key}`}>
+          <OLFormLabel>{label}</OLFormLabel>
+          <OLFormControl
+            type="number"
+            value={asText}
+            onChange={event =>
+              onChange(field.key, event.target.value === '' ? '' : Number(event.target.value))
+            }
+          />
+          <OLFormText>{description}</OLFormText>
+        </OLFormGroup>
       )
 
     default:
       return (
-        <Input
-          label={label}
-          description={description}
-          value={value === undefined || value === null ? '' : String(value)}
-          onValueChange={next => onChange(field.key, next)}
-          variant="bordered"
-        />
+        <OLFormGroup controlId={`setting-${field.key}`}>
+          <OLFormLabel>{label}</OLFormLabel>
+          <OLFormControl value={asText} onChange={event => onChange(field.key, event.target.value)} />
+          <OLFormText>{description}</OLFormText>
+        </OLFormGroup>
       )
   }
 }

@@ -271,7 +271,7 @@ function FileTreeUploadDoc() {
           onClick={() => void finishUploadingFiles(chosen)}
           disabled={!chosen.length || inFlight}
           isLoading={inFlight}
-          loadingLabel={t('uploading')}
+          loadingLabel={t('upload')}
         >
           {t('upload')}
         </Button>

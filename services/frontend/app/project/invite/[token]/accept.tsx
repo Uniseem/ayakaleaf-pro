@@ -1,6 +1,7 @@
 'use client'
 
-import { Button, Card, CardBody } from '@heroui/react'
+import { Button } from '@/components/ol/button'
+import { Notification } from '@/components/ol/notification'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { acceptInvite } from '@/lib/sharing'
@@ -12,26 +13,22 @@ export function AcceptInvite({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null)
 
   return (
-    <Card>
-      <CardBody className="gap-4 p-6">
+    <div className="card">
+      <div className="card-body flex flex-col gap-4 p-6">
         <div>
           <h1 className="text-lg font-semibold">You have been invited</h1>
-          <p className="mt-1 text-sm text-default-500">
+          <p className="mt-1 text-sm text-[var(--content-secondary)]">
             Accepting adds this project to your list. You can leave it again at
             any point.
           </p>
         </div>
 
-        {error ? (
-          <p className="rounded bg-danger-50 px-3 py-2 text-sm text-danger">
-            {error}
-          </p>
-        ) : null}
+        {error ? <Notification type="error" content={error} /> : null}
 
         <Button
-          color="primary"
+          variant="primary"
           isLoading={busy}
-          onPress={async () => {
+          onClick={async () => {
             setBusy(true)
             setError(null)
             try {
@@ -45,10 +42,10 @@ export function AcceptInvite({ token }: { token: string }) {
         >
           Accept
         </Button>
-        <Button variant="light" onPress={() => router.replace('/projects')}>
+        <Button variant="secondary" onClick={() => router.replace('/projects')}>
           Not now
         </Button>
-      </CardBody>
-    </Card>
+      </div>
+    </div>
   )
 }

@@ -1,16 +1,9 @@
 'use client'
 
-import {
-  Button,
-  Checkbox,
-  Input,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  Spinner,
-} from '@heroui/react'
+import { Button } from '@/components/ol/button'
+import { Spinner } from '@/components/ol/spinner'
+import { OLFormControl, OLFormGroup, OLFormLabel } from '@/components/ol/form-control'
+import { OLModal, OLModalBody, OLModalFooter, OLModalHeader, OLModalTitle } from '@/components/ol/modal'
 import { useCallback, useEffect, useState } from 'react'
 import { messageFor } from '@/lib/api'
 import {
@@ -122,14 +115,15 @@ export function GitHubPanel({
   const conflicted = state?.mergeStatus === 'conflict'
 
   return (
-    <Modal isOpen={open} onClose={onClose} size="lg">
-      <ModalContent>
-        <ModalHeader className="text-base">GitHub</ModalHeader>
-        <ModalBody className="gap-4">
+    <OLModal show={open} onHide={onClose} size="lg">
+      <OLModalHeader>
+        <OLModalTitle>GitHub</OLModalTitle>
+      </OLModalHeader>
+      <OLModalBody className="flex flex-col gap-4">
           {error ? (
             <div
               role="alert"
-              className="rounded-medium border border-danger-200 bg-danger-50 px-4 py-3 text-small text-danger-700 dark:bg-danger-50/10"
+              className="alert alert-danger"
             >
               {error}
             </div>
@@ -141,19 +135,27 @@ export function GitHubPanel({
             </div>
           ) : !status.linked ? (
             <>
-              <p className="text-small text-default-500">
+              <p className="text-[var(--content-secondary)]">
                 Not linked to a repository. Making one puts this project in it and
                 keeps the two in step from then on.
               </p>
-              <Input
-                size="sm"
-                label="Repository name"
-                value={repoName}
-                onValueChange={setRepoName}
-              />
-              <Checkbox size="sm" isSelected={isPublic} onValueChange={setIsPublic}>
+              <OLFormGroup controlId="github-repo-name">
+                <OLFormLabel>Repository name</OLFormLabel>
+                <OLFormControl
+                  size="sm"
+                  value={repoName}
+                  onChange={event => setRepoName(event.target.value)}
+                />
+              </OLFormGroup>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="form-check-input"
+                  checked={isPublic}
+                  onChange={event => setIsPublic(event.target.checked)}
+                />
                 Anyone can see it
-              </Checkbox>
+              </label>
             </>
           ) : (
             <>
@@ -166,7 +168,7 @@ export function GitHubPanel({
                 >
                   {state?.repoFullName}
                 </a>
-                <span className="text-default-400">
+                <span className="text-[var(--content-secondary)]">
                   {state?.defaultBranchName ? `on ${state.defaultBranchName}` : ''}
                 </span>
               </div>
@@ -224,42 +226,43 @@ export function GitHubPanel({
               ) : null}
 
               {!conflicted ? (
-                <Input
-                  size="sm"
-                  label="Commit message"
-                  placeholder={`Updates from ${projectName}`}
-                  value={message}
-                  onValueChange={setMessage}
-                />
+                <OLFormGroup controlId="github-commit-message">
+                  <OLFormLabel>Commit message</OLFormLabel>
+                  <OLFormControl
+                    size="sm"
+                    placeholder={`Updates from ${projectName}`}
+                    value={message}
+                    onChange={event => setMessage(event.target.value)}
+                  />
+                </OLFormGroup>
               ) : null}
             </>
           )}
-        </ModalBody>
-        <ModalFooter className="flex-wrap gap-2">
+      </OLModalBody>
+      <OLModalFooter className="flex-wrap gap-2">
           {status.linked ? (
-            <Button size="sm" variant="light" color="danger" isLoading={busy} onPress={() => void unlink()}>
+            <Button size="sm" variant="danger-ghost" isLoading={busy} onClick={() => void unlink()}>
               Unlink
             </Button>
           ) : null}
-          <Button size="sm" variant="light" onPress={onClose}>
+          <Button size="sm" variant="secondary" onClick={onClose}>
             Close
           </Button>
           {!status.linked ? (
-            <Button size="sm" color="primary" isLoading={busy} onPress={() => void create()}>
+            <Button size="sm" variant="primary" isLoading={busy} onClick={() => void create()}>
               Create repository
             </Button>
           ) : conflicted ? (
-            <Button size="sm" color="primary" isLoading={busy} onPress={() => void sync(true)}>
+            <Button size="sm" variant="primary" isLoading={busy} onClick={() => void sync(true)}>
               I have merged it
             </Button>
           ) : (
-            <Button size="sm" color="primary" isLoading={busy} onPress={() => void sync(false)}>
+            <Button size="sm" variant="primary" isLoading={busy} onClick={() => void sync(false)}>
               Sync
             </Button>
           )}
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+      </OLModalFooter>
+    </OLModal>
   )
 }
 

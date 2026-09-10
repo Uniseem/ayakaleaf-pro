@@ -1,179 +1,139 @@
 'use client'
 
 /**
- * How this person likes the editor.
+ * How this person likes the editor, from editor-left-menu's settings.
  *
  * Every control here is live: it changes the editor as it is moved rather than
  * waiting for a save button. That is what makes choosing a font size possible
  * -- the only way to know which one is right is to see it.
  */
 
-import {
-  Card,
-  CardBody,
-  CardHeader,
-  Select,
-  SelectItem,
-  Slider,
-  Switch,
-} from '@heroui/react'
-import {
-  defaultSettings,
-  useSettings,
-  type UserSettings,
-} from '@/features/ide/contexts/settings-context'
+import { useTranslation } from '@/lib/i18n'
+import { Select } from '@/components/ol/select'
+import { Button } from '@/components/ol/button'
+import { defaultSettings, useSettings, type UserSettings } from '@/features/ide/contexts/settings-context'
 
-/** The named things that are a choice from a list. */
-const CHOICES: Array<{
+type Option = { value: string; label: string }
+
+type Choice = {
   key: keyof UserSettings
   label: string
   description?: string
-  options: Array<{ value: string; label: string }>
-}> = [
-  {
-    key: 'overallTheme',
-    label: 'Theme',
-    options: [
-      { value: 'light', label: 'Light' },
-      { value: 'dark', label: 'Dark' },
-    ],
-  },
-  {
-    key: 'fontFamily',
-    label: 'Font',
-    options: [
-      { value: 'monaco', label: 'Monaco / Menlo / Consolas' },
-      { value: 'lucida', label: 'Lucida / Source Code Pro' },
-      { value: 'opendyslexicmono', label: 'OpenDyslexic Mono' },
-    ],
-  },
-  {
-    key: 'lineHeight',
-    label: 'Line spacing',
-    options: [
-      { value: 'compact', label: 'Compact' },
-      { value: 'normal', label: 'Normal' },
-      { value: 'wide', label: 'Wide' },
-    ],
-  },
-  {
-    key: 'keybindings',
-    label: 'Keybindings',
-    description: 'Vim and Emacs change what most keys do.',
-    options: [
-      { value: 'default', label: 'Default' },
-      { value: 'vim', label: 'Vim' },
-      { value: 'emacs', label: 'Emacs' },
-    ],
-  },
-  {
-    key: 'pdfViewer',
-    label: 'PDF viewer',
-    options: [
-      { value: 'pdfjs', label: 'Built in' },
-      { value: 'native', label: "The browser's" },
-    ],
-  },
-]
+  options: Option[]
+}
 
 /** The things that are simply on or off. */
-const SWITCHES: Array<{
+type Switch = {
   key: keyof UserSettings
   label: string
   description?: string
-}> = [
-  {
-    key: 'autoComplete',
-    label: 'Autocomplete',
-    description: 'Suggest commands, environments and this document’s own labels.',
-  },
-  {
-    key: 'autoPairDelimiters',
-    label: 'Close brackets',
-    description: 'Typing { adds the closing one.',
-  },
-  {
-    key: 'syntaxValidation',
-    label: 'Check syntax',
-    description: 'Mark an unclosed environment before you compile.',
-  },
-  {
-    key: 'mathPreview',
-    label: 'Maths preview',
-  },
-  {
-    key: 'showOutline',
-    label: 'Show the outline',
-    description: 'The document’s headings, beside the file tree.',
-  },
-  {
-    key: 'breadcrumbs',
-    label: 'Show breadcrumbs',
-  },
-  {
-    key: 'nonBlinkingCursor',
-    label: 'Stop the cursor blinking',
-  },
-  {
-    key: 'darkModePdf',
-    label: 'Dim the PDF in the dark theme',
-  },
-]
+}
 
 export function EditorSettings() {
+  const { t } = useTranslation()
   const settings = useSettings()
 
-  return (
-    <Card>
-      <CardHeader className="flex-col items-start gap-0.5">
-        <h2 className="text-base font-semibold">Editor</h2>
-        <p className="text-xs text-default-500">
-          These follow you between machines. They change as you set them.
-        </p>
-      </CardHeader>
-      <CardBody className="gap-5">
-        <div className="grid gap-4 sm:grid-cols-2">
-          {CHOICES.map(choice => (
-            <Select
-              key={choice.key}
-              label={choice.label}
-              description={choice.description}
-              size="sm"
-              selectedKeys={[String(settings[choice.key])]}
-              onSelectionChange={keys => {
-                const chosen = [...keys][0]
-                if (chosen !== undefined) {
-                  settings.set(
-                    choice.key,
-                    String(chosen) as UserSettings[typeof choice.key]
-                  )
-                }
-              }}
-            >
-              {choice.options.map(option => (
-                <SelectItem key={option.value}>{option.label}</SelectItem>
-              ))}
-            </Select>
-          ))}
-        </div>
+  const choices: Choice[] = [
+    {
+      key: 'overallTheme',
+      label: t('overall_theme'),
+      options: [
+        { value: 'light', label: t('editor_theme_light') },
+        { value: 'dark', label: t('editor_theme_dark') },
+      ],
+    },
+    {
+      key: 'fontFamily',
+      label: t('editor_font_family'),
+      options: [
+        { value: 'monaco', label: 'Monaco / Menlo / Consolas' },
+        { value: 'lucida', label: 'Lucida / Source Code Pro' },
+        { value: 'opendyslexicmono', label: 'OpenDyslexic Mono' },
+      ],
+    },
+    {
+      key: 'lineHeight',
+      label: t('editor_line_height'),
+      options: [
+        { value: 'compact', label: t('compact') },
+        { value: 'normal', label: t('normal') },
+        { value: 'wide', label: t('wide') },
+      ],
+    },
+    {
+      key: 'keybindings',
+      label: t('keybindings'),
+      options: [
+        { value: 'default', label: t('off') },
+        { value: 'vim', label: 'Vim' },
+        { value: 'emacs', label: 'Emacs' },
+      ],
+    },
+    {
+      key: 'pdfViewer',
+      label: t('pdf_viewer'),
+      options: [
+        { value: 'pdfjs', label: t('overleaf') },
+        { value: 'native', label: t('browser') },
+      ],
+    },
+  ]
 
-        <div>
-          <Slider
-            label="Font size"
-            size="sm"
-            minValue={8}
-            maxValue={30}
-            step={1}
-            value={settings.fontSize}
-            getValue={value => `${value}px`}
-            onChange={value => {
-              if (typeof value === 'number') {
-                settings.set('fontSize', value)
-              }
-            }}
-          />
+  const switches: Switch[] = [
+    { key: 'autoComplete', label: t('auto_complete') },
+    { key: 'autoPairDelimiters', label: t('auto_close_brackets') },
+    { key: 'syntaxValidation', label: t('syntax_checks') },
+    { key: 'mathPreview', label: t('math') },
+    { key: 'showOutline', label: t('show_outline') },
+    { key: 'breadcrumbs', label: t('show_breadcrumbs') },
+    { key: 'nonBlinkingCursor', label: t('stop_on_first_error') },
+    { key: 'darkModePdf', label: t('invert_pdf_preview_colors') },
+  ]
+
+  return (
+    <div className="settings-entries">
+      <div className="settings-group">
+        {choices.map(choice => {
+          const selected = choice.options.find(option => option.value === String(settings[choice.key]))
+          return (
+            <div className="settings-entry" key={String(choice.key)}>
+              <Select<Option>
+                label={choice.label}
+                items={choice.options}
+                itemToKey={option => option.value}
+                itemToString={option => option?.label ?? ''}
+                selected={selected ?? null}
+                size="sm"
+                onSelectedItemChanged={option => {
+                  if (option) {
+                    settings.set(choice.key, option.value as UserSettings[typeof choice.key])
+                  }
+                }}
+              />
+              {choice.description ? <p className="settings-entry-description">{choice.description}</p> : null}
+            </div>
+          )
+        })}
+
+        <div className="settings-entry">
+          <label className="form-label" htmlFor="setting-font-size">
+            {t('editor_font_size')}
+          </label>
+          <div className="settings-entry-range">
+            <input
+              id="setting-font-size"
+              type="range"
+              className="form-range"
+              min={8}
+              max={30}
+              step={1}
+              value={settings.fontSize}
+              onChange={event => settings.set('fontSize', Number(event.target.value))}
+            />
+            <span className="settings-entry-range-value">{settings.fontSize}px</span>
+          </div>
           <p
-            className="mt-2 rounded border border-divider bg-default-50 px-3 py-2"
+            className="settings-font-preview"
             style={{
               fontSize: `${settings.fontSize}px`,
               fontFamily:
@@ -183,11 +143,7 @@ export function EditorSettings() {
                     ? "'Lucida Console', 'Source Code Pro', monospace"
                     : "'OpenDyslexic Mono', monospace",
               lineHeight:
-                settings.lineHeight === 'compact'
-                  ? 1.33
-                  : settings.lineHeight === 'wide'
-                    ? 2
-                    : 1.6,
+                settings.lineHeight === 'compact' ? 1.33 : settings.lineHeight === 'wide' ? 2 : 1.6,
             }}
           >
             {'\\section{Introduction}'}
@@ -195,34 +151,35 @@ export function EditorSettings() {
             {'The quick brown fox jumps over the lazy dog.'}
           </p>
         </div>
+      </div>
 
-        <ul className="flex flex-col gap-3">
-          {SWITCHES.map(each => (
-            <li key={each.key} className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm">{each.label}</p>
+      <ul className="settings-switches list-unstyled">
+        {switches.map(each => (
+          <li key={String(each.key)} className="settings-switch">
+            <label className="settings-switch-label" htmlFor={`setting-${String(each.key)}`}>
+              <span>
+                {each.label}
                 {each.description ? (
-                  <p className="text-xs text-default-500">{each.description}</p>
+                  <span className="settings-entry-description">{each.description}</span>
                 ) : null}
-              </div>
-              <Switch
-                size="sm"
-                aria-label={each.label}
-                isSelected={Boolean(settings[each.key])}
-                onValueChange={on => settings.set(each.key, on as never)}
+              </span>
+              <input
+                id={`setting-${String(each.key)}`}
+                type="checkbox"
+                className="form-check-input"
+                checked={Boolean(settings[each.key])}
+                onChange={event => settings.set(each.key, event.target.checked as never)}
               />
-            </li>
-          ))}
-        </ul>
+            </label>
+          </li>
+        ))}
+      </ul>
 
-        <button
-          type="button"
-          className="self-start text-xs text-default-500 underline underline-offset-2 hover:text-foreground"
-          onClick={() => settings.reset()}
-        >
-          Put everything back to {Object.keys(defaultSettings).length} defaults
-        </button>
-      </CardBody>
-    </Card>
+      <Button variant="link" size="sm" className="settings-reset" onClick={() => settings.reset()}>
+        {t('restore')}
+      </Button>
+    </div>
   )
 }
+
+export default EditorSettings

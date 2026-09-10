@@ -1,18 +1,9 @@
 'use client'
 
-import {
-  Autocomplete,
-  AutocompleteItem,
-  Button,
-  Card,
-  CardBody,
-  CardHeader,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-} from '@heroui/react'
+import { Card, CardBody, CardHeader } from '@/components/ol/card'
+import { Button } from '@/components/ol/button'
+import { Select } from '@/components/ol/select'
+import { OLModal, OLModalBody, OLModalFooter, OLModalHeader, OLModalTitle } from '@/components/ol/modal'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { messageFor } from '@/lib/api'
@@ -97,18 +88,16 @@ export function GitHubAccount({ status }: { status: GitHubStatus }) {
   }
 
   return (
-    <Card shadow="sm">
-      <CardHeader className="flex-col items-start gap-1 px-6 pt-6">
-        <h2 className="text-lg font-medium">GitHub</h2>
-        <p className="text-small text-default-500">
-          Import a repository as a project, and push changes back to it.
-        </p>
-      </CardHeader>
-      <CardBody className="gap-4 px-6 pb-6">
+    <Card>
+      <CardHeader
+        title="GitHub"
+        subtitle="Import a repository as a project, and push changes back to it."
+      />
+      <CardBody className="flex flex-col gap-4">
         {error ? (
           <div
             role="alert"
-            className="rounded-medium border border-danger-200 bg-danger-50 px-4 py-3 text-small text-danger-700 dark:bg-danger-50/10"
+            className="alert alert-danger"
           >
             {error}
           </div>
@@ -116,67 +105,62 @@ export function GitHubAccount({ status }: { status: GitHubStatus }) {
 
         {connected ? (
           <>
-            <p className="text-small">
+            <p>
               Connected as <span className="font-medium">{login}</span>.
             </p>
             <div className="flex gap-2">
-              <Button size="sm" color="primary" onPress={() => void openImport()}>
+              <Button size="sm" variant="primary" onClick={() => void openImport()}>
                 Import a repository
               </Button>
-              <Button size="sm" variant="light" isLoading={busy} onPress={() => void disconnect()}>
+              <Button size="sm" variant="secondary" isLoading={busy} onClick={() => void disconnect()}>
                 Disconnect
               </Button>
             </div>
           </>
         ) : (
           <div>
-            <Button size="sm" color="primary" as="a" href="/api/github/start">
+            <Button size="sm" variant="primary" href="/api/github/start">
               Connect GitHub
             </Button>
           </div>
         )}
       </CardBody>
 
-      <Modal isOpen={importing} onClose={() => setImporting(false)} size="lg">
-        <ModalContent>
-          <ModalHeader className="text-base">Import a repository</ModalHeader>
-          <ModalBody className="gap-3">
-            <Autocomplete
-              label="Repository"
-              size="sm"
-              isLoading={loadingRepos}
-              items={repos ?? []}
-              onSelectionChange={key => {
-                setChosen(repos?.find(repo => repo.fullName === key) ?? null)
-              }}
-            >
-              {repo => (
-                <AutocompleteItem key={repo.fullName} textValue={repo.fullName}>
-                  {repo.fullName}
-                </AutocompleteItem>
-              )}
-            </Autocomplete>
-            <p className="text-tiny text-default-400">
-              The default branch is imported. The project stays linked, so it can
-              be synced afterwards from the editor.
-            </p>
-          </ModalBody>
-          <ModalFooter>
-            <Button size="sm" variant="light" onPress={() => setImporting(false)}>
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              color="primary"
-              isDisabled={!chosen}
-              isLoading={busy}
-              onPress={() => void doImport()}
-            >
-              Import
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <OLModal show={importing} onHide={() => setImporting(false)} size="lg">
+        <OLModalHeader>
+          <OLModalTitle>Import a repository</OLModalTitle>
+        </OLModalHeader>
+        <OLModalBody className="flex flex-col gap-3">
+          <Select
+            label="Repository"
+            items={repos ?? []}
+            loading={loadingRepos}
+            itemToKey={repo => repo.fullName}
+            itemToString={repo => repo?.fullName ?? ''}
+            selected={chosen}
+            size="sm"
+            onSelectedItemChanged={repo => setChosen(repo ?? null)}
+          />
+          <p className="text-xs text-[var(--content-secondary)]">
+            The default branch is imported. The project stays linked, so it can be synced
+            afterwards from the editor.
+          </p>
+        </OLModalBody>
+        <OLModalFooter>
+          <Button size="sm" variant="secondary" onClick={() => setImporting(false)}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={!chosen}
+            isLoading={busy}
+            onClick={() => void doImport()}
+          >
+            Import
+          </Button>
+        </OLModalFooter>
+      </OLModal>
     </Card>
   )
 }

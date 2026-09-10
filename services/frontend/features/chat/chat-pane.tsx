@@ -1,190 +1,132 @@
 'use client'
 
 /**
- * The project's chat.
+ * The chat panel, from chat/components/chat-pane.
  *
- * Messages are grouped by author, so a run of five from one person is one
- * block with one name on it rather than five headed rows. Grouping breaks on
- * a different author or a gap of more than five minutes, which is what makes
- * a conversation from an hour ago read as a separate conversation.
+ * The messages load when the panel is first opened rather than when the
+ * project does: most sessions never open it, and the history can be long.
  */
 
-import { Avatar, Button, ScrollShadow, Spinner, Textarea } from '@heroui/react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { listMessages, nameOf, sendMessage, type Message } from '@/lib/chat'
-import { messageFor } from '@/lib/api'
-import { useProject } from '@/features/ide/contexts/project-context'
+import { useEffect } from 'react'
+import cx from '@/lib/cx'
 import { useTranslation } from '@/lib/i18n'
+import MaterialIcon from '@/components/ol/material-icon'
+import { Button } from '@/components/ol/button'
+import { FullSizeLoadingSpinner } from '@/components/ol/spinner'
+import { withErrorBoundary } from '@/components/ol/error-boundary'
+import { useChatContext } from './contexts/chat-context'
+import InfiniteScroll from './components/infinite-scroll'
+import MessageList from './components/message-list'
+import MessageInput from './components/message-input'
 import { RailPanelHeader } from '@/features/ide/components/rail/rail-parts'
 
-/** Messages closer together than this from one person are one block. */
-const GROUP_WINDOW = 5 * 60 * 1000
+const Loading = () => <FullSizeLoadingSpinner delay={500} className="pt-4" />
 
-type Group = { user: Message['user']; messages: Message[] }
-
-function group(messages: Message[]): Group[] {
-  const groups: Group[] = []
-  for (const message of messages) {
-    const last = groups[groups.length - 1]
-    const previous = last?.messages[last.messages.length - 1]
-    if (
-      last &&
-      previous &&
-      last.user.id === message.user.id &&
-      message.timestamp - previous.timestamp < GROUP_WINDOW
-    ) {
-      last.messages.push(message)
-    } else {
-      groups.push({ user: message.user, messages: [message] })
-    }
-  }
-  return groups
-}
-
-export function ChatPane() {
+function ChatPaneBody() {
   const { t } = useTranslation()
-  const { projectId } = useProject()
-  const [messages, setMessages] = useState<Message[]>([])
-  const [draft, setDraft] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [sending, setSending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const bottom = useRef<HTMLDivElement>(null)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const found = await listMessages(projectId, { limit: 100 })
-      // The API answers newest first; reading order is oldest first.
-      setMessages([...found].reverse())
-    } catch (thrown) {
-      setError(messageFor(thrown))
-    } finally {
-      setLoading(false)
-    }
-  }, [projectId])
+  const {
+    status,
+    messages,
+    initialMessagesLoaded,
+    atEnd,
+    loadInitialMessages,
+    loadMoreMessages,
+    reset,
+    sendMessage,
+    markMessagesAsRead,
+    error,
+  } = useChatContext()
 
   useEffect(() => {
-    void load()
-  }, [load])
-
-  useEffect(() => {
-    bottom.current?.scrollIntoView({ block: 'end' })
-  }, [messages])
-
-  const send = useCallback(async () => {
-    const content = draft.trim()
-    if (!content || sending) {
-      return
+    if (!initialMessagesLoaded) {
+      loadInitialMessages()
     }
-    setSending(true)
-    setError(null)
-    try {
-      const sent = await sendMessage(projectId, content)
-      setMessages(previous => [...previous, sent])
-      setDraft('')
-    } catch (thrown) {
-      setError(messageFor(thrown))
-    } finally {
-      setSending(false)
-    }
-  }, [draft, sending, projectId])
+  }, [loadInitialMessages, initialMessagesLoaded])
 
-  const groups = useMemo(() => group(messages), [messages])
+  const shouldDisplayPlaceholder = status !== 'pending' && messages.length === 0
+
+  if (error) {
+    return <ChatFallbackError reconnect={reset} />
+  }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="chat-panel">
       <RailPanelHeader title={t('collaborator_chat')} />
-
-      <ScrollShadow className="min-h-0 flex-1 px-3 py-2">
-        {loading ? (
-          <div className="flex justify-center py-6">
-            <Spinner size="sm" />
-          </div>
-        ) : error ? (
-          <p className="py-4 text-xs text-danger">{error}</p>
-        ) : groups.length === 0 ? (
-          <p className="py-6 text-xs text-default-400">
-            Nothing here yet. Messages stay with the project, so this is the
-            place for something the next person to open it should know.
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-3">
-            {groups.map((entry, index) => (
-              <MessageGroup key={`${entry.user.id}-${index}`} group={entry} />
-            ))}
-          </ul>
-        )}
-        <div ref={bottom} />
-      </ScrollShadow>
-
-      <div className="border-t border-divider p-2">
-        <Textarea
-          value={draft}
-          onValueChange={setDraft}
-          placeholder="Write a message"
-          minRows={1}
-          maxRows={5}
-          size="sm"
-          onKeyDown={event => {
-            // Enter sends, shift-enter makes a line. A chat box that needs a
-            // button is a chat box nobody uses.
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault()
-              void send()
-            }
-          }}
-        />
-        <div className="mt-1 flex items-center justify-between">
-          <span className="text-[10px] text-default-400">
-            Enter sends, Shift+Enter makes a line
-          </span>
-          <Button
-            size="sm"
-            color="primary"
-            className="h-7"
-            isLoading={sending}
-            isDisabled={!draft.trim()}
-            onPress={() => void send()}
+      <div className="chat-wrapper">
+        <aside className="chat" aria-label={t('chat')}>
+          <InfiniteScroll
+            atEnd={atEnd}
+            className="messages"
+            fetchData={loadMoreMessages}
+            isLoading={status === 'pending'}
+            itemCount={messages.length}
           >
-            Send
-          </Button>
+            <div className={cx({ 'h-100': shouldDisplayPlaceholder })}>
+              <h2 className="visually-hidden">{t('chat')}</h2>
+              {status === 'pending' && <Loading />}
+              {shouldDisplayPlaceholder && <Placeholder />}
+              <MessageList messages={messages} resetUnreadMessages={markMessagesAsRead} />
+            </div>
+          </InfiniteScroll>
+          <MessageInput resetUnreadMessages={markMessagesAsRead} sendMessage={sendMessage} />
+        </aside>
+      </div>
+    </div>
+  )
+}
+
+function Placeholder() {
+  const { t } = useTranslation()
+  return (
+    <div className="chat-empty-state-placeholder">
+      <div>
+        <span className="chat-empty-state-icon">
+          <MaterialIcon type="forum" />
+        </span>
+      </div>
+      <div>
+        <div className="chat-empty-state-title">{t('no_messages_yet')}</div>
+        <div className="chat-empty-state-body">
+          {t('start_the_conversation_by_saying_hello_or_sharing_an_update')}
         </div>
       </div>
     </div>
   )
 }
 
-function MessageGroup({ group: entry }: { group: Group }) {
-  const name = nameOf(entry.user)
-  const first = entry.messages[0]
+function ChatFallbackError({ reconnect }: { reconnect?: () => void }) {
+  const { t } = useTranslation()
+
   return (
-    <li className="flex gap-2">
-      <Avatar name={name} size="sm" className="h-6 w-6 shrink-0 text-[10px]" />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <span className="truncate text-xs font-medium">{name}</span>
-          {first ? (
-            <time className="text-[10px] text-default-400">
-              {new Date(first.timestamp).toLocaleString()}
-            </time>
-          ) : null}
-        </div>
-        {entry.messages.map(message => (
-          <p
-            key={message.id}
-            className="whitespace-pre-wrap break-words text-xs text-default-700"
-          >
-            {message.content}
-          </p>
-        ))}
+    <aside className="chat chat-error" aria-label={t('chat')}>
+      <div className="chat-error-message">
+        <p>{t('generic_something_went_wrong')}</p>
+        <p>{t('try_again')}</p>
+        {reconnect && (
+          <Button variant="secondary" size="sm" onClick={reconnect}>
+            {t('reconnect')}
+          </Button>
+        )}
       </div>
-    </li>
+    </aside>
   )
 }
 
-/** The unread count on the rail's chat tab. Nothing is counted yet. */
-export function ChatIndicator() {
-  return null
+const ChatPaneWithBoundary = withErrorBoundary(ChatPaneBody, () => <ChatFallbackError />)
+
+export function ChatPane() {
+  return <ChatPaneWithBoundary />
 }
+
+/** The count on the rail's chat tab. */
+export function ChatIndicator() {
+  const { unreadMessageCount } = useChatContext()
+
+  if (unreadMessageCount === 0) {
+    return null
+  }
+
+  return <span className="chat-indicator">{unreadMessageCount}</span>
+}
+
+export default ChatPane

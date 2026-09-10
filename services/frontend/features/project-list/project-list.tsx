@@ -14,13 +14,7 @@
  * sorted.
  */
 
-import {
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-} from '@heroui/react'
+import { OLModal, OLModalBody, OLModalFooter, OLModalHeader, OLModalTitle } from '@/components/ol/modal'
 import { useCallback, useMemo, useState } from 'react'
 import {
   cloneProject,
@@ -485,12 +479,13 @@ function AskDialog({
   if (ask.kind === 'delete') {
     const many = ask.projects.length > 1
     return (
-      <Modal isOpen onClose={onCancel} size="sm">
-        <ModalContent>
-          <ModalHeader className="text-[20px] font-bold">
-            Delete {many ? `${ask.projects.length} projects` : ask.projects[0]?.name}?
-          </ModalHeader>
-          <ModalBody>
+      <OLModal show onHide={onCancel}>
+          <OLModalHeader>
+            <OLModalTitle>
+              Delete {many ? `${ask.projects.length} projects` : ask.projects[0]?.name}?
+            </OLModalTitle>
+          </OLModalHeader>
+          <OLModalBody>
             <p className="text-[16px] leading-6 text-[var(--content-primary)]">
               This cannot be undone. Everything in {many ? 'them' : 'it'} goes too,
               including the history.
@@ -498,17 +493,16 @@ function AskDialog({
             {error ? (
               <p className="text-[14px] text-[var(--content-danger)]">{error}</p>
             ) : null}
-          </ModalBody>
-          <ModalFooter>
+          </OLModalBody>
+          <OLModalFooter>
             <Button kind="ghost" onClick={onCancel} disabled={busy}>
               Cancel
             </Button>
             <Button kind="danger" loading={busy} onClick={() => onConfirm('')}>
               Delete
             </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+          </OLModalFooter>
+      </OLModal>
     )
   }
 
@@ -516,8 +510,7 @@ function AskDialog({
     ask.kind === 'new' ? 'New project' : ask.kind === 'copy' ? 'Copy project' : 'Rename project'
 
   return (
-    <Modal isOpen onClose={onCancel} size="sm">
-      <ModalContent>
+    <OLModal show onHide={onCancel}>
         <form
           onSubmit={event => {
             event.preventDefault()
@@ -526,8 +519,10 @@ function AskDialog({
             }
           }}
         >
-          <ModalHeader className="text-[20px] font-bold">{title}</ModalHeader>
-          <ModalBody>
+          <OLModalHeader>
+            <OLModalTitle>{title}</OLModalTitle>
+          </OLModalHeader>
+          <OLModalBody>
             <TextField
               autoFocus
               label="Name"
@@ -538,17 +533,16 @@ function AskDialog({
             {error ? (
               <p className="text-[14px] text-[var(--content-danger)]">{error}</p>
             ) : null}
-          </ModalBody>
-          <ModalFooter>
+          </OLModalBody>
+          <OLModalFooter>
             <Button kind="ghost" onClick={onCancel} disabled={busy}>
               Cancel
             </Button>
             <Button type="submit" loading={busy} disabled={!name.trim()}>
               {ask.kind === 'new' ? 'Create' : ask.kind === 'copy' ? 'Copy' : 'Rename'}
             </Button>
-          </ModalFooter>
+          </OLModalFooter>
         </form>
-      </ModalContent>
-    </Modal>
+    </OLModal>
   )
 }

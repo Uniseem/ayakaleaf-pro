@@ -1,6 +1,8 @@
 'use client'
 
-import { Button, Card, CardBody, CardHeader, Chip } from '@heroui/react'
+import { Card, CardBody, CardHeader } from '@/components/ol/card'
+import { Button } from '@/components/ol/button'
+import { Badge } from '@/components/ol/badge'
 import { useState } from 'react'
 import { FormError } from '@/components/form-error'
 import { unlinkProvider, type LinkedProvider } from '@/lib/account'
@@ -40,40 +42,33 @@ export function LinkedAccounts({ providers }: { providers: LinkedProvider[] }) {
   }
 
   return (
-    <Card shadow="sm">
-      <CardHeader className="flex flex-col items-start gap-1 px-6 pt-6">
-        <h2 className="text-lg font-medium">Linked accounts</h2>
-        <p className="text-small text-default-500">
-          Sign in with any of these. They all reach this one account.
-        </p>
-      </CardHeader>
-      <CardBody className="gap-4 px-6 pb-6">
+    <Card>
+      <CardHeader
+        title="Linked accounts"
+        subtitle="Sign in with any of these. They all reach this one account."
+      />
+      <CardBody className="flex flex-col gap-4">
         <FormError error={error} />
         {state.map(provider => (
           <div
             key={provider.id}
-            className="flex items-center justify-between gap-4 border-b border-divider pb-4 last:border-0 last:pb-0"
+            className="flex items-center justify-between gap-4 border-b border-[var(--border-divider)] pb-4 last:border-0 last:pb-0"
           >
             <div className="flex items-center gap-3">
               <span className="font-medium">{provider.name}</span>
-              {provider.linked ? (
-                <Chip size="sm" color="success" variant="flat">
-                  linked
-                </Chip>
-              ) : null}
+              {provider.linked ? <Badge bg="success">linked</Badge> : null}
             </div>
             {provider.linked ? (
               <Button
                 size="sm"
-                variant="bordered"
-                color="danger"
+                variant="danger-ghost"
                 isLoading={busy === provider.id}
-                onPress={() => unlink(provider.id)}
+                onClick={() => unlink(provider.id)}
               >
                 Unlink
               </Button>
             ) : (
-              <Button as="a" href={provider.path} size="sm" variant="bordered">
+              <Button href={provider.path} size="sm" variant="secondary">
                 Link
               </Button>
             )}

@@ -1,6 +1,7 @@
 'use client'
 
-import { Button, Card, CardBody, CardHeader, Link } from '@heroui/react'
+import { Card, CardBody, CardHeader } from '@/components/ol/card'
+import { Button } from '@/components/ol/button'
 import { useMemo, useState } from 'react'
 import { FormError } from '@/components/form-error'
 import { saveSettings, type SettingsDescription } from '@/lib/settings'
@@ -54,20 +55,20 @@ export function SettingsForm({ initial }: { initial: SettingsDescription }) {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
           {pending > 0 ? (
-            <p className="text-small text-default-500">
+            <p className="text-[var(--content-secondary)]">
               {pending} unsaved {pending === 1 ? 'change' : 'changes'}
             </p>
           ) : saved ? (
-            <p className="text-small text-success">
+            <p className="text-[var(--content-positive)]">
               Saved {saved} {saved === 1 ? 'setting' : 'settings'}.
             </p>
           ) : (
-            <p className="text-small text-default-500">
+            <p className="text-[var(--content-secondary)]">
               {description.fields.length} settings in {description.sections.length} sections
             </p>
           )}
         </div>
-        <Button color="primary" onPress={save} isLoading={busy} isDisabled={pending === 0}>
+        <Button variant="primary" onClick={save} isLoading={busy} disabled={pending === 0}>
           Save
         </Button>
       </div>
@@ -75,17 +76,17 @@ export function SettingsForm({ initial }: { initial: SettingsDescription }) {
       <FormError error={error} />
 
       {needsRestart ? (
-        <div className="rounded-medium border border-warning-200 bg-warning-50 px-4 py-3 text-small text-warning-700 dark:bg-warning-50/10">
+        <div className="alert alert-warning">
           One of the changed settings is only read when the site starts. Restart
           it for that one to take effect.
         </div>
       ) : null}
 
-      <nav className="flex flex-wrap gap-x-4 gap-y-2 text-small">
+      <nav className="flex flex-wrap gap-x-4 gap-y-2">
         {description.sections.map(section => (
-          <Link key={section.id} href={`#section-${section.id}`} size="sm">
+          <a key={section.id} href={`#section-${section.id}`}>
             {section.label}
-          </Link>
+          </a>
         ))}
       </nav>
 
@@ -93,14 +94,9 @@ export function SettingsForm({ initial }: { initial: SettingsDescription }) {
         const fields = description.fields.filter(field => field.section === section.id)
         if (fields.length === 0) return null
         return (
-          <Card key={section.id} id={`section-${section.id}`} shadow="sm">
-            <CardHeader className="flex flex-col items-start gap-1 px-6 pt-6">
-              <h2 className="text-lg font-medium">{section.label}</h2>
-              {section.help ? (
-                <p className="text-small text-default-500">{section.help}</p>
-              ) : null}
-            </CardHeader>
-            <CardBody className="gap-5 px-6 pb-6">
+          <Card key={section.id} id={`section-${section.id}`}>
+            <CardHeader title={section.label} subtitle={section.help} />
+            <CardBody className="flex flex-col gap-5">
               {fields.map(field => (
                 <SettingField
                   key={field.key}

@@ -8,8 +8,10 @@
  * out of their own account.
  */
 
-import { Button, Card, CardBody, CardHeader, Input } from '@heroui/react'
 import { useState } from 'react'
+import { Card, CardBody, CardHeader } from '@/components/ol/card'
+import { Button } from '@/components/ol/button'
+import { OLFormControl, OLFormFeedback, OLFormGroup, OLFormLabel } from '@/components/ol/form-control'
 import { changePassword } from '@/lib/user-settings'
 import { fieldFor, messageFor } from '@/lib/api'
 
@@ -26,12 +28,7 @@ export function PasswordForm() {
 
   return (
     <Card>
-      <CardHeader className="flex-col items-start gap-0.5">
-        <h2 className="text-base font-semibold">Password</h2>
-        <p className="text-xs text-default-500">
-          Changing it does not sign you out anywhere else.
-        </p>
-      </CardHeader>
+      <CardHeader title="Password" subtitle="Changing it does not sign you out anywhere else." />
       <CardBody>
         <form
           className="flex max-w-sm flex-col gap-3"
@@ -58,47 +55,53 @@ export function PasswordForm() {
             }
           }}
         >
-          <Input
-            type="password"
-            label="Current password"
-            autoComplete="current-password"
-            value={current}
-            onValueChange={setCurrent}
-            isInvalid={field === 'currentPassword'}
-            errorMessage={field === 'currentPassword' ? error : null}
-          />
-          <Input
-            type="password"
-            label="New password"
-            autoComplete="new-password"
-            value={next}
-            onValueChange={setNext}
-            isInvalid={field === 'newPassword'}
-            errorMessage={field === 'newPassword' ? error : null}
-          />
-          <Input
-            type="password"
-            label="New password again"
-            autoComplete="new-password"
-            value={again}
-            onValueChange={setAgain}
-            isInvalid={mismatch}
-            errorMessage={mismatch ? 'These two do not match.' : null}
-          />
+          <OLFormGroup controlId="current-password">
+            <OLFormLabel>Current password</OLFormLabel>
+            <OLFormControl
+              type="password"
+              autoComplete="current-password"
+              value={current}
+              onChange={event => setCurrent(event.target.value)}
+              isInvalid={field === 'currentPassword'}
+            />
+            {field === 'currentPassword' && error ? <OLFormFeedback type="invalid">{error}</OLFormFeedback> : null}
+          </OLFormGroup>
 
-          {error && !field ? (
-            <p className="text-sm text-danger">{error}</p>
-          ) : null}
+          <OLFormGroup controlId="new-password">
+            <OLFormLabel>New password</OLFormLabel>
+            <OLFormControl
+              type="password"
+              autoComplete="new-password"
+              value={next}
+              onChange={event => setNext(event.target.value)}
+              isInvalid={field === 'newPassword'}
+            />
+            {field === 'newPassword' && error ? <OLFormFeedback type="invalid">{error}</OLFormFeedback> : null}
+          </OLFormGroup>
+
+          <OLFormGroup controlId="new-password-again">
+            <OLFormLabel>New password again</OLFormLabel>
+            <OLFormControl
+              type="password"
+              autoComplete="new-password"
+              value={again}
+              onChange={event => setAgain(event.target.value)}
+              isInvalid={mismatch}
+            />
+            {mismatch ? <OLFormFeedback type="invalid">These two do not match.</OLFormFeedback> : null}
+          </OLFormGroup>
+
+          {error && !field ? <p className="text-sm text-[var(--content-danger)]">{error}</p> : null}
           {done ? (
-            <p className="text-sm text-success">Your password has been changed.</p>
+            <p className="text-sm text-[var(--content-positive)]">Your password has been changed.</p>
           ) : null}
 
           <Button
             type="submit"
-            color="primary"
+            variant="primary"
             className="self-start"
             isLoading={busy}
-            isDisabled={!current || !next || mismatch}
+            disabled={!current || !next || mismatch}
           >
             Change password
           </Button>

@@ -1,31 +1,28 @@
 'use client'
 
 /**
- * What happened to this project.
+ * What happened to this project, from features/history.
  *
- * Versions down the left, the chosen one's changes on the right. The history
- * service has already grouped thousands of keystrokes into sittings of work,
- * which is what makes the list readable at all -- a list of operations would
- * be a list of individual characters.
+ * The document on the left, the versions on the right. The history service has
+ * already grouped thousands of keystrokes into sittings of work, which is what
+ * makes the list readable at all -- a list of operations would be a list of
+ * individual characters.
  *
  * Restoring writes the old content as a new edit rather than rewinding.
  * Undoing a mistake is another thing that happened, and a history that hides
  * it is one you cannot undo an undo in.
  */
 
-import {
-  Button,
-  Chip,
-  Input,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  ScrollShadow,
-  Spinner,
-} from '@heroui/react'
 import { useCallback, useEffect, useState } from 'react'
+import cx from '@/lib/cx'
+import { useTranslation } from '@/lib/i18n'
+import { Button } from '@/components/ol/button'
+import { Badge } from '@/components/ol/badge'
+import { LoadingSpinner } from '@/components/ol/spinner'
+import { Notification } from '@/components/ol/notification'
+import { OLModal, OLModalBody, OLModalFooter, OLModalHeader, OLModalTitle } from '@/components/ol/modal'
+import { OLFormControl, OLFormGroup, OLFormLabel, OLFormText } from '@/components/ol/form-control'
+import MaterialIcon from '@/components/ol/material-icon'
 import {
   authorsOf,
   createLabel,
@@ -42,6 +39,7 @@ import { useProject } from '@/features/ide/contexts/project-context'
 import { useLayout } from '@/features/ide/contexts/layout-context'
 
 export function HistoryView() {
+  const { t } = useTranslation()
   const { projectId, canWrite } = useProject()
   const layout = useLayout()
 
@@ -61,9 +59,7 @@ export function HistoryView() {
       setError(null)
       try {
         const answer = await listUpdates(projectId, before)
-        setUpdates(previous =>
-          before ? [...previous, ...answer.updates] : answer.updates
-        )
+        setUpdates(previous => (before ? [...previous, ...answer.updates] : answer.updates))
         setNextBefore(answer.nextBefore)
         if (!before && answer.updates.length > 0) {
           setChosen(answer.updates[0] ?? null)
@@ -134,180 +130,145 @@ export function HistoryView() {
   }, [chosen, path, projectId])
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
-      <header className="flex items-center gap-2 border-b border-divider px-3 py-2">
-        <span className="text-sm font-medium">History</span>
-        <div className="flex-1" />
-        <Button size="sm" variant="light" className="h-7" onPress={layout.restoreView}>
-          Back to the editor
-        </Button>
-      </header>
+    <div className="history-react">
+      <div className="doc-panel">
+        <div className="history-header toolbar-container">
+          <div className="history-toolbar">
+            <span className="history-toolbar-title">
+              {chosen ? t('history') : t('history')}
+            </span>
+            <div className="history-toolbar-spacer" />
+            {chosen && canWrite ? (
+              <>
+                <Button variant="link" size="sm" onClick={() => setLabelling(chosen)}>
+                  {t('history_label_this_version')}
+                </Button>
+                {path ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    isLoading={busy}
+                    onClick={async () => {
+                      setBusy(true)
+                      setError(null)
+                      try {
+                        await restoreFile(projectId, path, chosen.fromV)
+                      } catch (thrown) {
+                        setError(messageFor(thrown))
+                      } finally {
+                        setBusy(false)
+                      }
+                    }}
+                  >
+                    {t('restore_file')}
+                  </Button>
+                ) : null}
+              </>
+            ) : null}
+            <Button variant="secondary" size="sm" onClick={layout.restoreView}>
+              {t('back_to_editor')}
+            </Button>
+          </div>
+        </div>
 
-      {error ? (
-        <p className="border-b border-divider bg-danger-50 px-3 py-2 text-xs text-danger">
-          {error}
-        </p>
-      ) : null}
+        {error ? (
+          <div className="history-error">
+            <Notification type="error" content={error} />
+          </div>
+        ) : null}
 
-      <div className="flex min-h-0 flex-1">
-        <aside className="flex w-72 shrink-0 flex-col border-r border-divider">
-          <ScrollShadow className="min-h-0 flex-1">
-            {loading ? (
-              <div className="flex justify-center py-8">
-                <Spinner size="sm" />
-              </div>
-            ) : updates.length === 0 ? (
-              <p className="p-4 text-xs text-default-400">
-                Nothing yet. A version appears here after the first time
-                somebody stops typing.
-              </p>
+        <div className="doc-container">
+          <div className="history-file-tree">
+            {changes === null ? (
+              <LoadingSpinner />
+            ) : changes.length === 0 ? (
+              <p className="history-empty">{t('empty')}</p>
             ) : (
-              <ul className="divide-y divide-divider">
-                {updates.map(update => (
-                  <li key={`${update.fromV}-${update.toV}`}>
+              <ul className="list-unstyled">
+                {changes.map(change => (
+                  <li key={change.pathname}>
                     <button
                       type="button"
-                      onClick={() => setChosen(update)}
-                      className={`w-full px-3 py-2 text-left ${
-                        chosen?.toV === update.toV ? 'bg-default-100' : 'hover:bg-default-50'
-                      }`}
+                      onClick={() => setPath(change.pathname)}
+                      className={cx('history-file-entry', {
+                        'history-file-entry-selected': path === change.pathname,
+                      })}
+                      title={change.pathname}
                     >
-                      <div className="flex items-center gap-1">
-                        <time className="text-xs font-medium">
-                          {update.meta.end_ts
-                            ? new Date(update.meta.end_ts).toLocaleString()
-                            : `version ${update.toV}`}
-                        </time>
-                        {update.labels?.length ? (
-                          <Chip size="sm" variant="flat" className="h-4 text-[10px]">
-                            {update.labels[0]?.comment}
-                          </Chip>
-                        ) : null}
-                      </div>
-                      <p className="truncate text-[11px] text-default-500">
-                        {authorsOf(update)}
-                      </p>
+                      <ChangeMark operation={change.operation} />
+                      <span className="history-file-entry-name">{change.pathname}</span>
                     </button>
                   </li>
                 ))}
               </ul>
             )}
-          </ScrollShadow>
-          {nextBefore ? (
-            <Button
-              size="sm"
-              variant="light"
-              className="m-2 h-7 text-xs"
-              onPress={() => void load(nextBefore)}
-            >
-              Load older
-            </Button>
-          ) : null}
-        </aside>
+          </div>
 
-        <section className="flex min-w-0 flex-1 flex-col">
-          {chosen ? (
-            <>
-              <div className="flex items-center gap-2 border-b border-divider px-3 py-2">
-                <span className="text-xs text-default-500">
-                  Version {chosen.fromV} to {chosen.toV}
-                </span>
-                <div className="flex-1" />
-                {canWrite ? (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="light"
-                      className="h-7 text-xs"
-                      onPress={() => setLabelling(chosen)}
-                    >
-                      Label this version
-                    </Button>
-                    {path ? (
-                      <Button
-                        size="sm"
-                        variant="flat"
-                        className="h-7 text-xs"
-                        isLoading={busy}
-                        onPress={async () => {
-                          setBusy(true)
-                          setError(null)
-                          try {
-                            await restoreFile(projectId, path, chosen.fromV)
-                          } catch (thrown) {
-                            setError(messageFor(thrown))
-                          } finally {
-                            setBusy(false)
-                          }
-                        }}
-                      >
-                        Restore this file
-                      </Button>
-                    ) : null}
-                  </>
-                ) : null}
-              </div>
+          <div className="document-diff-container">
+            {diff === null ? (
+              <LoadingSpinner />
+            ) : diff.length === 0 ? (
+              <p className="history-empty">{t('empty')}</p>
+            ) : (
+              <pre className="history-diff">
+                {diff.map((chunk, index) => (
+                  <DiffPiece key={index} chunk={chunk} />
+                ))}
+              </pre>
+            )}
+          </div>
+        </div>
+      </div>
 
-              <div className="flex min-h-0 flex-1">
-                <nav className="w-56 shrink-0 border-r border-divider">
-                  <ScrollShadow className="h-full">
-                    {changes === null ? (
-                      <div className="flex justify-center py-6">
-                        <Spinner size="sm" />
-                      </div>
-                    ) : changes.length === 0 ? (
-                      <p className="p-3 text-xs text-default-400">
-                        No files changed.
-                      </p>
-                    ) : (
-                      <ul className="p-1">
-                        {changes.map(change => (
-                          <li key={change.pathname}>
-                            <button
-                              type="button"
-                              onClick={() => setPath(change.pathname)}
-                              className={`flex w-full items-center gap-1.5 truncate rounded px-2 py-1 text-left text-xs ${
-                                path === change.pathname
-                                  ? 'bg-default-200'
-                                  : 'hover:bg-default-100'
-                              }`}
-                              title={change.pathname}
-                            >
-                              <ChangeMark operation={change.operation} />
-                              <span className="truncate">{change.pathname}</span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </ScrollShadow>
-                </nav>
-
-                <ScrollShadow className="min-h-0 flex-1">
-                  {diff === null ? (
-                    <div className="flex justify-center py-8">
-                      <Spinner size="sm" />
-                    </div>
-                  ) : diff.length === 0 ? (
-                    <p className="p-4 text-xs text-default-400">
-                      Nothing to show for this file.
-                    </p>
-                  ) : (
-                    <pre className="whitespace-pre-wrap break-words p-3 font-mono text-[11px] leading-relaxed">
-                      {diff.map((chunk, index) => (
-                        <DiffPiece key={index} chunk={chunk} />
-                      ))}
-                    </pre>
-                  )}
-                </ScrollShadow>
-              </div>
-            </>
+      <div className="change-list">
+        <div className="history-version-list-container">
+          {loading ? (
+            <LoadingSpinner />
+          ) : updates.length === 0 ? (
+            <p className="history-empty">{t('empty')}</p>
           ) : (
-            <p className="p-6 text-sm text-default-400">
-              Choose a version on the left.
-            </p>
+            updates.map(update => (
+              <div
+                key={`${update.fromV}-${update.toV}`}
+                className={cx('history-version-details', 'history-version-selectable', {
+                  'history-version-selected': chosen?.toV === update.toV,
+                })}
+                role="button"
+                tabIndex={0}
+                onClick={() => setChosen(update)}
+                onKeyDown={event => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    setChosen(update)
+                  }
+                }}
+              >
+                <div className="history-version-metadata-time">
+                  <time>
+                    {update.meta.end_ts
+                      ? new Date(update.meta.end_ts).toLocaleString()
+                      : t('history')}
+                  </time>
+                </div>
+                {update.labels?.length ? (
+                  <div className="history-version-labels">
+                    {update.labels.map(label => (
+                      <Badge key={label.id} bg="secondary" className="history-version-label">
+                        <MaterialIcon type="label" /> {label.comment}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="history-version-metadata-users">{authorsOf(update)}</div>
+              </div>
+            ))
           )}
-        </section>
+        </div>
+        {nextBefore ? (
+          <Button variant="link" size="sm" onClick={() => void load(nextBefore)}>
+            {t('show_more')}
+          </Button>
+        ) : null}
       </div>
 
       {labelling ? (
@@ -337,14 +298,14 @@ export function HistoryView() {
 function ChangeMark({ operation }: { operation?: FileChange['operation'] }) {
   const mark =
     operation === 'added'
-      ? { glyph: '+', className: 'text-success' }
+      ? { glyph: '+', className: 'history-change-added' }
       : operation === 'removed'
-        ? { glyph: '−', className: 'text-danger' }
+        ? { glyph: '−', className: 'history-change-removed' }
         : operation === 'renamed'
-          ? { glyph: '→', className: 'text-warning-600' }
-          : { glyph: '·', className: 'text-default-400' }
+          ? { glyph: '→', className: 'history-change-renamed' }
+          : { glyph: '·', className: 'history-change-edited' }
   return (
-    <span aria-hidden className={`w-3 shrink-0 text-center ${mark.className}`}>
+    <span aria-hidden className={cx('history-change-mark', mark.className)}>
       {mark.glyph}
     </span>
   )
@@ -352,10 +313,10 @@ function ChangeMark({ operation }: { operation?: FileChange['operation'] }) {
 
 function DiffPiece({ chunk }: { chunk: DiffChunk }) {
   if (chunk.i !== undefined) {
-    return <ins className="bg-success-100 text-success-800 no-underline">{chunk.i}</ins>
+    return <ins className="history-diff-insert">{chunk.i}</ins>
   }
   if (chunk.d !== undefined) {
-    return <del className="bg-danger-100 text-danger-800">{chunk.d}</del>
+    return <del className="history-diff-delete">{chunk.d}</del>
   }
   return <span>{chunk.u ?? ''}</span>
 }
@@ -371,46 +332,45 @@ function LabelDialog({
   onCancel: () => void
   onConfirm: (comment: string) => void
 }) {
+  const { t } = useTranslation()
   const [comment, setComment] = useState('')
+
   return (
-    <Modal isOpen onClose={onCancel} size="sm">
-      <ModalContent>
-        <form
-          onSubmit={event => {
-            event.preventDefault()
-            if (comment.trim() && !busy) {
-              onConfirm(comment.trim())
-            }
-          }}
-        >
-          <ModalHeader>Label version {version}</ModalHeader>
-          <ModalBody>
-            <Input
+    <OLModal show onHide={onCancel}>
+      <form
+        onSubmit={event => {
+          event.preventDefault()
+          if (comment.trim() && !busy) {
+            onConfirm(comment.trim())
+          }
+        }}
+      >
+        <OLModalHeader>
+          <OLModalTitle>{t('history_add_label')}</OLModalTitle>
+        </OLModalHeader>
+        <OLModalBody>
+          <OLFormGroup controlId="history-label">
+            <OLFormLabel>{t('history_new_label_name')}</OLFormLabel>
+            <OLFormControl
               autoFocus
-              label="Name"
-              placeholder="Submitted to the journal"
+              type="text"
               value={comment}
-              onValueChange={setComment}
+              onChange={event => setComment(event.target.value)}
             />
-            <p className="text-xs text-default-500">
-              A labelled version is easy to come back to later.
-            </p>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="light" onPress={onCancel} isDisabled={busy}>
-              Cancel
-            </Button>
-            <Button
-              color="primary"
-              type="submit"
-              isLoading={busy}
-              isDisabled={!comment.trim()}
-            >
-              Save
-            </Button>
-          </ModalFooter>
-        </form>
-      </ModalContent>
-    </Modal>
+            <OLFormText>{t('history_label_this_version')}</OLFormText>
+          </OLFormGroup>
+        </OLModalBody>
+        <OLModalFooter>
+          <Button variant="secondary" onClick={onCancel} disabled={busy}>
+            {t('cancel')}
+          </Button>
+          <Button variant="primary" type="submit" isLoading={busy} disabled={!comment.trim()}>
+            {t('save')}
+          </Button>
+        </OLModalFooter>
+      </form>
+    </OLModal>
   )
 }
+
+export default HistoryView

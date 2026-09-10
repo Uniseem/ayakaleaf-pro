@@ -8,12 +8,7 @@
  * 40px toolbar instead; the two are different bars and always have been.
  */
 
-import {
-  Dropdown,
-  DropdownItem,
-  DropdownMenu,
-  DropdownTrigger,
-} from '@heroui/react'
+import { Dropdown, DropdownItem, DropdownMenu, DropdownToggle } from '@/components/ol/dropdown'
 import Link from 'next/link'
 import { displayName, logout, type PublicUser } from '@/lib/auth'
 import { ButtonLink } from './ui'
@@ -50,46 +45,44 @@ export function SiteHeader({
       {user ? (
         <>
           {user.isAdmin ? (
-            <Dropdown placement="bottom-end">
-              <DropdownTrigger>
-                <button
-                  type="button"
-                  className="inline-flex h-9 items-center gap-1 rounded-full px-4 text-[16px] leading-6 text-[var(--content-primary)] hover:bg-[var(--hover-interaction)]"
-                >
-                  Admin
-                  <Caret />
-                </button>
-              </DropdownTrigger>
-              <DropdownMenu aria-label="Admin">
-                <DropdownItem key="settings" href="/admin/settings">
-                  Site settings
-                </DropdownItem>
+            <Dropdown align="end">
+              <DropdownToggle
+                bsPrefix="site-header-menu-toggle"
+                className="inline-flex h-9 items-center gap-1 rounded-full px-4 text-[16px] leading-6 text-[var(--content-primary)] hover:bg-[var(--hover-interaction)]"
+              >
+                Admin
+                <Caret />
+              </DropdownToggle>
+              <DropdownMenu aria-labelledby="admin-menu">
+                <li role="none">
+                  <DropdownItem href="/admin/settings">Site settings</DropdownItem>
+                </li>
               </DropdownMenu>
             </Dropdown>
           ) : null}
 
-          <Dropdown placement="bottom-end">
-            <DropdownTrigger>
-              <button
-                type="button"
-                className="inline-flex h-9 items-center gap-1 rounded-full border-2 border-[var(--border-primary)] px-4 text-[16px] leading-6 text-[var(--content-primary)] hover:bg-[var(--hover-interaction)]"
-              >
-                Account
-                <Caret />
-              </button>
-            </DropdownTrigger>
-            <DropdownMenu aria-label="Account">
-              <DropdownItem key="name" isReadOnly className="opacity-100">
-                <span className="text-[14px] text-[var(--content-secondary)]">
+          <Dropdown align="end">
+            <DropdownToggle
+              bsPrefix="site-header-menu-toggle"
+              className="inline-flex h-9 items-center gap-1 rounded-full border-2 border-[var(--border-primary)] px-4 text-[16px] leading-6 text-[var(--content-primary)] hover:bg-[var(--hover-interaction)]"
+            >
+              Account
+              <Caret />
+            </DropdownToggle>
+            <DropdownMenu aria-labelledby="account-menu">
+              <li role="none">
+                <span className="dropdown-header text-[14px] text-[var(--content-secondary)]">
                   {displayName(user)}
                 </span>
-              </DropdownItem>
-              <DropdownItem key="account" href="/account">
-                Account settings
-              </DropdownItem>
-              <DropdownItem key="logout" onPress={signOut}>
-                Log out
-              </DropdownItem>
+              </li>
+              <li role="none">
+                <DropdownItem href="/account">Account settings</DropdownItem>
+              </li>
+              <li role="none">
+                <DropdownItem as="button" onClick={signOut}>
+                  Log out
+                </DropdownItem>
+              </li>
             </DropdownMenu>
           </Dropdown>
         </>

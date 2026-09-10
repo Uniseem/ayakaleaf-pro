@@ -9,17 +9,8 @@
  * original rather than chosen.
  */
 
-import {
-  Dropdown,
-  DropdownItem,
-  DropdownMenu,
-  DropdownTrigger,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-} from '@heroui/react'
+import { Dropdown, DropdownItem, DropdownMenu, DropdownToggle } from '@/components/ol/dropdown'
+import { OLModal, OLModalBody, OLModalFooter, OLModalHeader, OLModalTitle } from '@/components/ol/modal'
 import { useState } from 'react'
 import { createTag, deleteTag, renameTag, type Filter, type Tag } from '@/lib/projects'
 import { messageFor } from '@/lib/api'
@@ -131,30 +122,29 @@ export function ProjectSidebar({
                     {tag.projectIds.length}
                   </span>
                 </button>
-                <Dropdown placement="bottom-end">
-                  <DropdownTrigger>
-                    <button
-                      type="button"
-                      aria-label={`Actions for ${tag.name}`}
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[4px] text-[var(--content-secondary)] opacity-0 hover:bg-[var(--hover-interaction)] group-hover:opacity-100 data-[focus-visible=true]:opacity-100"
-                    >
-                      ⋯
-                    </button>
-                  </DropdownTrigger>
-                  <DropdownMenu
+                <Dropdown align="end">
+                  <DropdownToggle
+                    bsPrefix="tag-actions-toggle"
                     aria-label={`Actions for ${tag.name}`}
-                    onAction={key => {
-                      if (key === 'rename') {
-                        setEditing(tag)
-                      } else if (key === 'delete') {
-                        void run(() => deleteTag(tag.id))
-                      }
-                    }}
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[4px] text-[var(--content-secondary)] opacity-0 hover:bg-[var(--hover-interaction)] group-hover:opacity-100"
                   >
-                    <DropdownItem key="rename">Rename</DropdownItem>
-                    <DropdownItem key="delete" className="text-[var(--content-danger)]">
-                      Delete tag
-                    </DropdownItem>
+                    ⋯
+                  </DropdownToggle>
+                  <DropdownMenu>
+                    <li role="none">
+                      <DropdownItem as="button" onClick={() => setEditing(tag)}>
+                        Rename
+                      </DropdownItem>
+                    </li>
+                    <li role="none">
+                      <DropdownItem
+                        as="button"
+                        variant="danger"
+                        onClick={() => void run(() => deleteTag(tag.id))}
+                      >
+                        Delete tag
+                      </DropdownItem>
+                    </li>
                   </DropdownMenu>
                 </Dropdown>
               </li>
@@ -213,8 +203,7 @@ function TagDialog({
   const [colour, setColour] = useState(tag?.color ?? COLOURS[0] ?? '#098842')
 
   return (
-    <Modal isOpen onClose={onCancel} size="sm">
-      <ModalContent>
+    <OLModal show onHide={onCancel}>
         <form
           onSubmit={event => {
             event.preventDefault()
@@ -223,10 +212,10 @@ function TagDialog({
             }
           }}
         >
-          <ModalHeader className="text-[20px] font-bold">
-            {tag ? 'Rename tag' : 'New tag'}
-          </ModalHeader>
-          <ModalBody className="gap-4">
+          <OLModalHeader>
+            <OLModalTitle>{tag ? 'Rename tag' : 'New tag'}</OLModalTitle>
+          </OLModalHeader>
+          <OLModalBody className="flex flex-col gap-4">
             <TextField
               autoFocus
               label="Name"
@@ -254,17 +243,16 @@ function TagDialog({
             {error ? (
               <p className="text-[14px] text-[var(--content-danger)]">{error}</p>
             ) : null}
-          </ModalBody>
-          <ModalFooter>
+          </OLModalBody>
+          <OLModalFooter>
             <Button kind="ghost" onClick={onCancel} disabled={busy}>
               Cancel
             </Button>
             <Button type="submit" loading={busy} disabled={!name.trim()}>
               {tag ? 'Rename' : 'Create'}
             </Button>
-          </ModalFooter>
+          </OLModalFooter>
         </form>
-      </ModalContent>
-    </Modal>
+    </OLModal>
   )
 }

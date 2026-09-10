@@ -9,16 +9,21 @@
  * empty result looks like an answer.
  */
 
-import { Button, Checkbox, Input, ScrollShadow, Spinner } from '@heroui/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import cx from '@/lib/cx'
 import { searchProject, type SearchHit } from '@/lib/search'
 import { messageFor } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
+import { Button } from '@/components/ol/button'
+import { OLFormControl } from '@/components/ol/form-control'
+import { Spinner } from '@/components/ol/spinner'
+import MaterialIcon from '@/components/ol/material-icon'
 import { RailPanelHeader } from '@/features/ide/components/rail/rail-parts'
 import { useProject } from '@/features/ide/contexts/project-context'
 import { useEditor } from '@/features/ide/contexts/editor-context'
 
 export function ProjectSearch() {
+  const { t } = useTranslation()
   const { projectId, entryById } = useProject()
   const editor = useEditor()
 
@@ -68,7 +73,7 @@ export function ProjectSearch() {
     [projectId, caseSensitive, wholeWord]
   )
 
-  // Search after a pause, not on every keystroke.
+  // After a pause, not on every keystroke.
   useEffect(() => {
     const timer = setTimeout(() => void run(query), 300)
     return () => clearTimeout(timer)
@@ -79,111 +84,109 @@ export function ProjectSearch() {
   const total = hits?.reduce((sum, file) => sum + file.matches.length, 0) ?? 0
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <header className="border-b border-divider px-3 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-default-500">
-          Search
-        </span>
-      </header>
-
-      <div className="flex flex-col gap-2 border-b border-divider p-2">
-        <Input
-          autoFocus
-          size="sm"
-          value={query}
-          onValueChange={setQuery}
-          placeholder="Find in project"
-          isClearable
-          onClear={() => setQuery('')}
-        />
-        <div className="flex gap-3">
-          <Checkbox
-            size="sm"
-            isSelected={caseSensitive}
-            onValueChange={setCaseSensitive}
-            classNames={{ label: 'text-xs' }}
-          >
-            Match case
-          </Checkbox>
-          <Checkbox
-            size="sm"
-            isSelected={wholeWord}
-            onValueChange={setWholeWord}
-            classNames={{ label: 'text-xs' }}
-          >
-            Whole word
-          </Checkbox>
+    <div className="project-search">
+      <div className="project-search-form">
+        <div className="project-search-input">
+          <MaterialIcon type="search" className="project-search-input-icon" />
+          <OLFormControl
+            autoFocus
+            type="text"
+            value={query}
+            onChange={event => setQuery(event.target.value)}
+            placeholder={t('search')}
+          />
+          {query && (
+            <button
+              type="button"
+              className="project-search-clear"
+              aria-label={t('clear_search')}
+              onClick={() => setQuery('')}
+            >
+              <MaterialIcon type="close" />
+            </button>
+          )}
+        </div>
+        <div className="project-search-options">
+          <label className="project-search-option">
+            <input
+              type="checkbox"
+              checked={caseSensitive}
+              onChange={event => setCaseSensitive(event.target.checked)}
+            />
+            {t('search_match_case')}
+          </label>
+          <label className="project-search-option">
+            <input
+              type="checkbox"
+              checked={wholeWord}
+              onChange={event => setWholeWord(event.target.checked)}
+            />
+            {t('search_whole_word')}
+          </label>
         </div>
       </div>
 
-      <ScrollShadow className="min-h-0 flex-1">
+      <div className="project-search-results">
         {searching ? (
-          <div className="flex justify-center py-6">
+          <div className="project-search-loading">
             <Spinner size="sm" />
           </div>
         ) : error ? (
-          <p className="p-3 text-xs text-danger">{error}</p>
+          <p className="project-search-message project-search-message-error">{error}</p>
         ) : hits === null ? (
-          <p className="p-3 text-xs text-default-400">
-            Type to search every file in this project.
-          </p>
+          <p className="project-search-message">{t('search')}</p>
         ) : total === 0 ? (
-          <p className="p-3 text-xs text-default-400">Nothing found.</p>
+          <p className="project-search-message">{t('no_search_results')}</p>
         ) : (
-          <div className="p-1">
-            <p className="px-2 py-1 text-[11px] text-default-500">
-              {total} result{total === 1 ? '' : 's'} in {hits.length} file
-              {hits.length === 1 ? '' : 's'}
+          <>
+            <p className="project-search-count">
+              {t('project_search_result_count', { count: total })}
             </p>
             {hits.map(file => (
-              <section key={file.path} className="mb-1">
-                <p className="truncate px-2 py-1 text-xs font-medium" title={file.path}>
+              <section key={file.path} className="project-search-file">
+                <p className="project-search-file-name" title={file.path}>
                   {file.path}
                 </p>
-                <ul>
+                <ul className="list-unstyled">
                   {file.matches.map((match, index) => (
                     <li key={`${match.line}-${index}`}>
                       <button
                         type="button"
-                        className="block w-full truncate rounded px-2 py-0.5 text-left font-mono text-[11px] text-default-600 hover:bg-default-100"
+                        className="project-search-match"
                         onClick={() => {
                           const entry = entryById(file.id)
                           if (entry) {
                             editor.open(entry)
                             window.dispatchEvent(
-                              new CustomEvent('ide:goto-line', {
-                                detail: { line: match.line },
-                              })
+                              new CustomEvent('ide:goto-line', { detail: { line: match.line } })
                             )
                           }
                         }}
                       >
-                        <span className="mr-2 text-default-400">
-                          {match.line + 1}
-                        </span>
-                        {match.text.trim()}
+                        <span className="project-search-match-line">{match.line + 1}</span>
+                        <span className="project-search-match-text">{match.text.trim()}</span>
                       </button>
                     </li>
                   ))}
                 </ul>
               </section>
             ))}
-          </div>
+          </>
         )}
-      </ScrollShadow>
+      </div>
 
       {hits !== null ? (
-        <div className="border-t border-divider p-2">
+        <div className="project-search-footer">
           <Button
             size="sm"
-            variant="light"
-            className="h-7 w-full text-xs"
-            onPress={() => {
+            variant="secondary"
+            className={cx('project-search-clear-button')}
+            onClick={() => {
               setQuery('')
               setHits(null)
             }}
           >
-            Clear
+            {t('clear_search')}
           </Button>
         </div>
       ) : null}
@@ -195,11 +198,11 @@ export function ProjectSearch() {
 export function ProjectSearchPanel() {
   const { t } = useTranslation()
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="project-search-panel">
       <RailPanelHeader title={t('project_search')} />
-      <div className="min-h-0 flex-1">
-        <ProjectSearch />
-      </div>
+      <ProjectSearch />
     </div>
   )
 }
+
+export default ProjectSearch

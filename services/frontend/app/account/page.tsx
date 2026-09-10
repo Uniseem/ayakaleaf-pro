@@ -1,4 +1,4 @@
-import { Card, CardBody, CardHeader } from '@heroui/react'
+import { Card, CardBody, CardHeader } from '@/components/ol/card'
 import { redirect } from 'next/navigation'
 import { SiteFooter, SiteHeader } from '@/components/site-header'
 import { linkedProviders } from '@/lib/account'
@@ -51,23 +51,21 @@ export default async function AccountPage({
         {query.error ? (
           <div
             role="alert"
-            className="rounded-medium border border-danger-200 bg-danger-50 px-4 py-3 text-small text-danger-700 dark:bg-danger-50/10"
+            className="alert alert-danger"
           >
             {query.error}
           </div>
         ) : null}
 
-        <Card shadow="sm">
-          <CardHeader className="px-6 pt-6">
-            <h2 className="text-lg font-medium">Who you are</h2>
-          </CardHeader>
-          <CardBody className="gap-2 px-6 pb-6">
+        <Card>
+          <CardHeader title="Who you are" />
+          <CardBody className="flex flex-col gap-2">
             <div className="flex justify-between gap-4">
-              <span className="text-default-500">Name</span>
+              <span className="text-[var(--content-secondary)]">Name</span>
               <span>{displayName(user)}</span>
             </div>
             <div className="flex justify-between gap-4">
-              <span className="text-default-500">Email</span>
+              <span className="text-[var(--content-secondary)]">Email</span>
               <span>{user.email}</span>
             </div>
           </CardBody>

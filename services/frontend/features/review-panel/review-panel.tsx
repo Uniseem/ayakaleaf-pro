@@ -10,7 +10,7 @@
  * positioned against a moving target from outside.
  */
 
-import { memo, type ReactNode } from 'react'
+import { memo } from 'react'
 import { createPortal } from 'react-dom'
 import cx from '@/lib/cx'
 import { useTranslation } from '@/lib/i18n'
@@ -23,6 +23,7 @@ import ReviewPanelCurrentFile from './components/review-panel-current-file'
 import ReviewPanelOverview from './components/review-panel-overview'
 import ReviewModeSwitcher from './components/review-mode-switcher'
 import { ReviewPanelResolvedThreadsButton } from './components/review-panel-resolved-threads'
+import { RailPanelHeader } from '@/features/ide/components/rail/rail-parts'
 
 function ReviewPanelBody({ mini = false }: { mini?: boolean }) {
   const chosenSubView = useReviewPanelViewContext()
@@ -64,15 +65,6 @@ export const ReviewPanel = memo(function ReviewPanel() {
     </ThreadsProvider>
   )
 })
-
-function RailPanelHeader({ title, actions }: { title: string; actions?: ReactNode }) {
-  return (
-    <div className="rail-panel-header">
-      <h4 className="rail-panel-title">{title}</h4>
-      {actions ? <div className="rail-panel-header-actions">{actions}</div> : null}
-    </div>
-  )
-}
 
 /**
  * The version that lives inside the editor: the mode switcher, and the cards

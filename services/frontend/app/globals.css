@@ -1,11 +1,5 @@
 @import 'tailwindcss';
 
-/* Where the utilities come from. Tailwind v4 finds the sources itself, but
-   HeroUI's classes live in a dependency, which it does not scan by default. */
-@source '../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
-
-@plugin '../hero.ts';
-
 /*
  * The original's stylesheets, ported.
  *
@@ -29,6 +23,7 @@
 @import './styles/editor/source-editor.css';
 @import './styles/editor/pdf.css';
 @import './styles/editor/review-panel.css';
+@import './styles/editor/panels.css';
 
 /*
  * The design system, for Tailwind.

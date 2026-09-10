@@ -30,6 +30,7 @@ import { EditorPropertiesProvider } from '@/features/ide/contexts/editor-propert
 import { MainLayout } from '@/features/ide/components/layout/main-layout'
 import { SettingsModal } from '@/features/settings/settings-modal'
 import { GlobalToasts } from '@/features/ide/components/global-toasts'
+import { ChatProvider } from '@/features/chat/contexts/chat-context'
 
 export type IdePageProps = {
   user: PublicUser
@@ -64,6 +65,7 @@ export function IdePage({ user, view, site }: IdePageProps) {
                       <EditorPropertiesProvider>
                         <MetadataProvider>
                           <OutlineProvider>
+                            <ChatProvider>
                             <RailProvider>
                               <TabsProvider>
                                 <div id="ide-root" className="ide-shell">
@@ -73,6 +75,7 @@ export function IdePage({ user, view, site }: IdePageProps) {
                                 </div>
                               </TabsProvider>
                             </RailProvider>
+                            </ChatProvider>
                           </OutlineProvider>
                         </MetadataProvider>
                       </EditorPropertiesProvider>

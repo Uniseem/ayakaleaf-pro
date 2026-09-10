@@ -376,7 +376,7 @@ const CodeMirrorSearchForm = () => {
           <div className="ol-cm-search-form-position">
             {position !== null && (
               <>
-                {position.current === null ? '?' : position.current} {t('of')} {position.total}
+                {position.current === null ? '?' : position.current} {'/'} {position.total}
                 {position.interrupted && '+'}
               </>
             )}

@@ -1,4 +1,4 @@
-import { Button, Divider } from '@heroui/react'
+import { Button } from '@/components/ol/button'
 import type { Provider } from '@/lib/auth'
 
 /**
@@ -14,18 +14,12 @@ export function ProviderButtons({ providers }: { providers: Provider[] }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3">
-        <Divider className="flex-1" />
-        <span className="text-tiny uppercase tracking-wide text-default-400">or</span>
-        <Divider className="flex-1" />
+        <hr className="flex-1 border-t border-[var(--border-divider)]" />
+        <span className="text-xs uppercase tracking-wide text-[var(--content-secondary)]">or</span>
+        <hr className="flex-1 border-t border-[var(--border-divider)]" />
       </div>
       {providers.map(provider => (
-        <Button
-          key={provider.id}
-          as="a"
-          href={provider.path}
-          variant="bordered"
-          fullWidth
-        >
+        <Button key={provider.id} href={provider.path} variant="secondary" className="w-full">
           Continue with {provider.name}
         </Button>
       ))}

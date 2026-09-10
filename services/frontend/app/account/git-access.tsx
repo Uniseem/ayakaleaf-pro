@@ -1,12 +1,8 @@
 'use client'
 
-import {
-  Button,
-  Card,
-  CardBody,
-  CardHeader,
-  Snippet,
-} from '@heroui/react'
+import { Card, CardBody, CardHeader } from '@/components/ol/card'
+import { Button } from '@/components/ol/button'
+import { CopyToClipboard } from '@/components/ol/misc'
 import { useState } from 'react'
 import { messageFor } from '@/lib/api'
 import { createToken, revokeToken, type AccessToken } from '@/lib/tokens'
@@ -50,53 +46,52 @@ export function GitAccess({ tokens: initial }: { tokens: AccessToken[] }) {
   }
 
   return (
-    <Card shadow="sm">
-      <CardHeader className="flex-col items-start gap-1 px-6 pt-6">
-        <h2 className="text-lg font-medium">Git access</h2>
-        <p className="text-small text-default-500">
-          Clone a project with the username <code>git</code> and one of these as
-          the password.
+    <Card>
+      <CardHeader title="Git access">
+        <p className="card-subtitle">
+          Clone a project with the username <code>git</code> and one of these as the password.
         </p>
       </CardHeader>
-      <CardBody className="gap-4 px-6 pb-6">
+      <CardBody className="flex flex-col gap-4">
         {error ? (
           <div
             role="alert"
-            className="rounded-medium border border-danger-200 bg-danger-50 px-4 py-3 text-small text-danger-700 dark:bg-danger-50/10"
+            className="alert alert-danger"
           >
             {error}
           </div>
         ) : null}
 
         {secret ? (
-          <div className="flex flex-col gap-2 rounded-medium border border-success-200 bg-success-50 p-4 dark:bg-success-50/10">
-            <p className="text-small font-medium">
-              Copy this now. It is not shown again.
-            </p>
-            <Snippet size="sm" symbol="" variant="bordered" className="w-full">
-              {secret}
-            </Snippet>
+          <div className="alert alert-success flex flex-col gap-2">
+            <p className="font-medium">Copy this now. It is not shown again.</p>
+            <div className="access-token">
+              <code>{secret}</code>
+              <CopyToClipboard content={secret} tooltipId="copy-git-token" kind="button" />
+            </div>
           </div>
         ) : null}
 
         {tokens.length === 0 ? (
-          <p className="text-small text-default-400">No tokens yet.</p>
+          <p className="text-[var(--content-secondary)]">No tokens yet.</p>
         ) : (
-          <ul className="flex flex-col divide-y divide-divider">
+          <ul className="flex list-none flex-col p-0">
             {tokens.map(token => (
-              <li key={token.id} className="flex items-center gap-4 py-3">
-                <code className="text-small">{token.partial}…</code>
-                <span className="text-tiny text-default-400">
+              <li
+                key={token.id}
+                className="flex items-center gap-4 border-b border-[var(--border-divider)] py-3 last:border-0"
+              >
+                <code>{token.partial}…</code>
+                <span className="text-xs text-[var(--content-secondary)]">
                   {token.lastUsedAt
                     ? `last used ${when(token.lastUsedAt)}`
                     : `made ${when(token.createdAt)}, never used`}
                 </span>
                 <Button
                   size="sm"
-                  variant="light"
-                  color="danger"
+                  variant="danger-ghost"
                   className="ml-auto"
-                  onPress={() => void revoke(token.id)}
+                  onClick={() => void revoke(token.id)}
                 >
                   Revoke
                 </Button>
@@ -106,7 +101,7 @@ export function GitAccess({ tokens: initial }: { tokens: AccessToken[] }) {
         )}
 
         <div>
-          <Button size="sm" color="primary" isLoading={busy} onPress={() => void make()}>
+          <Button size="sm" variant="primary" isLoading={busy} onClick={() => void make()}>
             New token
           </Button>
         </div>
