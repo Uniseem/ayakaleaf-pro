@@ -13,6 +13,11 @@ export type FormControlProps = Omit<React.ComponentProps<'input'>, 'size' | 'pre
   prepend?: ReactNode
   append?: ReactNode
   size?: 'sm' | 'lg'
+  /**
+   * The input's own `size` attribute, in characters. Named apart from `size`
+   * because that one is the control's variant here, as in the original.
+   */
+  htmlSize?: number
   isInvalid?: boolean
   isValid?: boolean
   loading?: boolean
@@ -21,7 +26,7 @@ export type FormControlProps = Omit<React.ComponentProps<'input'>, 'size' | 'pre
 }
 
 export const FormControl = forwardRef<HTMLInputElement, FormControlProps>(function FormControl(
-  { prepend, append, className, size, isInvalid, isValid, loading, as = 'input', rows, ...props },
+  { prepend, append, className, size, htmlSize, isInvalid, isValid, loading, as = 'input', rows, ...props },
   ref
 ) {
   const controlClassName = [
@@ -45,7 +50,7 @@ export const FormControl = forwardRef<HTMLInputElement, FormControlProps>(functi
         {...(props as unknown as React.ComponentProps<'textarea'>)}
       />
     ) : (
-      <input ref={ref} className={controlClassName} {...props} />
+      <input ref={ref} className={controlClassName} size={htmlSize} {...props} />
     )
 
   const end = loading ? <Spinner size="sm" /> : append

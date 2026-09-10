@@ -49,6 +49,7 @@
 .gap-2 { gap: var(--spacing-04) !important; }
 .gap-3 { gap: var(--spacing-06) !important; }
 .g-2 { --bs-gutter-x: var(--spacing-04); --bs-gutter-y: var(--spacing-04); }
+.g-3 { --bs-gutter-x: var(--spacing-06); --bs-gutter-y: var(--spacing-06); }
 .m-0 { margin: 0 !important; }
 .mb-0 { margin-bottom: 0 !important; }
 .mb-2 { margin-bottom: var(--spacing-04) !important; }
@@ -136,6 +137,16 @@
 .col-8 { flex: 0 0 auto; width: 66.66666667%; }
 .col-9 { flex: 0 0 auto; width: 75%; }
 .col-12 { flex: 0 0 auto; width: 100%; }
+
+/* Bootstrap's lg breakpoint: below it a col-lg-* is full width, as above. */
+@media (min-width: 992px) {
+  .col-lg { flex: 1 0 0%; }
+  .col-lg-auto { flex: 0 0 auto; width: auto; }
+  .col-lg-4 { flex: 0 0 auto; width: 33.33333333%; }
+  .col-lg-6 { flex: 0 0 auto; width: 50%; }
+  .col-lg-8 { flex: 0 0 auto; width: 66.66666667%; }
+  .col-lg-12 { flex: 0 0 auto; width: 100%; }
+}
 
 /* Buttons --------------------------------------------------------------- */
 
