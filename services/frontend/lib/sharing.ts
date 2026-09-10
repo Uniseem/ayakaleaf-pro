@@ -97,3 +97,19 @@ export function getTokens(projectId: string, signal?: AbortSignal): Promise<Toke
 export function acceptInvite(token: string): Promise<{ projectId: string }> {
   return api<{ projectId: string }>(`/api/invites/${token}/accept`, { method: 'POST' })
 }
+
+/**
+ * Following a sharing link.
+ *
+ * A POST rather than something a page does while rendering: this changes who
+ * can see a project, and a GET that does that is a GET a link preview or a
+ * mail scanner can fire on somebody's behalf.
+ */
+export function redeemLink(
+  token: string
+): Promise<{ projectId: string; privilege: string }> {
+  return api<{ projectId: string; privilege: string }>(
+    `/api/sharing/links/${encodeURIComponent(token)}`,
+    { method: 'POST' }
+  )
+}
