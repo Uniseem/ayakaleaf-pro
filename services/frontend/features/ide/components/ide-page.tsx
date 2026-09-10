@@ -29,6 +29,7 @@ import { MetadataProvider } from '@/features/ide/contexts/metadata-context'
 import { EditorPropertiesProvider } from '@/features/ide/contexts/editor-properties-context'
 import { MainLayout } from '@/features/ide/components/layout/main-layout'
 import { SettingsModal } from '@/features/settings/settings-modal'
+import CommandPalette from '@/features/command-palette/components/command-palette'
 import { GlobalToasts } from '@/features/ide/components/global-toasts'
 import { ChatProvider } from '@/features/chat/contexts/chat-context'
 import { ThreadsProvider } from '@/features/review-panel/contexts/threads-context'
@@ -74,6 +75,7 @@ export function IdePage({ user, view, site }: IdePageProps) {
                               <TabsProvider>
                                 <div id="ide-root" className="ide-shell">
                                   <SettingsModal />
+                                  <CommandPalette />
                                   <MainLayout />
                                   <GlobalToasts />
                                 </div>

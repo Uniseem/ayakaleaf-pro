@@ -27,6 +27,7 @@
 @import './styles/editor/figure-modal.css';
 @import './styles/editor/symbol-palette.css';
 @import './styles/editor/math-preview.css';
+@import './styles/editor/command-palette.css';
 @import './styles/editor/panels.css';
 
 /*
