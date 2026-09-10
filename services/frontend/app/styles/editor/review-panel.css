@@ -614,3 +614,77 @@ del.review-panel-content-highlight {
 .review-panel-mini .review-panel-entry-indicator {
   display: flex;
 }
+
+/* The card a new comment is written in, and the bubble that starts it. */
+
+.review-panel-add-comment-textarea {
+  padding: var(--spacing-01) var(--spacing-03);
+  resize: vertical;
+  min-height: 44px;
+  width: 100%;
+  background: var(--bg-primary-themed);
+  color: var(--content-primary-themed);
+  border: 1px solid var(--border-primary-themed);
+  border-radius: var(--border-radius-base);
+}
+
+.review-panel-add-comment-textarea::placeholder {
+  color: var(--content-placeholder-themed);
+}
+
+.review-panel-add-comment-error {
+  color: var(--content-danger);
+  font-size: var(--font-size-01);
+}
+
+.review-panel-add-comment-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-04);
+}
+
+.review-panel-add-comment-cancel-button {
+  background-color: transparent;
+  color: var(--review-panel-color);
+}
+
+.review-panel-add-comment-cancel-button:hover,
+.review-panel-add-comment-cancel-button:focus {
+  background-color: var(--review-panel-button-hover-bg-color);
+  color: var(--review-panel-color);
+}
+
+.review-tooltip-menu {
+  display: flex;
+  box-shadow: 0 2px 4px 0 #1e253029;
+  border: none;
+  border-radius: var(--border-radius-base);
+  padding: var(--spacing-02);
+  gap: var(--spacing-02);
+  transition: opacity 0.05s ease-in;
+  opacity: 0;
+}
+
+.review-tooltip-menu-visible {
+  opacity: 1;
+}
+
+.review-tooltip-menu-button {
+  background-color: inherit;
+  color: inherit;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-01);
+  padding: var(--spacing-01);
+  border-radius: var(--border-radius-base);
+}
+
+.review-tooltip-add-comment-button {
+  padding: var(--spacing-01) var(--spacing-04);
+}
+
+.review-tooltip-menu-divider {
+  width: 1px;
+  background-color: #e7e9ee;
+}

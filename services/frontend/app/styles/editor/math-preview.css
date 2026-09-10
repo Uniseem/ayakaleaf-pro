@@ -1,0 +1,42 @@
+/* From pages/editor/math-preview.scss. */
+
+.ol-cm-math-tooltip-container {
+  position: relative;
+  overflow: visible;
+  border: 0 !important;
+  background-color: transparent !important;
+}
+
+.ol-cm-math-tooltip {
+  display: flex;
+  gap: var(--spacing-04);
+  overflow: auto;
+  padding: var(--spacing-04);
+  border-radius: var(--border-radius-base);
+  max-height: 200px;
+  max-width: 800px;
+  margin-top: 10px;
+}
+
+/* The menu is positioned against the tooltip, not against the toggle: the
+   tooltip is small and the menu is not, and a dropdown positioned inside it
+   would be clipped by its own scroll box. */
+.ol-cm-math-tooltip .dropdown {
+  position: static;
+}
+
+.math-tooltip-options-toggle {
+  border: none;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.math-tooltip-options-toggle::after {
+  content: none;
+}
+
+.math-tooltip-options-keyboard-shortcut {
+  color: var(--content-secondary);
+  font-size: var(--font-size-02);
+}

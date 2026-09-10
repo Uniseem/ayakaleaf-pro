@@ -20,6 +20,8 @@ import { ReviewPanelChange } from './review-panel-change'
 import { ReviewPanelComment } from './review-panel-comment'
 import { ReviewPanelEmptyState } from './review-panel-empty-state'
 import { useThreadsContext } from '../contexts/threads-context'
+import { ReviewPanelAddComment } from './review-panel-add-comment'
+import { reviewTooltipStateField } from '@/features/source-editor/extensions/review-tooltip'
 
 /**
  * A deletion immediately followed by an insertion is one edit.
@@ -92,6 +94,23 @@ export function ReviewPanelCurrentFile() {
     [ranges.comments, threads]
   )
 
+  // The ranges somebody has started a comment on but not yet written one for.
+  // They live in the editor rather than here, because they move with the text.
+  const addCommentRanges = state.field(reviewTooltipStateField, false)?.addCommentRanges
+
+  const addCommentEntries = useMemo(() => {
+    const entries: { id: string; from: number; to: number }[] = []
+    if (!addCommentRanges) {
+      return entries
+    }
+    const cursor = addCommentRanges.iter()
+    while (cursor.value !== null) {
+      entries.push({ id: cursor.value.spec.id, from: cursor.from, to: cursor.to })
+      cursor.next()
+    }
+    return entries
+  }, [addCommentRanges])
+
   const containerRef = useRef<HTMLDivElement>(null)
   const previousFocusedItemIndexRef = useRef<number>(0)
 
@@ -135,7 +154,10 @@ export function ReviewPanelCurrentFile() {
     return () => view.scrollDOM.removeEventListener('scroll', onScroll)
   }, [view, docId])
 
-  const nothingToShow = aggregated.changes.length === 0 && comments.length === 0
+  const nothingToShow =
+    aggregated.changes.length === 0 &&
+    comments.length === 0 &&
+    addCommentEntries.length === 0
 
   return (
     <div className="review-panel-current-file" id="review-panel-current-file" ref={containerRef}>
@@ -143,6 +165,16 @@ export function ReviewPanelCurrentFile() {
         <ReviewPanelEmptyState />
       ) : (
         <>
+          {addCommentEntries.map(entry => (
+            <ReviewPanelAddComment
+              key={entry.id}
+              docId={docId}
+              from={entry.from}
+              to={entry.to}
+              threadId={entry.id}
+              top={topFor(entry.from)}
+            />
+          ))}
           {aggregated.changes.map(change => (
             <ReviewPanelChange
               key={change.id}

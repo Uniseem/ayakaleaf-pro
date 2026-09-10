@@ -72,6 +72,15 @@ export type EditorValue = {
   setTracking: (on: boolean) => void
 
   /**
+   * Anchors a comment thread to a range of the open document.
+   *
+   * On this context rather than on the review one because it goes through the
+   * document session, which is what holds the version the position is
+   * expressed against.
+   */
+  comment: (position: number, text: string, threadId: string) => Promise<void>
+
+  /**
    * Re-reads the open document from the server.
    *
    * For after something changed it that did not go through this session --
@@ -223,6 +232,17 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   // Held so that a document opened later starts in the mode already chosen,
   // rather than reverting to editing until somebody touches the control.
   const tracking = useRef(false)
+  const comment = useCallback(
+    async (position: number, text: string, threadId: string) => {
+      const live = session.current
+      if (!live) {
+        throw new Error('No document is open.')
+      }
+      await live.comment(position, text, threadId)
+    },
+    []
+  )
+
   const setTracking = useCallback((on: boolean) => {
     tracking.current = on
     session.current?.setTracking(on)
@@ -353,6 +373,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       openTabs: openTabs.filter(id => Boolean(entryById(id))),
       closeTab,
       setTracking,
+      comment,
       reload,
       unsaved,
       // Read-only access cannot edit, and neither can anybody whose
@@ -375,6 +396,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     openTabs,
     closeTab,
     setTracking,
+    comment,
     reload,
     unsaved,
     canWrite,

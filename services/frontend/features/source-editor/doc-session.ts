@@ -272,6 +272,47 @@ export class DocSession {
     }
   }
 
+  /**
+   * Anchors a comment thread to a range of the document.
+   *
+   * A comment is an operation like any other as far as the server is
+   * concerned -- it carries a position and the text it covers, and the server
+   * keeps it beside the tracked changes so that later edits move it. It
+   * changes no characters, so it is not folded into the pending edits: it is
+   * sent on its own, after those have landed, because its position is
+   * expressed against the text the server has.
+   */
+  async comment(position: number, text: string, threadId: string): Promise<void> {
+    await this.settled()
+    await this.socket.request('applyOtUpdate', [
+      this.docId,
+      {
+        doc: this.docId,
+        op: [{ p: position, c: text, t: threadId }],
+        v: this.version,
+      },
+    ])
+    this.version += 1
+  }
+
+  /** Resolves once nothing local is waiting to reach the server. */
+  private settled(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const check = () => {
+        if (this.inflight === null && this.pending.length === 0) {
+          resolve()
+          return
+        }
+        if (!this.socket.connected) {
+          reject(new Error('Not connected.'))
+          return
+        }
+        window.setTimeout(check, 50)
+      }
+      check()
+    })
+  }
+
   /** Where a cursor should be after everything outstanding is applied. */
   positionAfter(position: number): number {
     let moved = position

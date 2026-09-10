@@ -21,6 +21,8 @@ import { CodemirrorOutline } from './codemirror-outline'
 import { ReviewPanelContainer } from '@/features/review-panel/review-panel'
 import { CodeMirrorCommandTooltip } from './codemirror-command-tooltip'
 import { FigureModal } from './figure-modal/figure-modal'
+import MathPreviewTooltip from './math-preview-tooltip'
+import ReviewTooltipMenu from '@/features/review-panel/components/review-tooltip-menu'
 import { useToolbarMenuBarEditorCommands } from '../hooks/use-toolbar-menu-editor-commands'
 import { useIsMounted } from '@/lib/hooks'
 
@@ -71,6 +73,8 @@ function CodeMirrorEditorComponents() {
       <ReviewPanelContainer />
       <CodeMirrorCommandTooltip />
       <FigureModal />
+      <MathPreviewTooltip />
+      <ReviewTooltipMenu />
     </>
   )
 }

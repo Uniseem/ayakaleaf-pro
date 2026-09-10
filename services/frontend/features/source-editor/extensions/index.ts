@@ -15,6 +15,8 @@ import { autoComplete } from './auto-complete'
 import { editable } from './editable'
 import { autoPair } from './auto-pair'
 import { phrases } from './phrases'
+import { mathPreview } from './math-preview'
+import { reviewTooltip } from './review-tooltip'
 import type { PreviewPath } from '@/features/file-tree/util/preview-path'
 import { symbolPalette } from './symbol-palette'
 import { search } from './search'
@@ -159,6 +161,8 @@ export const createExtensions = (options: ExtensionOptions): Extension[] => [
   phrases(options.phrases),
   shortcuts,
   symbolPalette(),
+  mathPreview(options.settings.mathPreview),
+  reviewTooltip(),
   // NOTE: `emptyLineFiller` needs to be before `trackedChanges`,
   // so the decorations are added in the correct order.
   emptyLineFiller(),

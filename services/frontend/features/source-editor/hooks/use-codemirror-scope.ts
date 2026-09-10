@@ -14,6 +14,7 @@ import { setAutoPair } from '../extensions/auto-pair'
 import { setAutoComplete } from '../extensions/auto-complete'
 import { usePhrases } from './use-phrases'
 import { setPhrases } from '../extensions/phrases'
+import { setMathPreview } from '../extensions/math-preview'
 import { setKeybindings } from '../extensions/keybindings'
 import { setVisual } from '../extensions/visual/visual'
 import { setDocName } from '../extensions/doc-name'
@@ -367,7 +368,10 @@ function useCodeMirrorScope(view: EditorView) {
 
   useEffect(() => {
     settingsRef.current.mathPreview = mathPreview
-  }, [mathPreview])
+    window.setTimeout(() => {
+      view.dispatch(setMathPreview(mathPreview))
+    })
+  }, [view, mathPreview])
 
   useEffect(() => {
     settingsRef.current.editorTabs = editorTabs
