@@ -29,6 +29,7 @@ import { getHueForUserId } from '@/lib/colors'
 import { useEditor } from '@/features/ide/contexts/editor-context'
 import { useSettings, type UserSettings } from '@/features/ide/contexts/settings-context'
 import { useProject } from '@/features/ide/contexts/project-context'
+import { previewByPath } from '@/features/file-tree/util/preview-path'
 import { useCompile } from '@/features/ide/contexts/compile-context'
 import { useConnection } from '@/features/ide/contexts/connection-context'
 import { useMetadataContext } from '@/features/ide/contexts/metadata-context'
@@ -76,7 +77,7 @@ const fontFamilyFor = (value: UserSettings['fontFamily']) => value
 function useCodeMirrorScope(view: EditorView) {
   const editor = useEditor()
   const { current, revision, change, editable, rememberPosition } = editor
-  const { files, canWrite, canReview } = useProject()
+  const { files, canWrite, canReview, projectId, entryByPath } = useProject()
   const { logEntryAnnotations, compiling, stale, markEdited } = useCompile()
   const { others, reportPosition } = useConnection()
   const metadata = useMetadataContext()
@@ -191,8 +192,16 @@ function useCodeMirrorScope(view: EditorView) {
 
   const showVisual = visual && !!openDocName && isVisualEditorAvailable(openDocName)
 
+  // Resolving a graphics path needs the file tree, which changes as files are
+  // added; the widgets hold on to this function, so it reads through a ref
+  // rather than being rebuilt and invalidating every figure.
+  const entryByPathRef = useRef(entryByPath)
+  entryByPathRef.current = entryByPath
+
   const visualRef = useRef({
     visual: showVisual,
+    previewByPath: (path: string) =>
+      previewByPath(entryByPathRef.current, projectId, path),
   })
 
   // Persist the search query when the document changes by keeping a

@@ -1,0 +1,20 @@
+/*
+ * From pages/editor/table-generator-column-width-modal.scss.
+ *
+ * The table itself is styled by extensions/visual/table-generator.ts, which
+ * is a CodeMirror base theme: those rules have to travel with the editor's
+ * shadow-free content DOM. Only the modal, which is an ordinary dialog, is
+ * styled here.
+ */
+
+.table-generator-width-modal .table-generator-width-label {
+  width: 100%;
+}
+
+.table-generator-width-modal .table-generator-usepackage-copy {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--spacing-03) var(--spacing-05);
+  background: var(--bg-light-secondary);
+  border: 1px solid var(--border-primary-dark);
+}

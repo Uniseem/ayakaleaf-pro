@@ -15,6 +15,7 @@ import { autoComplete } from './auto-complete'
 import { editable } from './editable'
 import { autoPair } from './auto-pair'
 import { phrases } from './phrases'
+import type { PreviewPath } from '@/features/file-tree/util/preview-path'
 import { symbolPalette } from './symbol-palette'
 import { search } from './search'
 import { filterCharacters } from './filter-characters'
@@ -70,6 +71,7 @@ export type ExtensionOptions = {
   phrases: Record<string, string>
   visual: {
     visual: boolean
+    previewByPath: (path: string) => PreviewPath | null
   }
   initialSearchQuery: SearchQuery | null
   handleException: (exception: unknown) => void

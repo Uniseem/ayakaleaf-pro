@@ -4,11 +4,20 @@ import { forceParsing, syntaxTree } from '@codemirror/language'
 import { hasLanguageLoadedEffect } from '../language'
 import { restoreScrollPosition } from '../scroll-position'
 import { mousedown, mouseDownEffect } from './selection'
-import { visualMode } from '../../visual'
+import { visualHighlightStyle, visualTheme } from './visual-theme'
+import { atomicDecorations } from './atomic-decorations'
+import { markDecorations } from './mark-decorations'
+import { visualKeymap } from './visual-keymap'
+import { listItemMarker } from './list-item-marker'
+import { pasteHtml } from './paste-html'
+import { commandTooltip } from '../command-tooltip'
+import { tableGeneratorTheme } from './table-generator'
 import { debugConsole } from '@/lib/debug'
+import type { PreviewPath } from '@/features/file-tree/util/preview-path'
 
 type Options = {
   visual: boolean
+  previewByPath: (path: string) => PreviewPath | null
 }
 
 const visualConf = new Compartment()
@@ -35,7 +44,7 @@ export const visual = (docName: string, options: Options): Extension => {
   return [
     visualState.init(() => options.visual),
     visualConf.of(configureVisualExtensions(options)),
-    visualOnly(options.visual, latexVisualExtensions()),
+    visualOnly(options.visual, latexVisualExtensions(options)),
   ]
 }
 
@@ -154,16 +163,20 @@ const scrollJumpAdjuster = EditorState.transactionExtender.of(tr => {
 })
 
 const sharedVisualExtensions = () => [
+  visualTheme,
+  visualHighlightStyle,
   mousedown,
   scrollJumpAdjuster,
   showContentWhenParsed,
   EditorView.contentAttributes.of({ 'aria-label': 'Visual Editor editing' }),
 ]
 
-/**
- * What the visual editor draws. The full set of decorations from the
- * original (atomic and mark decorations, the list marker, paste handling,
- * the table generator) is its own phase; what is here is the visual mode
- * the new stack already had.
- */
-const latexVisualExtensions = (): Extension => [visualMode()]
+const latexVisualExtensions = (options: Options): Extension => [
+  listItemMarker,
+  atomicDecorations(options),
+  markDecorations, // NOTE: must be after atomicDecorations, so that mark decorations wrap inline widgets
+  visualKeymap,
+  commandTooltip,
+  pasteHtml,
+  tableGeneratorTheme,
+]
