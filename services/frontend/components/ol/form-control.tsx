@@ -8,6 +8,7 @@
 
 import { forwardRef, type ReactNode } from 'react'
 import { Spinner } from './spinner'
+import cx from '@/lib/cx'
 
 export type FormControlProps = Omit<React.ComponentProps<'input'>, 'size' | 'prefix'> & {
   prepend?: ReactNode
@@ -145,3 +146,52 @@ export function OLFormFeedback({
 }
 
 export default FormControl
+
+export type OLFormCheckboxProps = Omit<React.ComponentProps<'input'>, 'type'> & {
+  type?: 'checkbox' | 'radio'
+  label?: ReactNode
+  description?: string
+  inputRef?: React.RefObject<HTMLInputElement | null>
+}
+
+/**
+ * A checkbox or radio with its label.
+ *
+ * The label is a node rather than a string because callers put a description
+ * underneath it, and it has to stay inside the label element so that clicking
+ * the description still toggles the control.
+ */
+export function OLFormCheckbox({
+  id,
+  type = 'checkbox',
+  label,
+  description,
+  className,
+  inputRef,
+  ...props
+}: OLFormCheckboxProps) {
+  const describedBy = description && id ? `${id}-description` : undefined
+
+  return (
+    <div className={cx('form-check', type === 'checkbox' && 'form-checkbox', className)}>
+      <input
+        ref={inputRef}
+        id={id}
+        type={type}
+        className="form-check-input"
+        aria-describedby={describedBy}
+        {...props}
+      />
+      {label !== undefined && (
+        <label className="form-check-label" htmlFor={id}>
+          {label}
+          {description && (
+            <OLFormText id={describedBy} className="form-check-label-description">
+              {description}
+            </OLFormText>
+          )}
+        </label>
+      )}
+    </div>
+  )
+}
