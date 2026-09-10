@@ -9,6 +9,7 @@
  * here produces the same pixels, which is the whole point.
  */
 @import './styles/material-symbols.css';
+@import './styles/mathjax.css';
 @import './styles/foundations.css';
 @import './styles/bootstrap.css';
 @import './styles/components.css';

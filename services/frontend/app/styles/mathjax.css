@@ -1,0 +1,12 @@
+/*
+ * MathJax's output, put back the way it expects to be laid out.
+ *
+ * Tailwind's preflight makes every svg a block element. MathJax emits one svg
+ * per line of an equation and relies on them flowing as inline content, so a
+ * block svg puts each piece of a formula on a line of its own -- and an inline
+ * formula on a line away from the words around it. Nothing else here needs
+ * the preflight rule undone, so it is undone only for MathJax.
+ */
+mjx-container svg {
+  display: inline;
+}
