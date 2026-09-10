@@ -24,6 +24,14 @@ mkdirSync(dirname(wasmTarget), { recursive: true })
 copyFileSync(wasm, wasmTarget)
 console.log('hunspell wasm copied to public/hunspell/hunspell.wasm')
 
+const wordlists = join(here, '..', 'features', 'source-editor', 'hunspell', 'wordlists')
+const wordlistTarget = join(publicDir, 'hunspell', 'wordlists')
+mkdirSync(wordlistTarget, { recursive: true })
+for (const list of ['en_US.txt']) {
+  copyFileSync(join(wordlists, list), join(wordlistTarget, list))
+}
+console.log('hunspell word lists copied to public/hunspell/wordlists')
+
 const dictionaries = join(here, '..', 'node_modules', '@overleaf', 'dictionaries', 'dictionaries')
 if (existsSync(dictionaries)) {
   const target = join(publicDir, 'dictionaries')
