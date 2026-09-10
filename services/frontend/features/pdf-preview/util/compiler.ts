@@ -168,8 +168,8 @@ export default class DocumentCompiler {
   // send a request to clear the cache
   clearCache() {
     return api<void>(`/api/projects/${this.projectId}/output`, { method: 'DELETE', signal: this.signal }).catch(error => {
-      // a server without the endpoint has nothing to clear; the next compile
-      // runs from scratch anyway
+      // An older deployment without the endpoint has nothing to clear, and
+      // the next compile starts from nothing anyway. Newer ones answer 204.
       if (error instanceof ApiError && (error.status === 404 || error.status === 405)) {
         return
       }

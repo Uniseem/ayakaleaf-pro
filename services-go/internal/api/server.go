@@ -253,6 +253,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/projects/{id}/root-doc", h(s.documents.SetRootDoc))
 	mux.HandleFunc("POST /api/projects/{id}/uploads", h(s.documents.Upload))
 	mux.HandleFunc("GET /api/projects/{id}/files/{fileId}", h(s.documents.ReadFile))
+	mux.HandleFunc("GET /api/projects/{id}/download/zip", h(s.documents.DownloadZip))
 	mux.HandleFunc("GET /api/projects/{id}/search", h(s.documents.Search))
 	mux.HandleFunc("GET /api/projects/{id}/messages", h(s.chat.List))
 	mux.HandleFunc("POST /api/projects/{id}/messages", h(s.chat.Send))
@@ -263,6 +264,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/projects/{id}/threads/{threadId}", h(s.chat.DeleteThread))
 	mux.HandleFunc("POST /api/projects/{id}/compile", h(s.compile.Compile))
 	mux.HandleFunc("POST /api/projects/{id}/compile/stop", h(s.compile.Stop))
+	// Throwing away this person's compile output, for when it has gone stale
+	// in a way another compile does not fix.
+	mux.HandleFunc("DELETE /api/projects/{id}/output", h(s.compile.ClearCache))
 	mux.HandleFunc("GET /api/projects/{id}/wordcount", h(s.compile.WordCount))
 	// Where a line of the source is in the PDF, and the other way round.
 	mux.HandleFunc("GET /api/projects/{id}/sync/code", h(s.compile.SyncFromCode))

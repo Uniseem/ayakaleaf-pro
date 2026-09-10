@@ -331,6 +331,27 @@ func (s *Service) SyncFromPDF(w http.ResponseWriter, r *http.Request) error {
 	return httpapi.JSON(w, http.StatusOK, map[string]any{"code": positions})
 }
 
+// ClearCache throws away this person's compile output for a project.
+//
+// The button behind it exists for the case where the compiler's cache has gone
+// stale in a way a normal recompile does not fix -- a half-written auxiliary
+// file, usually -- so the next compile starts from nothing.
+//
+// Only this person's copy goes. The compiler keeps one directory per person
+// who has compiled the project, and emptying everybody's would make one
+// collaborator's stale cache a full recompile for the whole project.
+func (s *Service) ClearCache(w http.ResponseWriter, r *http.Request) error {
+	user, project, err := s.readable(r)
+	if err != nil {
+		return err
+	}
+	if err := s.clsi.ClearForUser(r.Context(), project.ID, user.ID); err != nil {
+		return apierr.Internal.WithCause(err).
+			WithMessage("The cached files could not be cleared.")
+	}
+	return httpapi.NoContent(w)
+}
+
 // readable is the access check both sync directions share.
 func (s *Service) readable(r *http.Request) (*users.User, *projects.Project, error) {
 	user, err := httpapi.RequireUser(r.Context())

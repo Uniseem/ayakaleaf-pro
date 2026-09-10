@@ -358,10 +358,29 @@ func (c *Client) get(ctx context.Context, endpoint string, into any) error {
 // would be rebuilt by the next compile -- but a project that has been deleted
 // has no next compile, so they would simply stay, and they are the largest
 // thing on the disk after the history.
+// ClearForUser throws away one person's compile output for a project.
+//
+// Per person, not per project: the compiler keeps a directory for each of
+// them, and somebody clearing their own stale cache should not force everybody
+// else into a full recompile.
+func (c *Client) ClearForUser(ctx context.Context, projectID, userID bson.ObjectID) error {
+	endpoint := fmt.Sprintf("%s/project/%s/user/%s",
+		c.baseURL, projectID.Hex(), userID.Hex())
+	return c.delete(ctx, endpoint)
+}
+
 func (c *Client) Clear(ctx context.Context, projectID bson.ObjectID) error {
 	// No user in the address: a project has one directory per person who has
 	// compiled it, and all of them go.
 	endpoint := fmt.Sprintf("%s/project/%s", c.baseURL, projectID.Hex())
+	return c.delete(ctx, endpoint)
+}
+
+// delete asks the compiler to remove a directory.
+//
+// A 404 is success: the thing being thrown away is a cache, and one that is
+// already gone is in the state the caller asked for.
+func (c *Client) delete(ctx context.Context, endpoint string) error {
 	request, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
 	if err != nil {
 		return err
