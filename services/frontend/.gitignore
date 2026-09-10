@@ -7,6 +7,9 @@ tsconfig.tsbuildinfo
 /public/pdf.worker.min.mjs
 /public/pdfjs/
 
+# Copied from node_modules by scripts/copy-mathjax.mjs at build time.
+/public/mathjax/
+
 # Generated from latex.grammar by scripts/generate-latex-parser.mjs
 /features/source-editor/lezer-latex/latex.mjs
 /features/source-editor/lezer-latex/latex.terms.mjs

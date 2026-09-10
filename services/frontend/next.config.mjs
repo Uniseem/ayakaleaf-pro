@@ -1,3 +1,8 @@
+import { createRequire } from 'node:module'
+
+const require = createRequire(import.meta.url)
+const mathJaxVersion = require('mathjax/package.json').version
+
 /**
  * The client is a separate process from the API, but it must look like one
  * site to a browser: the session cookie is host-scoped, and the API refuses a
@@ -22,6 +27,12 @@ const nextConfig = {
   // at a different path in each.
   outputFileTracingRoot: import.meta.dirname,
   reactStrictMode: true,
+
+  env: {
+    // Where scripts/copy-mathjax.mjs put the copy of the installed release.
+    // Read at build time so the path and the files on disk cannot disagree.
+    NEXT_PUBLIC_MATHJAX_PATH: `/mathjax/${mathJaxVersion}/tex-svg.js`,
+  },
   poweredByHeader: false,
 
   async rewrites() {
