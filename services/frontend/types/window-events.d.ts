@@ -19,6 +19,7 @@ declare global {
     'editor:focus': Event
     'editor:full-project-search': CustomEvent<unknown>
     'editor:geometry-change': CustomEvent<unknown>
+    'editor:insert-symbol': CustomEvent<{ command: string }>
     'editor:lint': CustomEvent<unknown>
     'editor:metadata-outdated': CustomEvent<unknown>
     'editor:scroll-position-restored': Event

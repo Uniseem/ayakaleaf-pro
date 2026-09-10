@@ -16,11 +16,13 @@ import { useLayout } from '@/features/ide/contexts/layout-context'
 import { useRailContext } from '@/features/ide/contexts/rail-context'
 import { useEditor } from '@/features/ide/contexts/editor-context'
 import { useAreTabsEnabled } from '@/features/ide/contexts/tabs-context'
-import { HorizontalResizeHandle, HorizontalToggler } from '@/features/ide/components/resize/resize-handles'
+import { HorizontalResizeHandle, HorizontalToggler, VerticalResizeHandle } from '@/features/ide/components/resize/resize-handles'
 import { RailLayout } from '@/features/ide/components/rail/rail'
 import { Toolbar } from '@/features/ide/components/toolbar/toolbar'
 import { TabsContainer } from '@/features/source-editor/tabs/tabs'
 import SourceEditor from '@/features/source-editor/components/source-editor'
+import SymbolPalette from '@/features/symbol-palette/symbol-palette'
+import { useEditorPropertiesContext } from '@/features/ide/contexts/editor-properties-context'
 import { PdfPane } from '@/features/pdf-preview/pdf-pane'
 import { DefaultSynctexControl } from '@/features/pdf-preview/components/pdf-synctex-controls'
 import { FileView } from '@/features/file-view/file-view'
@@ -163,6 +165,7 @@ export function MainLayout() {
 function EditorPanel() {
   const editor = useEditor()
   const tabsEnabled = useAreTabsEnabled()
+  const { showSymbolPalette } = useEditorPropertiesContext()
   const { t } = useTranslation()
 
   const nothingOpen = !editor.current && !editor.currentFile
@@ -184,6 +187,22 @@ function EditorPanel() {
             <Panel id="ide-redesign-panel-source-editor" order={1} className="ide-redesign-editor-panel">
               <SourceEditor />
             </Panel>
+            {showSymbolPalette && (
+              <>
+                <VerticalResizeHandle id="ide-redesign-editor-symbol-palette" />
+                <Panel
+                  id="ide-redesign-panel-symbol-palette"
+                  order={2}
+                  defaultSize={25}
+                  minSize={10}
+                  maxSize={50}
+                >
+                  <div className="ide-react-symbol-palette">
+                    <SymbolPalette />
+                  </div>
+                </Panel>
+              </>
+            )}
           </PanelGroup>
         </div>
       ) : null}
