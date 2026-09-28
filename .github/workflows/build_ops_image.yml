@@ -1,0 +1,152 @@
+# ---------------------------------
+# This workflow is used to build overleaf image automatically
+#
+# Published at:
+#     ghcr.io/ayaka-notes/overleaf-pro/ops
+#
+# ---------------------------------
+
+name: Build Operations Image
+on:
+  push:
+    branches:
+      - server-pro
+  pull_request:
+    branches:
+      - server-pro
+  workflow_dispatch:
+    inputs:
+      no_cache:
+        description: "Build without cache"
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  packages: write
+env:
+  DOCKER_REGISTRY: ghcr.io
+  IMAGE_NAME: ayaka-notes/overleaf-pro
+
+jobs:
+  build-image:
+    runs-on: ubuntu-latest
+    steps:
+      # If the event is a pull request, checkout the head sha of the PR
+      - name: "Checkout Current Repository"
+        uses: actions/checkout@main
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: "Login to GitHub Container Registry"
+        uses: docker/login-action@v3.0.0
+        with:
+          registry: ${{env.DOCKER_REGISTRY}}
+          username: ${{github.actor}}
+          password: ${{secrets.GITHUB_TOKEN}}
+      
+      # --- We need to sync yarn.lock/i18 to ensure consistency ---
+      - name: "Sync yarn.lock And Prepare .dockerignore"
+        run: |
+          docker run --rm -v "$(pwd)":/workspace -w /workspace node:24.14.1 sh -c "corepack enable && yarn install --mode=update-lockfile"
+          # Apply the highest-versioned locale patch over the base locales before extracting
+          patch_dir=$(printf '%s\n' services/web/locales/locales_patches/v*/ | sort -V | tail -n1)
+          if [ -d "$patch_dir" ]; then
+            echo "Applying locale patch: $patch_dir"
+            cp "$patch_dir"*.json services/web/locales/
+          else
+            echo "No locale patch directory found; skipping"
+          fi
+          docker run --rm -v "$(pwd)/services/web/":/overleaf/services/web -w /overleaf/services/web ghcr.io/ayaka-notes/overleaf-pro/dev:webpack yarn run extract-translations
+          cd ./server-ce/
+          cp .dockerignore ../
+
+      # --- Set up Docker ---
+      # See: https://docs.docker.com/build/ci/github-actions/multi-platform/
+      - name: Set up Docker (enable containerd image store)
+        uses: docker/setup-docker-action@v4
+        with:
+          daemon-config: |
+            {
+              "features": {
+                "containerd-snapshotter": true
+              }
+            }
+      - name: Set up Buildx (docker driver)
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
+
+      # --- Build Base Image ---
+      - name: "Build base image (hash cache)"
+        uses: docker/build-push-action@v6
+        with:
+          context: ./
+          file: ./server-ce/Dockerfile-base
+          load: true
+          push: false
+          pull: true
+          tags: |
+            overleaf-pro-base:ci
+          no-cache: ${{ inputs.no_cache || false }}
+          cache-from: type=gha,scope=base-${{ hashFiles('server-ce/Dockerfile-base') }}
+          cache-to: type=gha,mode=max,scope=base-${{ hashFiles('server-ce/Dockerfile-base') }}
+          provenance: false
+          sbom: false
+      # --- End of Base Image ---
+      
+      # --- Build Server Image ---
+      - name: "Get MONOREPO_REVISION"
+        id: vars
+        run: echo "MONOREPO_REVISION=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+      - name: "Build Server image"
+        uses: docker/build-push-action@v6
+        with:
+          context: ./
+          file: ./server-ce/Dockerfile
+          load: true
+          push: false
+          pull: false
+          build-args: |
+            OVERLEAF_BASE_TAG=overleaf-pro-base:ci
+          tags: |
+            sharelatex/sharelatex:latest
+          annotations: |
+            space.ayaka.overleaf-pro.ops.revision=${{ steps.vars.outputs.MONOREPO_REVISION }}
+          # We don't want -${{ github.ref_name }} limit, just more cache hit
+          no-cache: ${{ inputs.no_cache || false }}
+          cache-from: type=gha,scope=ops
+          cache-to: type=gha,mode=max,scope=ops
+          provenance: false
+          sbom: false
+      # --- End of Server Image ---
+
+      # --- Push Server Image ---
+      # Pull requests build the image but do not publish it: the registry lives
+      # under another account, so a pull request has no credentials for it and
+      # the push step could only ever fail. Building is the part that tells us
+      # whether the change is sound.
+      - name: "ReTag Docker Image And Push"
+        if: github.event_name != 'pull_request'
+        run: |
+          cd ./server-ce
+          github_short_sha=$(echo ${{ github.sha }} | head -c7)
+          tag=$(TZ='Asia/Shanghai' date +'%Y%m%d%H%M')-$github_short_sha
+          echo "Building tag: $tag"
+          docker tag sharelatex/sharelatex:latest ${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:latest
+          docker tag sharelatex/sharelatex:latest ${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:$tag
+          docker push ${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:latest
+          docker push ${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:$tag
+
+      # --- Retention Policy: Delete old images ---
+      # Nothing was published on a pull request, so there is nothing to prune.
+      - name: Delete old images
+        if: github.event_name != 'pull_request'
+        uses: snok/container-retention-policy@v2
+        with:
+          image-names: overleaf-pro/ops*
+          cut-off: A week ago UTC+8
+          account-type: org
+          org-name: ayaka-notes
+          untagged-only: false
+          token: ${{ secrets.ORGTOKEN }}
